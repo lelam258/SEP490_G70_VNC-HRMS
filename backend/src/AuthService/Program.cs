@@ -1,8 +1,9 @@
+using Vnc.HRMS.AuthService.Data;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Vnc.HRMS.Common.Security;
-var builder=WebApplication.CreateBuilder(args);
+var builder=WebApplication.CreateBuilder(args); builder.Services.AddServiceDatabase(builder.Configuration);
 var jwt=builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? throw new InvalidOperationException("Missing Jwt configuration.");
 if (Encoding.UTF8.GetByteCount(jwt.SigningKey)<32) throw new InvalidOperationException("Set Jwt__SigningKey to a secret of at least 32 bytes.");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o=>o.TokenValidationParameters=new TokenValidationParameters { ValidateIssuer=true,ValidIssuer=jwt.Issuer,ValidateAudience=true,ValidAudience=jwt.Audience,ValidateIssuerSigningKey=true,IssuerSigningKey=new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),ValidateLifetime=true,ClockSkew=TimeSpan.FromSeconds(30) });
