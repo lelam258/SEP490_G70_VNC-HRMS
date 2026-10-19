@@ -1,0 +1,19 @@
+{
+  "name": "vnc-hrms-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n shell,login,admin,organization -c blue,green,yellow,magenta \"npm:dev:shell\" \"npm:dev:login\" \"npm:dev:admin\" \"npm:dev:organization\"",
+    "dev:shell": "npm --workspace @vnc-hrms/shell run dev",
+    "dev:login": "npm --workspace @vnc-hrms/login run dev",
+    "dev:admin": "npm --workspace @vnc-hrms/system-admin run dev",
+    "dev:organization": "npm --workspace @vnc-hrms/organization run dev",
+    "build": "npm run build --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
