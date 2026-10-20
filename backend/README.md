@@ -1,75 +1,73 @@
-# Backend (.NET 8)
+# Backend
 
-- `src/Common.Security`: shared JWT bearer validation setup.
-- `src/AuthService`: authentication service boundary.
-- `src/UserService`: UC-01 account management boundary.
-- `src/OrganizationService`: UC-07 organization structure boundary.
-- `src/EmployeeService`: UC-07 employee profile boundary.
-
-Set `Jwt__SigningKey` as an environment secret (minimum 32 bytes for HS256); no signing key is committed. Restore/build with `dotnet restore VNC.HRMS.sln` and `dotnet build VNC.HRMS.sln`. Run a service with `dotnet run --project src/AuthService`.
-
-EF Core 8 SQL Server persistence and initial migrations are implemented for the Iteration 1 entities. Login and account/department/employee CRUD endpoints are still placeholders; no users or passwords are seeded.
-
-## Database ownership
-
-Development uses one database, `VNC_HRMS_Iteration1`, with isolated schemas:
-
-| Service | DbContext | Schema | Tables |
-| --- | --- | --- | --- |
-| AuthService | AuthDbContext | auth | credentials, refresh_tokens |
-| UserService | UserDbContext | users | users |
-| OrganizationService | OrganizationDbContext | organization | departments, positions |
-| EmployeeService | EmployeeDbContext | employees | staff, contracts, degrees |
-
-Each service keeps its own `__EFMigrationsHistory` table in its schema. There are no foreign keys or EF navigation properties across service boundaries. User IDs are assigned by UserService and reused by Auth credentials and employee profiles; account provisioning must coordinate these through APIs/events when implemented. Services must not query another service's tables. Schema separation is logical isolation; production SQL permissions must enforce ownership.
-
-This is an adaptation of the supplied SQL design, not an exact copy: authentication fields are separated from users, nullable unique fields use filtered indexes, and timestamps are UTC. `SaveChanges` updates `updated_at` and preserves `created_at`; raw SQL and `ExecuteUpdate` callers must manage timestamps themselves. Payroll, attendance, compliance, notifications, audit logs and system policies are outside this initial persistence change.
-
-## Create tables with Code First
-
-Run from `backend/`. Do not run the original SQL CREATE TABLE script or scaffold the database.
+Một ASP.NET Core 8 Web API, chia module Auth, Users, Employees, Organization. Mã nguồn đi theo `Controllers → Services → Repositories → Persistence/AppDbContext`, DTO và Entity riêng. SMTP/Cloudinary nằm trong `Integrations`; JWT và xử lý lỗi nằm trong middleware/configuration.
 
 ```powershell
-dotnet restore VNC.HRMS.sln
-dotnet build VNC.HRMS.sln --no-restore
-dotnet tool install --global dotnet-ef --version 8.0.11
+cd backend
+dotnet run
 ```
 
-If dotnet-ef is already installed, use `dotnet tool update --global dotnet-ef --version 8.0.11` instead. Use EF 8 tools for this .NET 8 solution.
+Swagger **http://localhost:5100/swagger**. Mọi endpoint nằm chung `/api`; không còn phải chạy các cổng 5101–5104. `Program.cs` chỉ cấu hình ứng dụng, route nghiệp vụ nằm trong Controller.
 
-The checked-in connection string assumes local SQL Server with Windows Authentication. Replace the server below with the Server name from SSMS, for example `localhost\SQLEXPRESS`:
+| Controller | Route | Nội dung |
+| --- | --- | --- |
+| AuthController | `/api/auth` | Login, register, me, refresh, logout, đổi/quên/đặt lại mật khẩu |
+| UsersController | `/api/users` | Danh sách, chi tiết, tạo, sửa tài khoản |
+| EmployeesController | `/api/employees` | Danh sách, chi tiết, thêm nhân viên |
+| DepartmentsController | `/api/departments` | Danh sách, chi tiết, thêm khoa/phòng |
+| FilesController | `/api/files` | Upload JPG/PNG/PDF qua Cloudinary, admin, tối đa 10 MB |
+
+Users, Employees, Departments và Files yêu cầu admin. Đổi mật khẩu và me yêu cầu đăng nhập. Dán accessToken trả về từ login vào **Authorize** trong Swagger để gọi các endpoint được bảo vệ.
+
+## Thiết lập lần đầu
+
+Chạy tại thư mục gốc repository:
 
 ```powershell
-.\scripts\Update-Database.ps1 -ConnectionString 'Server=localhost;Database=VNC_HRMS_Iteration1;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;'
+dotnet tool restore
+powershell -ExecutionPolicy Bypass -File backend/scripts/Initialize-Local.ps1
 ```
 
-The script applies the four existing initial migrations sequentially. The SQL login needs permission to create schemas/tables (and to create the database if it does not exist). It stops on failure; earlier services may already have migrated, so fix the failure and rerun. Applied migrations are skipped. No automatic migration runs at API startup.
+Mặc định SQL Server `localhost`, Windows Authentication, database `VNC_HRMS_Iteration1`. Có thể truyền `-ConnectionString 'Server=...;Database=...;...'` qua script. User Secrets và `.local` chứa thông tin riêng của máy. Không đưa các thông tin này vào Git.
 
-For one service:
+Máy đã thiết lập trước khi chuyển kiến trúc vẫn dùng bộ User Secrets `vnc-hrms-auth-development`, bao gồm SMTP. Database đã có không cần khởi tạo lại; admin hiện có được giữ khi chạy lại setup.
+
+## Migration
+
+`AppDbContext` dùng chung lúc chạy API. Các context trong `Persistence/Migrations` chỉ phục vụ bốn chuỗi migration cũ theo schema, để giữ dữ liệu và lịch sử đã áp dụng.
+
+Chạy tại `backend` khi cần cập nhật DB:
 
 ```powershell
-$env:ConnectionStrings__DefaultConnection = 'Server=localhost;Database=VNC_HRMS_Iteration1;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;'
-dotnet ef database update --project src/OrganizationService
+powershell -ExecutionPolicy Bypass -File scripts/Update-Database.ps1
 ```
 
-For SQL Authentication, supply `User Id=...;Password=...;` instead of `Integrated Security=True;` through user secrets or environment configuration. Never commit credentials. `TrustServerCertificate=True` is for local development; production should validate the server certificate.
-
-To persist local configuration per service:
+Ví dụ thêm một trường của module Users:
 
 ```powershell
-dotnet user-secrets set 'ConnectionStrings:DefaultConnection' 'Server=localhost;Database=VNC_HRMS_Iteration1;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;' --project src/OrganizationService
+dotnet ef migrations add AddUserField --context UserDbContext --output-dir Persistence/Migrations/Users
 ```
 
-Repeat for each service as needed. Runtime loads user secrets in Development. Design-time factories read appsettings, user secrets, environment variables and command-line overrides without requiring a JWT secret or database connection to generate migrations. EF may log a startup JWT warning before falling back to the factory; migration commands can still succeed. Applying migrations does require a reachable SQL Server.
+Không scaffold database vì đây là Code First. Không tạo InitialCreate thứ hai trên AppDbContext cho DB hiện có. Xem [hướng dẫn kiến trúc](../docs/ARCHITECTURE.md) để chọn đúng context.
 
-## Future model changes
+## Gửi OTP
 
-Change the owning service's model/configuration, then create and review its migration:
+Chạy từ gốc repository:
 
 ```powershell
-dotnet ef migrations add DescribeChange --project src/OrganizationService --output-dir Data/Migrations
-dotnet ef migrations script --idempotent --project src/OrganizationService --output organization.sql
-dotnet ef migrations has-pending-model-changes --project src/OrganizationService
+powershell -NoProfile -STA -ExecutionPolicy Bypass -File backend/scripts/Configure-Email.ps1
 ```
 
-Review generated SQL before applying it to shared environments. Commit entities, context/configuration, migration files and the model snapshot together.
+Gmail sender cần mật khẩu ứng dụng Google. Công cụ nhập mật khẩu ẩn và lưu vào User Secrets, mặc định không cập nhật email admin. [Hướng dẫn Google](https://support.google.com/accounts/answer/185833?hl=vi).
+
+Cấu hình `Smtp` trong User Secrets gồm Host, Port, Username, Password, FromEmail, FromName, UseStartTls. Gmail dùng `smtp.gmail.com:587`, STARTTLS. `Otp` mặc định Length=6, ExpiresInMinutes=5, MaxAttempts=5. Địa chỉ nhận lấy từ tài khoản đang hoạt động, không phải địa chỉ sender cố định.
+
+Triển khai dùng biến môi trường, ví dụ `ConnectionStrings__DefaultConnection`, `Jwt__SigningKey`, `Smtp__Username`, `Smtp__Password`. Production dùng HTTPS và CORS đúng domain frontend. Cloudinary cần cấu hình riêng các khóa trong `CloudinaryOptions`; không chứa giá trị bí mật trong appsettings đã commit.
+
+## Kiểm tra build
+
+```powershell
+dotnet build Backend.csproj
+```
+
+Nếu đang chạy Debug, dừng bằng Ctrl+C trước khi build để tránh khóa DLL. Muốn kiểm tra biên dịch riêng có thể dùng `dotnet build Backend.csproj --configuration Verify`.
