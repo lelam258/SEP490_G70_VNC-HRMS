@@ -1,5 +1,38 @@
-# Frontend (React microfrontends)
+# Frontend
 
-`apps/shell` is the host; `apps/login`, `apps/system-admin`, and `apps/organization` are independently runnable Vite remotes composed with Module Federation. Each app has its own package, dev server, and build.
+Một React SPA dùng Vite, TypeScript, React Router DOM, Zustand, Axios và Tailwind CSS. Không còn Module Federation hoặc nhiều frontend trên các cổng khác nhau.
 
-Requires Node.js 20+ and npm. From this folder run `npm install` then `npm run dev`. Shell: http://localhost:5173; remotes: ports 5174–5176. Frontend placeholders are in place; authentication/token flow and feature APIs are the next implementation step. Protected API requests will use `Authorization: Bearer <access-token>`. Copy `.env.example` to `.env.local` for local service URLs. Never commit real secrets.
+```powershell
+cd frontend
+npm ci
+npm run dev
+```
+
+Mở **http://localhost:5173**. Backend chạy riêng bằng `dotnet run` tại `backend`, cổng 5100. Vite proxy `/api` đến backend nên không cần đổi URL cho từng module.
+
+```text
+src/pages       màn hình tương ứng URL, kết thúc bằng Page.tsx
+src/components  component hiển thị; ui/ chứa phần dùng lại
+src/layouts     khung đăng nhập và không gian làm việc
+src/routes      AppRoutes và ProtectedRoute
+src/services    axiosClient và các ...Api.ts
+src/store       các use...Store.ts dùng Zustand
+src/hooks       truy vấn và điều phối dùng chung
+src/types       kiểu dữ liệu
+src/utils       hàm kiểm tra/định dạng
+src/styles      Tailwind và CSS component
+```
+
+Các màn chính: `/login`, `/register`, `/forgot-password`, `/reset-password`, `/accounts`, `/accounts/new`, `/accounts/:id`, `/accounts/:id/edit`, `/employees`, `/departments`, `/change-password`.
+
+Thông tin phiên lưu qua Zustand trong `sessionStorage`; refresh token là HttpOnly cookie. Axios gắn Bearer token cho API được bảo vệ và phối hợp refresh khi nhiều request gặp 401. ProtectedRoute chặn màn hình ngoài quyền, backend kiểm tra quyền độc lập.
+
+Thêm màn hình bằng page, đăng ký route trong `routes/AppRoutes.tsx`, thêm menu ở `layouts/AppLayout.tsx`. Đặt HTTP call trong `services`, không gọi fetch trực tiếp ở component. Form nhận dữ liệu/callback qua props; trạng thái dùng chung mới đưa vào store.
+
+```powershell
+npm run build
+```
+
+Bản build nằm ở `dist`. Production cần reverse proxy cho `/api` và fallback các URL frontend về `index.html`; có thể dùng `VITE_API_BASE_URL` trỏ tới API đã triển khai. `API_PROXY_TARGET` chỉ dùng để đổi backend đích của Vite development proxy.
+
+Xem [kiến trúc và quy ước nhóm](../docs/ARCHITECTURE.md) để thêm module.

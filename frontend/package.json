@@ -2,18 +2,26 @@
   "name": "vnc-hrms-frontend",
   "private": true,
   "version": "0.1.0",
-  "workspaces": [
-    "apps/*"
-  ],
   "scripts": {
-    "dev": "concurrently -k -n shell,login,admin,organization -c blue,green,yellow,magenta \"npm:dev:shell\" \"npm:dev:login\" \"npm:dev:admin\" \"npm:dev:organization\"",
-    "dev:shell": "npm --workspace @vnc-hrms/shell run dev",
-    "dev:login": "npm --workspace @vnc-hrms/login run dev",
-    "dev:admin": "npm --workspace @vnc-hrms/system-admin run dev",
-    "dev:organization": "npm --workspace @vnc-hrms/organization run dev",
-    "build": "npm run build --workspaces --if-present"
+    "dev": "vite --host 0.0.0.0 --port 5173 --strictPort",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 5173 --strictPort"
+  },
+  "type": "module",
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "axios": "^1.13.0",
+    "zustand": "^5.0.8",
+    "react-router-dom": "^7.9.0"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "~5.6.3",
+    "vite": "^6.0.0",
+    "tailwindcss": "^4.1.0",
+    "@tailwindcss/vite": "^4.1.0"
   }
 }
