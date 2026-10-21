@@ -1,0 +1,10 @@
+.vnc .auth-field + .auth-field { margin-top: 19px; }
+.vnc .auth-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.vnc .auth-label-row .text-button { font-size: 12px; white-space: nowrap; }
+.vnc .auth-back { margin-bottom: 25px; font-size: 12px; }
+.vnc .auth-register { margin-top: 25px; text-align: center; font-size: 13px; color: #6e8290; }
+.vnc .auth-register .text-button { font-weight: 600; }
+.vnc .auth-request-new { display: block; margin: 20px auto 0; font-size: 12px; }
+.vnc .login-form .alert { line-height: 1.7; }
+.vnc .auth-otp { letter-spacing: 5px; font-size: 20px; font-variant-numeric: tabular-nums; }
+.vnc .auth-otp::placeholder { letter-spacing: normal; font-size: 13px; }

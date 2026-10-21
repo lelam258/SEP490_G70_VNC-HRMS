@@ -11,3 +11,4 @@ coverage/
 !.env.example
 appsettings.Local.json
 *.tsbuildinfo
+.local/

@@ -1,0 +1,9 @@
+@import "tailwindcss";
+@import "./components.css";
+@import "./auth.css";
+
+html, body, #root { margin: 0; min-height: 100%; }
+body { background: #f5f7fa; }
+a { text-decoration: none; }
+.vnc .nav-item { text-decoration: none; }
+.vnc .workspace-main { min-width: 0; }
