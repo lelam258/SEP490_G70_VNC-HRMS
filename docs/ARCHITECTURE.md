@@ -1,125 +1,72 @@
-# VNC HRMS — kiến trúc và quy ước làm việc
+# VNC HRMS — kiến trúc microservices
 
-Hệ thống dùng **một React SPA** và **một ASP.NET Core 8 Web API**, chia module nghiệp vụ Auth, Users, Employees, Organization. Đây là ứng dụng phân lớp (modular monolith), không còn triển khai các microservice hay microfrontend riêng.
+Một React SPA gọi YARP Gateway. Sáu API sở hữu database riêng trên cùng SQL Server instance lúc phát triển. Service không tham chiếu project của service khác và không query database của nhau.
 
 ```mermaid
 flowchart TB
-  Router[React Router / ProtectedRoute] --> Pages[pages]
-  Pages --> UI[components / ui + layouts]
-  UI --> CSS[Tailwind CSS + component styles]
-  Pages --> Store[Zustand store]
-  Pages --> Client[services / Axios]
-  Client --> JWT[JwtBearer + JwtSecurityMiddleware]
-  JWT --> Controllers[Controllers]
-  Controllers --> Services[Services / interfaces]
-  Services --> Repositories[Repositories / interfaces]
-  Repositories --> Context[Persistence / AppDbContext]
-  Context --> SQL[(SQL Server)]
-  Context --> Entities[Models / entities]
-  Services --> Integrations[Integrations / interfaces]
-  Integrations --> Mail[SMTP]
-  Integrations --> Cloud[Cloudinary]
+    UI[React SPA :5173] --> GW[YARP Gateway :5100]
+    GW --> IAM[IAM :5101]
+    GW --> HR[HR :5102]
+    GW --> ATT[Attendance :5103]
+    GW --> PAY[Payroll :5104]
+    GW --> CMP[Compliance :5105]
+    GW --> NTF[Notification :5106]
+    IAM --> IDB[(VNC_IAM_DB)]
+    HR --> HDB[(VNC_HR_DB)]
+    ATT --> ADB[(VNC_Attendance_DB)]
+    PAY --> PDB[(VNC_Payroll_DB)]
+    CMP --> CDB[(VNC_Compliance_DB)]
+    NTF --> NDB[(VNC_Notification_DB)]
+    IAM -. tra cứu nhân viên qua HTTP .-> HR
+    HR -. kiểm tra phiên qua HTTP .-> IAM
+    ATT -. kiểm tra phiên .-> IAM
+    PAY -. kiểm tra phiên .-> IAM
+    CMP -. kiểm tra phiên .-> IAM
+    NTF -. kiểm tra phiên .-> IAM
 ```
 
-## Frontend
+## Ranh giới
 
-```text
-frontend/
-  src/
-    pages/            # Màn hình tương ứng URL; PascalCase + Page.tsx
-      auth/           # Login, Register, ForgotPassword, ResetPassword, ChangePassword
-      accounts/       # List, Create, Detail, Edit
-      employees/
-      departments/
-    components/       # Component hiển thị và form theo nghiệp vụ
-      ui/             # Alert, Modal, PasswordInput, DataTable, Icon
-    layouts/          # AuthLayout và AppLayout
-    routes/           # AppRoutes, ProtectedRoute
-    services/         # axiosClient, authApi, accountApi, employeeApi, departmentApi, fileApi
-    store/            # useAuthStore, useAppStore, useRecoveryStore
-    hooks/            # useAccounts, useOtpRecovery
-    types/            # Kiểu dữ liệu TypeScript
-    utils/            # Kiểm tra mật khẩu, định dạng ngày/tên
-    styles/           # Tailwind entry và stylesheet component
-```
+| Service | Quyền sở hữu |
+| --- | --- |
+| IAM | Users, credentials, refresh tokens, OTP, audit logs và system policies |
+| HR | Staff, departments, positions, contracts, degrees; adapter upload Cloudinary |
+| Attendance | Import, attendance records, ca trực, nghỉ phép, lịch mẫu, bảng công tháng |
+| Payroll | Phiếu lương, phụ cấp, thuế, bảo hiểm, hoa hồng/phiếu thủ thuật, thai sản, xuất ngân hàng, khiếu nại |
+| Compliance | Chứng chỉ, chu kỳ/hoạt động CME, kết quả quét |
+| Notification | Thông báo và trạng thái đã đọc; recipient luôn là IAM user ID |
 
-- `App.tsx` khởi tạo phiên đăng nhập; `AppRoutes.tsx` định nghĩa URL. Không thêm màn hình bằng biến `screen` trong một App.tsx lớn.
-- `ProtectedRoute` kiểm tra đăng nhập/vai trò ở giao diện. Backend vẫn luôn kiểm tra quyền độc lập.
-- `services/axiosClient.ts` quản lý base URL, cookie, JWT, chuẩn hóa lỗi và phối hợp một lần refresh khi nhiều request cùng gặp 401. API công khai dùng Axios instance riêng để không gửi Bearer token cũ.
-- Zustand lưu phiên vào `sessionStorage`. OTP chỉ lưu challenge ID, email, hạn dùng và thời gian chờ gửi lại; không lưu mã OTP hoặc mật khẩu.
-- `components` nhận dữ liệu/callback qua props. Truy vấn và điều phối nằm ở page hoặc hook. Chỉ đưa trạng thái dùng chung vào Zustand; trạng thái form nằm trong component.
-- Tailwind được tích hợp qua plugin Vite. CSS component hiện có được giữ để bảo toàn giao diện; component mới có thể dùng utility classes trực tiếp.
+Mỗi service giữ schema nghiệp vụ (`iam`, `hr`, `attendance`, ...) bên trong database riêng. FK chỉ nằm trong database sở hữu. Ví dụ Payroll lưu `staff_id`, không tạo FK hoặc JOIN đến HR. FK nội bộ bị thiếu ở bản SQL được bổ sung trong mapping EF.
 
-| URL | Chức năng | Quyền |
-| --- | --- | --- |
-| `/login`, `/register` | Đăng nhập, đăng ký theo hồ sơ nhân viên | Công khai |
-| `/forgot-password`, `/reset-password` | Gửi OTP và đặt lại mật khẩu | Công khai |
-| `/` | Trang chủ của người đang đăng nhập | Đã đăng nhập |
-| `/change-password` | Đổi mật khẩu | Đã đăng nhập |
-| `/accounts`, `/accounts/new` | Danh sách, tạo tài khoản | Admin |
-| `/accounts/:id`, `/accounts/:id/edit` | Chi tiết, sửa tài khoản | Admin |
-| `/employees`, `/departments` | Hồ sơ nhân viên, khoa/phòng | Admin |
+## Tổ chức code
 
-## Backend
+Các chức năng hiện có giữ luồng **Controller → Service/interface → Repository/interface → DbContext**. Các API đọc mới dùng Service và Repository nhỏ theo domain; thêm interface khi có nhiều implementation hoặc cần thay adapter. Controller không truy vấn SQL trực tiếp.
 
-```text
-backend/
-  Program.cs              # Composition root: đăng ký DI và middleware pipeline
-  Controllers/            # HTTP, model binding, validation, response, cookie
-  Services/
-    Interfaces/           # IAuthService, IUserService, IEmployeeService, ...
-  Repositories/
-    Interfaces/           # IUserRepository, IAuthRepository, IUnitOfWork, ...
-  DTOs/                   # Request, response theo module
-  Models/                 # Auth, Users, Employees, Organization
-  Persistence/
-    AppDbContext.cs        # DbContext runtime dùng chung cho một request
-    TimestampDbContext.cs
-    Migrations/           # Bốn chuỗi migration tương thích database cũ
-  Configurations/         # DI, JWT, Swagger, Options/Settings, mapping entity
-  Middlewares/            # GlobalExceptionMiddleware, JwtSecurityMiddleware
-  Integrations/
-    Interfaces/           # IEmailService, ICloudinaryService
-  Common/                 # AppException, PasswordHelper
-```
+`BuildingBlocks` chứa xử lý lỗi, JWT, session validation, timestamp, HTTP client nội bộ và DTO hợp đồng trao đổi. Entity nghiệp vụ, repository và DbContext thuộc từng service. Không tạo DbContext dùng chung cho sáu database. IAM và HR có UnitOfWork riêng; một transaction chỉ bao trùm database của service đó.
 
-Luồng xử lý là **Controller → IService → IRepository → EF Core → SQL Server**. Controller không truy vấn DbContext, Service không viết LINQ/SQL hay phụ thuộc kiểu kết quả HTTP, Repository không quyết định quyền nghiệp vụ. Adapter bên ngoài được gọi qua interface trong Service. Các module giao tiếp bằng lời gọi C# trong cùng ứng dụng, không có InternalApi hay khóa HTTP nội bộ.
+Frontend giữ React Router, pages/components, Zustand và Axios. Base URL `/api` không đổi; Vite proxy đến Gateway ở cổng 5100. Endpoint IAM (`/api/auth`, `/api/users`) và HR (`/api/employees`, `/api/departments`, `/api/files`) giữ hợp đồng hiện có.
 
-`JwtBearer` kiểm tra chữ ký, issuer, audience và hạn token. `JwtSecurityMiddleware` đọc session hiện hành để áp dụng việc khóa tài khoản, đổi vai trò hoặc thu hồi phiên ngay. `GlobalExceptionMiddleware` trả JSON lỗi với `message` và `traceId`; CORS dùng middleware chuẩn của ASP.NET Core và danh sách origin cụ thể.
+## Xác thực và giao tiếp
 
-`IUnitOfWork` dùng chung AppDbContext cho transaction. Tạo tài khoản và credential được lưu cùng transaction. Cập nhật tài khoản kiểm tra rowversion, giữ ít nhất một admin đang hoạt động và chặn tự hạ quyền/tự khóa. Refresh token được băm, xoay vòng và đặt trong HttpOnly cookie.
+Mỗi API tự xác minh JWT (issuer, audience, chữ ký và hạn). Với endpoint được bảo vệ, middleware tiếp tục kiểm tra phiên hiện hành: IAM đọc database của mình; các service còn lại gọi `/internal/sessions/{id}` ở IAM. Điều này giữ việc khóa tài khoản, thay quyền và logout có hiệu lực ngay. IAM không gọi HR trong bước kiểm tra phiên, nên không có vòng gọi khi xác thực.
 
-Quên mật khẩu chỉ gửi tới email của **tài khoản đang hoạt động**. SMTP sender không phải người nhận cố định. Mã OTP mặc định 6 số, hết hạn sau 5 phút, tối đa 5 lần thử. Gửi lại thay challenge và vô hiệu mã trước. Giao diện chờ 30 giây giữa các lần gửi; backend giới hạn 5 yêu cầu/15 phút/IP. Địa chỉ không tồn tại và tài khoản bị khóa vẫn nhận thông báo chung để tránh dò tài khoản.
+IAM gọi API nội bộ HR để xác minh hồ sơ khi đăng ký/tạo tài khoản. Lookup đăng ký dùng POST để email không xuất hiện trong URL. Khóa `X-Internal-Key` bảo vệ `/internal`; Gateway chỉ route danh sách prefix `/api` công khai. Lỗi/timeout dịch vụ liên quan trả 503 và không bỏ qua xác thực. Chưa retry các thao tác ghi để tránh ghi lặp.
 
-## SQL Server và migration
+JWT không thay thế phân quyền: IAM quản lý tài khoản chỉ dành Administrator; phần quản lý nhân viên/khoa phòng của HR chỉ dành HR Manager. Administrator dùng danh sách nhân viên tối thiểu qua IAM để cấp tài khoản, không được mở toàn bộ hồ sơ HR. Xem [phạm vi UC-01, UC-02, UC-07](PERMISSIONS.md). API đọc Attendance/Payroll/Compliance và Notification được giữ nguyên trong đợt phân quyền này; các UC của thành viên khác không được triển khai thêm.
 
-Giữ database `VNC_HRMS_Iteration1` và các schema `auth`, `users`, `employees`, `organization`. Không drop database, không tạo lại bảng chỉ vì chuyển kiến trúc. Các migration ID và bảng `__EFMigrationsHistory` theo schema được giữ.
+Refresh token băm, xoay vòng, giữ trong HttpOnly cookie ở `/api/auth`. OTP vẫn có giới hạn số lần thử, hết hạn và vô hiệu sau khi sử dụng. Rate limiting chạy trong IAM; chỉ tin forwarded headers từ loopback hoặc Gateway được cấu hình trong KnownProxies. Compose cố định Gateway ở `172.30.70.10` trên mạng `172.30.70.0/24` để giữ đúng IP nguồn; nếu đổi subnet cần đổi cả địa chỉ Gateway và KnownProxies.
 
-`AppDbContext` là context duy nhất được inject vào Repository lúc chạy. Bốn context trong `Persistence/Migrations` chỉ phục vụ EF tooling và giữ lịch sử đã phát hành; chúng dùng cùng cấu hình entity với AppDbContext, không phải bốn dịch vụ chạy riêng.
+## Khác biệt có chủ ý so với SQL tham chiếu
 
-Để thêm một thay đổi schema, cập nhật entity và mapping trong `Configurations/Entities`, sau đó tạo migration trên context sở hữu bảng. Ví dụ, chạy tại `backend`:
+- Giữ bảng `iam.credentials` riêng thay vì nhét mật khẩu vào `iam.users`, đồng thời giữ OTP, security version và rowversion để bảo toàn các cơ chế bảo mật hiện có.
+- Giữ email/normalized username/employee ID trên tài khoản. `iam.users.employee_id` là liên kết chính dùng cho đăng ký và unique chống cấp nhiều tài khoản cho một nhân viên. `hr.staff.user_id` cho phép NULL để tạo nhân viên trước tài khoản; chưa dùng cột này để quyết định nhân viên đã có tài khoản.
+- Các unique index trên cột nullable dùng filtered index, cho phép nhiều nhân viên chưa có email, số giấy tờ hoặc mã thiết bị.
+- Giữ `pay_month` dạng `nvarchar(7)` để tương thích bản SQL, bổ sung CHECK cho kỳ công/lương chính. Các trạng thái chưa chốt bộ giá trị chưa được áp CHECK tùy đoán.
+- Bổ sung CHECK cho khoảng ngày, tỷ lệ và một số giá trị không âm; chuẩn hóa timestamp mặc định về UTC. Context cập nhật `updated_at` khi SaveChanges.
+- `approved_by`, `recipient_id` và các cột tác nhân dùng IAM user ID; `staff_id` và các trường nhân sự nghiệp vụ dùng HR staff ID.
 
-```powershell
-dotnet ef migrations add AddUserField --context UserDbContext --output-dir Persistence/Migrations/Users
-powershell -ExecutionPolicy Bypass -File scripts/Update-Database.ps1
-```
+## Phạm vi tiếp theo
 
-Các context tương ứng là `AuthDbContext`, `UserDbContext`, `EmployeeDbContext`, `OrganizationDbContext`. Không tạo một migration khởi tạo AppDbContext trên database đã có các bảng này.
+Chưa có message broker, Outbox, Saga hoặc job phát thông báo. Chưa triển khai import/chốt công, tính/chốt lương, snapshot/phiên bản tính lương hay quét CME tự động. Khi thêm những luồng này, xác định hợp đồng API/sự kiện và idempotency; không dùng giao dịch xuyên database trong nghiệp vụ runtime. Giữ phiếu lương đã chốt cùng dữ liệu đầu vào và phiên bản công thức bất biến.
 
-## SMTP, Cloudinary và môi trường triển khai
-
-- User Secrets ID vẫn là `vnc-hrms-auth-development`, nên máy đã cấu hình Gmail/JWT trước khi refactor không phải nhập lại. Chỉ một project Backend đọc bộ cấu hình này.
-- `Configure-Email.ps1` lưu SMTP qua stdin vào User Secrets; mặc định **không đổi email admin**. Không commit `.local`, mật khẩu SMTP, signing key hay Cloudinary API secret.
-- Cloudinary adapter gọi Signed Upload API bằng HTTPS; `/api/files` chỉ cho admin, giới hạn 10 MB và kiểm tra chữ ký tệp JPG/PNG/PDF. Tệp dùng authenticated delivery. URL upload trả về là định danh tài nguyên được bảo vệ; màn hình tải tài liệu sau này cần thêm signed download theo quyền hồ sơ. Upload không tự liên kết một tài liệu với nhân viên.
-- Để bật Cloudinary, cấu hình `Cloudinary:CloudName`, `Cloudinary:ApiKey`, `Cloudinary:ApiSecret` riêng. Khi chưa cấu hình, upload trả 503 rõ ràng. Chưa có thông tin Cloudinary trong môi trường hiện tại để xác minh upload thật.
-- Development: Vite proxy `/api` đến `http://localhost:5100`. Production: cấu hình reverse proxy đưa `/api` đến Web API và fallback URL frontend về `index.html`; hoặc đặt `VITE_API_BASE_URL` trước khi build và cấu hình CORS/HTTPS phù hợp.
-- Nếu nhiều thành viên chạy localhost riêng, mỗi máy thiết lập DB/JWT/SMTP riêng. Nếu dùng chung backend đã triển khai, chỉ máy server cần thông tin gửi email.
-
-## Thêm một module mới
-
-1. Định nghĩa DTO và entity/mapping cần dùng; tạo migration theo schema tương ứng nếu thay đổi SQL.
-2. Thêm `I...Repository` và implementation chứa truy vấn EF Core.
-3. Thêm `I...Service` và implementation chứa nghiệp vụ; đăng ký trong `DependencyInjection`.
-4. Thêm `...Controller : ControllerBase` với route và policy thích hợp.
-5. Frontend thêm `...Api.ts`, page và component, sau đó đăng ký URL trong `AppRoutes.tsx` và menu trong `AppLayout.tsx`.
-6. Chạy `dotnet build` trong backend và `npm run build` trong frontend trước khi gửi thay đổi cho nhóm.
+`Legacy/` là bản lưu của monolith và migration đã phát hành, ngoài solution và Docker build. Chỉ script chuyển dữ liệu offline được đọc đồng thời database cũ và các database mới. Xem [MIGRATION.md](MIGRATION.md).

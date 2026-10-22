@@ -4,8 +4,9 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 $backendRoot = Split-Path -Parent $PSScriptRoot
-$apiProject = Join-Path $backendRoot 'Backend.csproj'
-$statePath = Join-Path $backendRoot '.local\secrets.json'
+$apiProject = Join-Path $backendRoot 'Services\IAM\VNC.HRMS.IAM.API\VNC.HRMS.IAM.API.csproj'
+$statePath = Join-Path $backendRoot '.local\microservices-secrets.json'
+if (-not (Test-Path -LiteralPath $statePath)) { $statePath = Join-Path $backendRoot '.local\secrets.json' }
 $resultPath = Join-Path $backendRoot '.local\email-setup-result.json'
 New-Item -ItemType Directory -Path (Split-Path -Parent $resultPath) -Force | Out-Null
 @{ Status = 'waiting_for_input'; SmtpSaved = $false; AdminEmailUpdated = $false } | ConvertTo-Json | Set-Content -LiteralPath $resultPath -Encoding UTF8
@@ -37,7 +38,7 @@ function Save-SmtpSettings([string]$address, [string]$appPassword) {
         if (!$process.WaitForExit(20000)) { $process.Kill(); throw 'Không lưu được cấu hình trong thời gian cho phép.' }
         [void]$outputTask.GetAwaiter().GetResult()
         [void]$errorTask.GetAwaiter().GetResult()
-        if ($process.ExitCode -ne 0) { throw 'Không lưu được User Secrets. Kiểm tra .NET SDK và Backend.csproj.' }
+        if ($process.ExitCode -ne 0) { throw 'Không lưu được User Secrets. Kiểm tra .NET SDK và project VNC.HRMS.IAM.API.' }
     } finally { $payload = $null; $process.Dispose() }
 }
 
@@ -60,7 +61,7 @@ function Update-AdminEmail([string]$address) {
         }
         $settings.AdminEmail = $address
         $settings | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $statePath -Encoding UTF8
-        $credentialsPath = Join-Path $backendRoot '.local\admin-credentials.txt'
+        $credentialsPath = Join-Path $backendRoot '.local\microservices-admin.txt'
         if (Test-Path -LiteralPath $credentialsPath) {
             $lines = Get-Content -LiteralPath $credentialsPath -Encoding UTF8
             $lines | ForEach-Object { if ($_ -match '^Email:') { 'Email: ' + $address } else { $_ } } | Set-Content -LiteralPath $credentialsPath -Encoding UTF8

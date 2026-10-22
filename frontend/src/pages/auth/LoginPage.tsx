@@ -6,6 +6,7 @@ import PasswordInput from '../../components/ui/PasswordInput';
 import { authApi } from '../../services/authApi';
 import { useAppStore } from '../../store/useAppStore';
 import { useRecoveryStore } from '../../store/useRecoveryStore';
+import { loginDestination } from '../../utils/roleNavigation';
 
 export default function LoginPage() {
   const [login, setLogin] = useState(''); const [password, setPassword] = useState('');
@@ -16,10 +17,10 @@ export default function LoginPage() {
     event.preventDefault(); if (busy) return;
     setBusy(true); setError('');
     try {
-      await authApi.login(login.trim(), password);
+      const session = await authApi.login(login.trim(), password);
       useRecoveryStore.getState().setChallenge(null); useAppStore.getState().setNotice('');
       const from = location.state?.from;
-      navigate(typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') ? from : '/', { replace: true });
+      navigate(loginDestination(session.user.role, from), { replace: true });
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Không đăng nhập được.'); }
     finally { setBusy(false); }
   }

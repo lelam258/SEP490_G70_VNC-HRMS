@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { employeeApi, type EmployeeInput } from '../../services/employeeApi';
 import { departmentApi, type Department } from '../../services/departmentApi';
 import type { Employee } from '../../types/accounts';
@@ -11,6 +11,13 @@ export default function EmployeeListPage() {
   const [employees, setEmployees] = useState<Employee[]>([]); const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [notice, setNotice] = useState('');
   const [open, setOpen] = useState(false); const [saving, setSaving] = useState(false); const [saveError, setSaveError] = useState('');
+  const [search, setSearch] = useState(''); const [departmentId, setDepartmentId] = useState(''); const [status, setStatus] = useState('');
+  const filtered = useMemo(() => {
+    const normalize = (value: string) => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[đĐ]/g, 'd').toLowerCase();
+    const term = normalize(search.trim());
+    return employees.filter(employee => (!term || normalize(`${employee.code} ${employee.name} ${employee.email || ''}`).includes(term))
+      && (!departmentId || employee.departmentId === departmentId) && (!status || employee.status === status));
+  }, [employees, search, departmentId, status]);
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try { const [staff, teams] = await Promise.all([employeeApi.list(), departmentApi.list()]); setEmployees(staff); setDepartments(teams); }
@@ -28,7 +35,10 @@ export default function EmployeeListPage() {
     <button className="button primary" disabled={loading || !!error} onClick={() => { setSaveError(''); setOpen(true); }}>Thêm nhân viên</button></div>
     {error && <Alert>{error}</Alert>}{notice && <Alert variant="success">{notice}</Alert>}
     <section className="panel"><div className="list-heading"><h2>Danh sách nhân viên <span className="count-badge">{employees.length}</span></h2><button className="text-button" disabled={loading} onClick={() => void load()}>Làm mới</button></div>
-      {loading ? <p className="loading-state" role="status">Đang tải dữ liệu…</p> : <DataTable rows={employees} rowKey={e => e.id} emptyMessage="Chưa có hồ sơ nhân viên."
+      <div className="filter-bar"><input aria-label="Tìm hồ sơ nhân viên" placeholder="Mã nhân viên, họ tên hoặc email" value={search} onChange={e => setSearch(e.target.value)} />
+        <select aria-label="Lọc khoa/phòng" value={departmentId} onChange={e => setDepartmentId(e.target.value)}><option value="">Tất cả khoa/phòng</option>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
+        <select aria-label="Lọc trạng thái nhân viên" value={status} onChange={e => setStatus(e.target.value)}><option value="">Tất cả trạng thái</option><option value="active">Hoạt động</option><option value="inactive">Ngừng hoạt động</option></select></div>
+      {loading ? <p className="loading-state" role="status">Đang tải dữ liệu…</p> : <DataTable rows={filtered} rowKey={e => e.id} emptyMessage="Không có hồ sơ phù hợp."
         columns={[{ key: 'code', label: 'Mã nhân viên', render: e => e.code }, { key: 'name', label: 'Họ tên', render: e => e.name }, { key: 'email', label: 'Email', render: e => e.email || 'Chưa có' }, { key: 'department', label: 'Khoa/phòng', render: e => e.department }]} />}</section>
     {open && <Modal title="Thêm nhân viên" busy={saving} onClose={() => setOpen(false)}><EmployeeForm departments={departments} onSave={save} onClose={() => setOpen(false)} busy={saving} error={saveError} /></Modal>}
   </section>;

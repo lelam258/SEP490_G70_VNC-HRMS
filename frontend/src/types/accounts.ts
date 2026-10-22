@@ -1,5 +1,5 @@
-export const roles = ['admin', 'hr', 'department_head', 'employee'] as const;
-export const roleLabels: Record<Role, string> = { admin: 'Quản trị hệ thống', hr: 'Nhân sự', department_head: 'Trưởng khoa', employee: 'Nhân viên' };
+export const roles = ['admin', 'hr_manager', 'hr_staff', 'accountant', 'department_head', 'employee'] as const;
+export const roleLabels: Record<Role, string> = { admin: 'Administrator', hr_manager: 'HR Manager', hr_staff: 'HR Staff', accountant: 'Accountant', department_head: 'Department Manager', employee: 'Medical Staff' };
 export const statuses = ['active', 'inactive', 'locked'] as const;
 export type Role = typeof roles[number];
 export type Status = typeof statuses[number];

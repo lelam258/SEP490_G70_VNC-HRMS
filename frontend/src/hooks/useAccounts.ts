@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { accountApi } from '../services/accountApi';
-import { employeeApi } from '../services/employeeApi';
 import type { Account, Employee } from '../types/accounts';
 
 export function useAccounts() {
@@ -11,7 +10,7 @@ export function useAccounts() {
   const reload = useCallback(async () => {
     setLoading(true); setLoadError('');
     try {
-      const [users, staff] = await Promise.all([accountApi.list(), employeeApi.list()]);
+      const [users, staff] = await Promise.all([accountApi.list(), accountApi.employeeOptions()]);
       setAccounts(users); setEmployees(staff);
     } catch (cause) { setLoadError(cause instanceof Error ? cause.message : 'Không tải được dữ liệu.'); }
     finally { setLoading(false); }
