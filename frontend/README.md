@@ -8,7 +8,7 @@ npm ci
 npm run dev
 ```
 
-Mở **http://localhost:5173**. Backend chạy riêng bằng `dotnet run` tại `backend`, cổng 5100. Vite proxy `/api` đến backend nên không cần đổi URL cho từng module.
+Mở **http://localhost:5173**. Chạy backend bằng `cd backend` rồi `dotnet run` từ thư mục gốc repository. Vite proxy `/api` đến Gateway cổng 5100; Gateway định tuyến đến 6 service nên frontend giữ nguyên URL hiện có.
 
 ```text
 src/pages       màn hình tương ứng URL, kết thúc bằng Page.tsx

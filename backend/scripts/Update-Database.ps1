@@ -1,17 +1,17 @@
-param([string]$ConnectionString, [string]$Configuration = 'Debug', [switch]$NoBuild)
+﻿param([string]$Server = 'localhost', [string]$DatabasePrefix = 'VNC', [switch]$NoBuild)
 $ErrorActionPreference = 'Stop'
 $backendRoot = Split-Path -Parent $PSScriptRoot
-$previousConnection = $env:ConnectionStrings__DefaultConnection
 Push-Location $backendRoot
 try {
-    if ($ConnectionString) { $env:ConnectionStrings__DefaultConnection = $ConnectionString }
-    if (!$NoBuild) {
-        dotnet build Backend.csproj --configuration $Configuration
-        if ($LASTEXITCODE -ne 0) { throw 'Backend build failed.' }
+    foreach ($service in @('IAM','HR','Attendance','Payroll','Compliance','Notification')) {
+        $project = "Services/$service/VNC.HRMS.$service.API/VNC.HRMS.$service.API.csproj"
+        $builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
+        $builder['Data Source'] = $Server
+        $builder['Initial Catalog'] = "${DatabasePrefix}_${service}_DB"
+        $builder['Integrated Security'] = $true; $builder['Encrypt'] = $true; $builder['TrustServerCertificate'] = $true
+        $arguments = @('ef','database','update','--project',$project,'--startup-project',$project,'--configuration','Release','--connection',$builder.ConnectionString)
+        if ($NoBuild) { $arguments += '--no-build' }
+        & dotnet @arguments
+        if ($LASTEXITCODE -ne 0) { throw "Migration failed for $service" }
     }
-    # Preserve the four existing schema histories while using one API.
-    foreach ($context in 'AuthDbContext','UserDbContext','OrganizationDbContext','EmployeeDbContext') {
-        dotnet ef database update --project Backend.csproj --startup-project Backend.csproj --context $context --configuration $Configuration --no-build
-        if ($LASTEXITCODE -ne 0) { throw "Migration failed for $context. Fix the error and rerun; existing data is preserved." }
-    }
-} finally { $env:ConnectionStrings__DefaultConnection = $previousConnection; Pop-Location }
+} finally { Pop-Location }

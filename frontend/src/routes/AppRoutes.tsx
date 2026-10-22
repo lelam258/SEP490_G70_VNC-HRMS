@@ -24,6 +24,8 @@ export default function AppRoutes() {
       <Route element={<ProtectedRoute roles={['admin']} />}>
         <Route path="/accounts" element={<AccountListPage />} /><Route path="/accounts/new" element={<AccountCreatePage />} />
         <Route path="/accounts/:id" element={<AccountDetailPage />} /><Route path="/accounts/:id/edit" element={<AccountEditPage />} />
+      </Route>
+      <Route element={<ProtectedRoute roles={['hr_manager']} />}>
         <Route path="/employees" element={<EmployeeListPage />} /><Route path="/departments" element={<DepartmentPage />} />
         <Route path="/organization" element={<Navigate to="/employees" replace />} />
       </Route>

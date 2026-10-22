@@ -1,50 +1,69 @@
-param(
-    [string]$ConnectionString = 'Server=localhost;Database=VNC_HRMS_Iteration1;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;',
-    [string]$StateDirectory = (Join-Path (Split-Path -Parent $PSScriptRoot) '.local')
+﻿param(
+    [string]$Server = 'localhost',
+    [string]$DatabasePrefix = 'VNC',
+    [switch]$SkipBootstrap
 )
 $ErrorActionPreference = 'Stop'
 $backendRoot = Split-Path -Parent $PSScriptRoot
-New-Item -ItemType Directory -Path $StateDirectory -Force | Out-Null
-$statePath = Join-Path $StateDirectory 'secrets.json'
-if (Test-Path -LiteralPath $statePath) {
-    $settings = Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($settings.ConnectionString -ne $ConnectionString) { throw 'Existing local state belongs to a different database. Use a separate StateDirectory.' }
-} else {
-    function New-Secret {
-        $bytes = New-Object byte[] 48
-        $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
-        try { $rng.GetBytes($bytes); return [Convert]::ToBase64String($bytes) } finally { $rng.Dispose() }
-    }
-    $settings = [pscustomobject]@{ ConnectionString = $ConnectionString; JwtSigningKey = New-Secret; AdminUsername = 'admin'; AdminEmail = 'admin@vnc.local'; AdminPassword = ('Vnc@1a' + (New-Secret).Substring(0,24)) }
-    $settings | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding UTF8
-    @('Initial administrator', ('Username: ' + $settings.AdminUsername), ('Email: ' + $settings.AdminEmail), ('Password: ' + $settings.AdminPassword)) |
-        Set-Content -LiteralPath (Join-Path $StateDirectory 'admin-credentials.txt') -Encoding UTF8
+$iamProject = Join-Path $backendRoot 'Services\IAM\VNC.HRMS.IAM.API\VNC.HRMS.IAM.API.csproj'
+$stateDirectory = Join-Path $backendRoot '.local'
+New-Item -ItemType Directory -Path $stateDirectory -Force | Out-Null
+$statePath = Join-Path $stateDirectory 'microservices-secrets.json'
+function New-Secret {
+    $bytes = New-Object byte[] 48
+    $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $rng.GetBytes($bytes); [Convert]::ToBase64String($bytes) } finally { $rng.Dispose() }
 }
+if (Test-Path -LiteralPath $statePath) {
+    $state = Get-Content -LiteralPath $statePath -Encoding UTF8 -Raw | ConvertFrom-Json
+    if ($state.Server -ne $Server -or $state.DatabasePrefix -ne $DatabasePrefix) { throw 'Local state belongs to a different SQL server/database prefix.' }
+} else {
+    $oldPath = Join-Path $stateDirectory 'secrets.json'
+    $old = if (Test-Path -LiteralPath $oldPath) { Get-Content -LiteralPath $oldPath -Encoding UTF8 -Raw | ConvertFrom-Json } else { $null }
+    $state = [pscustomobject]@{
+        Server = $Server; DatabasePrefix = $DatabasePrefix
+        JwtSigningKey = $(if ($old.JwtSigningKey) { $old.JwtSigningKey } else { New-Secret })
+        InternalApiKey = New-Secret
+        AdminUsername = $(if ($old.AdminUsername) { $old.AdminUsername } else { 'admin' })
+        AdminEmail = $(if ($old.AdminEmail) { $old.AdminEmail } else { 'admin@vnc.local' })
+        AdminPassword = ('Vnc@1a' + (New-Secret).Substring(0,24))
+    }
+    $state | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding UTF8
+    if (-not $SkipBootstrap) {
+        @('Initial administrator for NEW microservice databases (imported/existing accounts retain their previous password)', ('Username: ' + $state.AdminUsername), ('Password: ' + $state.AdminPassword)) |
+            Set-Content -LiteralPath (Join-Path $stateDirectory 'microservices-admin.txt') -Encoding UTF8
+    }
+}
+$settings = @{ 'Jwt:SigningKey' = $state.JwtSigningKey; 'InternalApi:Key' = $state.InternalApiKey }
+foreach ($service in @('IAM','HR','Attendance','Payroll','Compliance','Notification')) {
+    $builder = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
+    $builder['Data Source'] = $Server
+    $builder['Initial Catalog'] = "${DatabasePrefix}_${service}_DB"
+    $builder['Integrated Security'] = $true
+    $builder['Encrypt'] = $true
+    $builder['TrustServerCertificate'] = $true
+    $settings["ConnectionStrings:$service"] = $builder.ConnectionString
+}
+$settings | ConvertTo-Json | dotnet user-secrets set --project $iamProject
+if ($LASTEXITCODE -ne 0) { throw 'Failed to save shared development settings.' }
 Push-Location $backendRoot
-$savedEnvironment = @{}
-$names = 'ASPNETCORE_ENVIRONMENT','DOTNET_ENVIRONMENT','Bootstrap__Username','Bootstrap__Email','Bootstrap__Password','ConnectionStrings__DefaultConnection'
-foreach ($name in $names) { $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
 try {
     dotnet tool restore
-    if ($LASTEXITCODE -ne 0) { throw 'EF Core tool restore failed.' }
-    # Reuse the former Auth User Secrets ID to preserve SMTP without copying credentials.
-    @{ 'ConnectionStrings:DefaultConnection' = $settings.ConnectionString; 'Jwt:SigningKey' = $settings.JwtSigningKey } |
-        ConvertTo-Json | dotnet user-secrets set --project Backend.csproj
-    if ($LASTEXITCODE -ne 0) { throw 'User Secrets setup failed.' }
-    $env:ASPNETCORE_ENVIRONMENT = 'Development'
-    $env:DOTNET_ENVIRONMENT = 'Development'
-    $env:ConnectionStrings__DefaultConnection = $settings.ConnectionString
-    dotnet build Backend.csproj
-    if ($LASTEXITCODE -ne 0) { throw 'Backend build failed.' }
-    & (Join-Path $PSScriptRoot 'Update-Database.ps1') -ConnectionString $settings.ConnectionString -NoBuild
-    $env:Bootstrap__Username = $settings.AdminUsername
-    $env:Bootstrap__Email = $settings.AdminEmail
-    $env:Bootstrap__Password = $settings.AdminPassword
-    dotnet run --project Backend.csproj --no-build --no-launch-profile -- --BootstrapOnly=true --OpenBrowser=false
-    if ($LASTEXITCODE -ne 0) { throw 'Administrator initialization failed.' }
-    Write-Output 'Setup complete. Daily startup: cd backend, then dotnet run.'
-    Write-Output 'Swagger: http://localhost:5100/swagger. Administrator details: backend/.local/admin-credentials.txt.'
-} finally {
-    foreach ($name in $names) { [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name], 'Process') }
-    Pop-Location
-}
+    if ($LASTEXITCODE -ne 0) { throw 'EF tool restore failed.' }
+    dotnet build VNC.HRMS.sln -c Release
+    if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
+    & (Join-Path $PSScriptRoot 'Update-Database.ps1') -Server $Server -DatabasePrefix $DatabasePrefix -NoBuild
+    if (-not $SkipBootstrap) {
+        $saved = @{}
+        foreach ($name in @('DOTNET_ENVIRONMENT','Bootstrap__Username','Bootstrap__Email','Bootstrap__Password')) { $saved[$name] = [Environment]::GetEnvironmentVariable($name,'Process') }
+        try {
+            $env:DOTNET_ENVIRONMENT = 'Development'
+            $env:Bootstrap__Username = $state.AdminUsername
+            $env:Bootstrap__Email = $state.AdminEmail
+            $env:Bootstrap__Password = $state.AdminPassword
+            dotnet run --project $iamProject -c Release --no-build --no-launch-profile -- --BootstrapOnly=true
+            if ($LASTEXITCODE -ne 0) { throw 'Admin bootstrap failed.' }
+        } finally { foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name,$saved[$name],'Process') } }
+    }
+    Write-Output 'Setup complete. Run backend/scripts/Start-Local.ps1. New admin credentials: backend/.local/microservices-admin.txt. Legacy database is unchanged.'
+} finally { Pop-Location }

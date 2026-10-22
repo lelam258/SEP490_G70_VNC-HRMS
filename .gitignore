@@ -12,3 +12,4 @@ coverage/
 appsettings.Local.json
 *.tsbuildinfo
 .local/
+**/.nuget/
