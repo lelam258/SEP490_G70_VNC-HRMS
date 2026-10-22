@@ -9,8 +9,8 @@ try {
         dotnet build Backend.csproj --configuration $Configuration
         if ($LASTEXITCODE -ne 0) { throw 'Backend build failed.' }
     }
-    # Preserve the four existing schema histories while using one API.
-    foreach ($context in 'AuthDbContext','UserDbContext','OrganizationDbContext','EmployeeDbContext') {
+    # Preserve the existing schema histories while using one API.
+    foreach ($context in 'AuthDbContext','UserDbContext','OrganizationDbContext','EmployeeDbContext','PayrollDbContext') {
         dotnet ef database update --project Backend.csproj --startup-project Backend.csproj --context $context --configuration $Configuration --no-build
         if ($LASTEXITCODE -ne 0) { throw "Migration failed for $context. Fix the error and rerun; existing data is preserved." }
     }

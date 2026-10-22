@@ -21,11 +21,13 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IEmployeeRepository, EmployeeRepository>();
         services.AddScoped<IDepartmentRepository, DepartmentRepository>();
+        services.AddScoped<IPayrollParameterRepository, PayrollParameterRepository>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IAccountRecoveryService, AccountRecoveryService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IEmployeeService, EmployeeService>();
         services.AddScoped<IDepartmentService, DepartmentService>();
+        services.AddScoped<IPayrollParameterService, PayrollParameterService>();
         services.AddScoped<IPasswordHasher<Credential>, PasswordHasher<Credential>>();
         services.Configure<PasswordHasherOptions>(options => options.IterationCount = 210_000);
         services.AddOptions<OtpOptions>().Bind(configuration.GetSection("Otp")).ValidateDataAnnotations().ValidateOnStart();

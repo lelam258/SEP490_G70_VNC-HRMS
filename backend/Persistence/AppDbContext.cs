@@ -5,6 +5,8 @@ using Vnc.HRMS.Models.Users;
 using Vnc.HRMS.Models.Employees;
 using Vnc.HRMS.Models.Organization;
 
+using Vnc.HRMS.Models.Payroll;
+
 namespace Vnc.HRMS.Persistence;
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : TimestampDbContext(options)
@@ -18,6 +20,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Times
     public DbSet<Degree> Degrees => Set<Degree>();
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<Position> Positions => Set<Position>();
+    public DbSet<AllowanceType> AllowanceTypes => Set<AllowanceType>();
+    public DbSet<PayrollInsuranceConfig> PayrollInsuranceConfigs => Set<PayrollInsuranceConfig>();
+    public DbSet<PayrollTaxBracket> PayrollTaxBrackets => Set<PayrollTaxBracket>();
+    public DbSet<CommissionRule> CommissionRules => Set<CommissionRule>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -25,5 +31,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Times
         UsersModelConfiguration.Configure(modelBuilder);
         EmployeesModelConfiguration.Configure(modelBuilder);
         OrganizationModelConfiguration.Configure(modelBuilder);
+        PayrollModelConfiguration.Configure(modelBuilder);
     }
 }
