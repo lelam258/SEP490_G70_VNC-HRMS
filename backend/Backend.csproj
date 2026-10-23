@@ -2,6 +2,7 @@
   <PropertyGroup>
     <RootNamespace>Vnc.HRMS</RootNamespace>
     <UserSecretsId>vnc-hrms-auth-development</UserSecretsId>
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/bin/**;**/obj/**</DefaultItemExcludes>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove=".local/**" />
