@@ -1,42 +1,66 @@
-# Database và migration
+# Database và chuyển dữ liệu cũ
 
-Một `AppDbContext`, một chuỗi migration trong `backend/Persistence/Migrations`, database mặc định **VNC_HRMS_Iteration1**. `InitialApplication` tạo các schema `iam`, `hr`, `attendance`, `payroll`, `compliance`, `notification` trong database chung.
+Mã nguồn mới không sửa/xóa database `VNC_HRMS_Iteration1`. Sáu database mới có migration độc lập. Bản SQL người dùng cung cấp được lưu nguyên văn tại `backend/Database/Reference/LatestSchema.sql`; mapping EF và migration là nguồn schema triển khai thực tế.
 
-## Máy mới
-
-Từ thư mục gốc repository, khi SQL Server đang chạy:
+## Khởi tạo không lấy dữ liệu cũ
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File backend/scripts/Initialize-Local.ps1
+powershell -ExecutionPolicy Bypass -File backend/scripts/Initialize-Local.ps1
 ```
 
-Không cần scaffold hoặc tự tạo bảng. Script dùng EF Core để tạo/cập nhật schema. Bản base chưa tạo admin hoặc cung cấp API đăng nhập. Sau đó vào `backend` chạy `dotnet run`.
+Script tạo/cập nhật sáu database, thiết lập development secrets và tạo admin nếu chưa có. Thông tin admin nằm ở `backend/.local/microservices-admin.txt`. Những database mới đã có admin sẽ không phù hợp với script import yêu cầu đích trống; không tự xóa dữ liệu để import.
 
-## Chuyển từ bản microservice
+## Chuyển từ monolith hiện tại
 
-1. Dừng backend cũ bằng Ctrl+C. Không ghi dữ liệu nguồn trong lúc chuyển; có thể lưu thêm backup database nguồn bằng SSMS.
-2. Pull code mới, chạy script khởi tạo trên. Script sao lưu database đích đã tồn tại bằng `COPY_ONLY, CHECKSUM` vào thư mục backup mặc định của SQL Server, in đường dẫn ra terminal. Nếu backup thất bại, dừng trước khi sửa schema.
-3. Áp dụng migration chung. Khi `iam.users` đích trống và IAM nguồn có dữ liệu, importer ưu tiên `VNC_IAM_DB`, `VNC_HR_DB`, `VNC_Attendance_DB`, `VNC_Payroll_DB`, `VNC_Compliance_DB`, `VNC_Notification_DB`. Sao chép bảng nghiệp vụ trong một transaction, giữ ID, password hash, role và liên kết hồ sơ.
-4. Nếu không có dữ liệu microservice, tìm bản cũ trong schema `users`, `auth`, `employees`, `organization` của `VNC_HRMS_Iteration1`. Ánh xạ role cũ `hr` thành `hr_manager`. Nếu chưa có dữ liệu cũ thì giữ database trống để các module triển khai.
-5. Chạy `dotnet run`, kiểm tra Swagger và `/health`. Kiểm tra dữ liệu bằng SSMS; API xác thực và nghiệp vụ sẽ được thêm sau. Refresh token/OTP cũ không được chuyển.
+Đây là chuyển đổi offline trên cùng SQL Server instance. Backup database nguồn và dừng các tiến trình ghi vào nguồn để có dữ liệu nhất quán trước khi thực hiện.
 
-Database nguồn và các bảng schema cũ giữ nguyên. Runtime chỉ đọc schema mới. Trên máy từng chạy bản cũ, SSMS có thể hiển thị thêm các bảng cũ; không xóa trước khi đối chiếu và sao lưu.
+1. Chuẩn bị database đích trống, không bootstrap admin:
 
-Khởi tạo lại khi `iam.users` đã có dữ liệu sẽ bỏ qua import, giữ nguyên tài khoản. Import thủ công bằng `scripts/Import-ExistingData.ps1` đòi toàn bộ bảng nghiệp vụ đích trống và kiểm tra số dòng, hash mật khẩu, liên kết, constraint trước commit. Lỗi rollback toàn bộ import; schema đã áp dụng vẫn giữ để sửa nguồn rồi chạy lại. Không hòa trộn hai bộ tài khoản khác nhau.
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File backend/scripts/Initialize-Local.ps1 -SkipBootstrap
+   ```
 
-Tham số khởi tạo: `-ConnectionString` đổi đích; `-DatabasePrefix` đổi tiền tố nguồn (mặc định `VNC`); `-LegacySourceDatabase` đổi tên database bản cũ. Nguồn và đích phải ở cùng SQL Server instance.
+2. Chuyển bảng tài khoản và nhân sự:
 
-User Secrets ID giữ nguyên nên SMTP/JWT/Cloudinary trên máy tiếp tục được đọc. Runtime chỉ đọc `ConnectionStrings:DefaultConnection`. `.local/application-secrets.json` giữ metadata khởi tạo riêng; các lần sau ưu tiên file này. Mật khẩu hiện tại trong database không bị reset về metadata.
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File backend/scripts/Import-LegacyData.ps1
+   ```
 
-## Thay đổi model về sau
+   Có thể truyền `-Server`, `-SourceDatabase`, `-DatabasePrefix`. Tài khoản Windows chạy script cần đọc nguồn, ghi các database đích. Các script này không hỗ trợ trực tiếp SQL Authentication; dùng connection string và công cụ quản trị phù hợp cho môi trường đó.
+
+3. Khởi động hệ thống mới:
+
+   ```powershell
+   cd backend
+   dotnet run
+   ```
+
+4. Đăng nhập bằng tài khoản cũ, kiểm tra số nhân viên/khoa phòng và chức năng phân quyền. Người dùng phải đăng nhập lại vì refresh token và OTP cũ không được chuyển. Nếu cần quay lại, dừng hệ thống mới và dùng lại bản monolith/database nguồn đã giữ nguyên; dữ liệu phát sinh mới cần đối soát trước khi quay lại.
+
+Script import dùng transaction cho đợt sao chép offline; yêu cầu cả bảy bảng đích còn trống, bỏ qua rowversion để SQL Server sinh lại, kiểm tra số dòng, xử lý vòng liên kết trưởng khoa/nhân viên và kiểm tra liên kết tài khoản-nhân viên. Gặp lỗi thì rollback toàn bộ đợt import. Nguồn chỉ được đọc. Không ghi đè hoặc upsert vào dữ liệu đích đã có.
+
+Các bảng được chuyển:
+
+| Nguồn | Đích |
+| --- | --- |
+| users.users | VNC_IAM_DB.iam.users |
+| auth.credentials | VNC_IAM_DB.iam.credentials |
+| organization.positions / departments | VNC_HR_DB.hr.positions / departments |
+| employees.staff / contracts / degrees | VNC_HR_DB.hr.staff / contracts / degrees |
+
+Đây là importer cho **schema monolith trong repository**, không phải importer tự động cho mọi database từng được tạo từ SQL tham chiếu. Các domain Attendance/Payroll/Compliance/Notification chưa có dữ liệu trong backend cũ, nên được tạo trống.
+
+## SQL script độc lập
+
+`backend/Database/<Service>/Schema.sql` là script EF idempotent, có `__EFMigrationsHistory`, dùng trên một database đích đã được tạo và chọn sẵn. Không cần chạy script nếu đã dùng EF/Initialize-Local. Không chạy đồng thời hai bộ công cụ migration trên cùng database.
+
+Xuất lại sau khi sửa model và tạo migration, ví dụ:
 
 ```powershell
 cd backend
-dotnet tool restore
-dotnet ef migrations add TenThayDoi --output-dir Persistence/Migrations
-dotnet ef database update
+dotnet ef migrations script --idempotent --project Services/HR/VNC.HRMS.HR.API --startup-project Services/HR/VNC.HRMS.HR.API --output Database/HR/Schema.sql
 ```
 
-Commit entity/mapping, migration và `AppDbContextModelSnapshot.cs` cùng nhau. Thành viên pull code chỉ chạy `dotnet ef database update`, hoặc script `powershell -ExecutionPolicy Bypass -File scripts/Update-Database.ps1`.
+## Docker
 
-Không sửa/xóa migration đã chia sẻ và áp dụng để đổi schema. Tạo migration mới, kiểm tra SQL nếu thay đổi/xóa cột có dữ liệu. Khi cần khôi phục, dùng backup và phiên bản code phù hợp; không xóa database để xử lý lỗi thông thường.
+`Initialize-Docker.ps1` dùng các database trong SQL Server container riêng, không tự lấy dữ liệu SQL Server Windows. Compose dùng `sa` để thuận tiện thiết lập môi trường phát triển; khi triển khai cần provision user riêng và quyền giới hạn theo database. Không xóa volume để cập nhật schema; chạy migration từng service.
