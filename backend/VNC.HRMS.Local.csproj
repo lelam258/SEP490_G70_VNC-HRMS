@@ -1,9 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <EnableDefaultItems>false</EnableDefaultItems>
-  </PropertyGroup>
-  <ItemGroup>
-    <Compile Include="Launcher/Program.cs" />
-  </ItemGroup>
-</Project>

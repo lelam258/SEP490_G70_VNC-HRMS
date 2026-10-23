@@ -1,38 +1,21 @@
-# Frontend
+# Frontend base
 
-Một React SPA dùng Vite, TypeScript, React Router DOM, Zustand, Axios và Tailwind CSS. Không còn Module Federation hoặc nhiều frontend trên các cổng khác nhau.
+Một React SPA dùng Vite, TypeScript, React Router DOM, Axios, Zustand và Tailwind CSS.
 
 ```powershell
-cd frontend
 npm ci
 npm run dev
 ```
 
-Mở **http://localhost:5173**. Chạy backend bằng `cd backend` rồi `dotnet run` từ thư mục gốc repository. Vite proxy `/api` đến Gateway cổng 5100; Gateway định tuyến đến 6 service nên frontend giữ nguyên URL hiện có.
+Mở http://localhost:5173; chạy backend bằng dotnet run ở thư mục backend trong terminal khác. Vite proxy /api đến http://localhost:5100. Bản base chỉ hiển thị trang khung, chưa có màn login hoặc nghiệp vụ.
 
-```text
-src/pages       màn hình tương ứng URL, kết thúc bằng Page.tsx
-src/components  component hiển thị; ui/ chứa phần dùng lại
-src/layouts     khung đăng nhập và không gian làm việc
-src/routes      AppRoutes và ProtectedRoute
-src/services    axiosClient và các ...Api.ts
-src/store       các use...Store.ts dùng Zustand
-src/hooks       truy vấn và điều phối dùng chung
-src/types       kiểu dữ liệu
-src/utils       hàm kiểm tra/định dạng
-src/styles      Tailwind và CSS component
-```
+- pages: component theo route, tên ...Page.tsx.
+- components/ui: UI tái sử dụng; nhận props và callback.
+- layouts: khung trang; routes: cấu hình route và ProtectedRoute.
+- services: Axios client và các ...Api.ts khi bổ sung chức năng.
+- store: Zustand useAuthStore/useAppStore; auth store và guard là hạ tầng dùng chung cho các module được bảo vệ.
+- hooks, types, utils, styles: phần dùng chung.
 
-Các màn chính: `/login`, `/register`, `/forgot-password`, `/reset-password`, `/accounts`, `/accounts/new`, `/accounts/:id`, `/accounts/:id/edit`, `/employees`, `/departments`, `/change-password`.
+Đặt HTTP call trong services. Chỉ đưa trạng thái cần dùng chung vào store. Khi thêm chức năng, đăng ký route và menu tương ứng; backend vẫn phải kiểm tra quyền độc lập. App base không gọi refresh/me vì API xác thực chưa được triển khai.
 
-Thông tin phiên lưu qua Zustand trong `sessionStorage`; refresh token là HttpOnly cookie. Axios gắn Bearer token cho API được bảo vệ và phối hợp refresh khi nhiều request gặp 401. ProtectedRoute chặn màn hình ngoài quyền, backend kiểm tra quyền độc lập.
-
-Thêm màn hình bằng page, đăng ký route trong `routes/AppRoutes.tsx`, thêm menu ở `layouts/AppLayout.tsx`. Đặt HTTP call trong `services`, không gọi fetch trực tiếp ở component. Form nhận dữ liệu/callback qua props; trạng thái dùng chung mới đưa vào store.
-
-```powershell
-npm run build
-```
-
-Bản build nằm ở `dist`. Production cần reverse proxy cho `/api` và fallback các URL frontend về `index.html`; có thể dùng `VITE_API_BASE_URL` trỏ tới API đã triển khai. `API_PROXY_TARGET` chỉ dùng để đổi backend đích của Vite development proxy.
-
-Xem [kiến trúc và quy ước nhóm](../docs/ARCHITECTURE.md) để thêm module.
+Build bằng npm run build. Production cần SPA fallback về index.html và reverse proxy cho /api. VITE_API_BASE_URL/API_PROXY_TARGET là cấu hình địa chỉ API, không đặt secret trong frontend.
