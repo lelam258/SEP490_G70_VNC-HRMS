@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Vnc.HRMS.Configurations;
 using Vnc.HRMS.Middlewares;
-
+using Vnc.HRMS.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers().ConfigureApiBehaviorOptions(options => options.InvalidModelStateResponseFactory = context =>
@@ -28,11 +28,16 @@ builder.Services.AddRateLimiter(options => {
     }
 });
 var app = builder.Build();
+if (app.Configuration.GetValue("BootstrapOnly", false)) {
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider.GetRequiredService<BootstrapService>().InitializeAsync(CancellationToken.None);
+    return;
+}
 app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseRouting();
 app.UseCors();
 app.UseAuthentication();
-
+app.UseMiddleware<Vnc.HRMS.Security.SessionSecurityMiddleware>();
 app.UseAuthorization();
 app.UseRateLimiter();
 if (app.Environment.IsDevelopment()) {

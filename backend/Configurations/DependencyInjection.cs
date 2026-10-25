@@ -6,6 +6,10 @@ using Vnc.HRMS.Models.Auth;
 using Vnc.HRMS.Persistence;
 using Vnc.HRMS.Repositories;
 using Vnc.HRMS.Repositories.Interfaces;
+using Vnc.HRMS.Services;
+using Vnc.HRMS.Services.Interfaces;
+using Vnc.HRMS.Contracts;
+using Vnc.HRMS.Security;
 
 namespace Vnc.HRMS.Configurations;
 
@@ -22,7 +26,11 @@ public static class DependencyInjection
         services.AddSingleton<IEmailService, SmtpEmailService>();
         services.Configure<CloudinaryOptions>(configuration.GetSection("Cloudinary"));
         services.AddHttpClient<ICloudinaryService, CloudinaryService>(client => client.Timeout = TimeSpan.FromSeconds(30));
-        // Register each module's repositories and services when that feature is introduced.
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IAuthRepository, AuthRepository>();
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<ISessionInspector, LocalSessionInspector>();
+        services.AddScoped<BootstrapService>();
         return services;
     }
 }
