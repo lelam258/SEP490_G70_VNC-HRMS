@@ -3,6 +3,7 @@ import AppLayout from '../layouts/AppLayout';
 import HomePage from '../pages/HomePage';
 import LoginPage from '../pages/auth/LoginPage';
 import ChangePasswordPage from '../pages/auth/ChangePasswordPage';
+import AccountListPage from '../pages/accounts/AccountListPage';
 import NotFoundPage from '../pages/NotFoundPage';
 import ProtectedRoute from './ProtectedRoute';
 
@@ -13,6 +14,9 @@ export default function AppRoutes() {
       <Route element={<AppLayout />}>
         <Route index element={<HomePage />} />
         <Route path="/change-password" element={<ChangePasswordPage />} />
+        <Route element={<ProtectedRoute roles={['admin']} />}>
+          <Route path="/accounts" element={<AccountListPage />} />
+        </Route>
       </Route>
     </Route>
     <Route path="*" element={<NotFoundPage />} />

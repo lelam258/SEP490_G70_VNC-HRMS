@@ -1,0 +1,8 @@
+export const roles = ['admin', 'hr_manager', 'hr_staff', 'accountant', 'department_head', 'employee'] as const;
+export const roleLabels: Record<Role, string> = { admin: 'Administrator', hr_manager: 'HR Manager', hr_staff: 'HR Staff', accountant: 'Accountant', department_head: 'Department Manager', employee: 'Medical Staff' };
+export const statuses = ['active', 'inactive', 'locked'] as const;
+export type Role = typeof roles[number];
+export type Status = typeof statuses[number];
+export const statusLabels: Record<Status, string> = { active: 'Hoạt động', inactive: 'Ngừng hoạt động', locked: 'Đã khóa' };
+export type Employee = { id: string; code: string; name: string; department: string; departmentId: string | null; email: string | null; status: string };
+export type Account = { id: string; employeeId: string | null; username: string; email: string | null; fullName: string | null; role: Role; status: Status; isProvisioned: boolean; version: string; createdAt: string; updatedAt: string; lastLogin: string | null };
