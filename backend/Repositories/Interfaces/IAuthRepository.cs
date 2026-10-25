@@ -14,4 +14,5 @@ public interface IAuthRepository
     Task<SessionIdentityDto?> InspectSessionAsync(Guid id, CancellationToken ct);
     Task RevokeSessionsAsync(Guid userId, CancellationToken ct);
     Task RevokeSessionAsync(Guid? id, string? hash, CancellationToken ct);
+    Task InvalidateOtpsAsync(Guid userId, CancellationToken ct);
 }

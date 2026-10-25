@@ -8,4 +8,5 @@ public interface IAuthService
     Task<AuthenticationResultDto> RefreshAsync(string? refreshToken, string device, CancellationToken ct);
     Task LogoutAsync(string? refreshToken, Guid? sessionId, CancellationToken ct);
     Task<CurrentUserDto> GetCurrentUserAsync(Guid id, CancellationToken ct);
+    Task ChangePasswordAsync(Guid id, ChangePasswordRequest request, CancellationToken ct);
 }

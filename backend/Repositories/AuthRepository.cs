@@ -38,4 +38,6 @@ public sealed class AuthRepository(AppDbContext db) : IAuthRepository
         .ExecuteUpdateAsync(set => set.SetProperty(x => x.Revoked, true).SetProperty(x => x.RevokedAt, DateTime.UtcNow), ct);
     public async Task RevokeSessionAsync(Guid? id, string? hash, CancellationToken ct) => await db.RefreshTokens.Where(x => x.TokenId == id || x.TokenHash == hash)
         .ExecuteUpdateAsync(set => set.SetProperty(x => x.Revoked, true).SetProperty(x => x.RevokedAt, DateTime.UtcNow), ct);
+    public async Task InvalidateOtpsAsync(Guid userId, CancellationToken ct) => await db.PasswordResetTokens.Where(x => x.UserId == userId && x.UsedAt == null)
+        .ExecuteUpdateAsync(set => set.SetProperty(x => x.UsedAt, DateTime.UtcNow), ct);
 }

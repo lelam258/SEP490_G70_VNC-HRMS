@@ -16,7 +16,7 @@ using Vnc.HRMS.Services.Interfaces;
 
 namespace Vnc.HRMS.Services;
 
-public sealed class AuthService(IAuthRepository auth, IUserRepository users,
+public sealed class AuthService(IAuthRepository auth, IUserRepository users, IUnitOfWork unitOfWork,
     IPasswordHasher<Credential> hasher, IOptions<JwtOptions> options) : IAuthService
 {
     private const string InvalidLogin = "Tên đăng nhập/email hoặc mật khẩu không đúng, hoặc tài khoản không khả dụng.";
@@ -58,6 +58,21 @@ public sealed class AuthService(IAuthRepository auth, IUserRepository users,
     {
         var user = await users.FindAsync(id, ct) ?? throw new AppException(401, "Tài khoản không khả dụng.");
         return CurrentUser(user);
+    }
+
+    public async Task ChangePasswordAsync(Guid id, ChangePasswordRequest request, CancellationToken ct)
+    {
+        if (!PasswordHelper.IsStrong(request.NewPassword)) throw new AppException(400, "Mật khẩu mới cần từ 6 đến 128 ký tự.");
+        var credential = await auth.FindCredentialAsync(id, ct) ?? throw new AppException(401, "Tài khoản không khả dụng.");
+        if (hasher.VerifyHashedPassword(credential, credential.PasswordHash, request.CurrentPassword) == PasswordVerificationResult.Failed)
+            throw new AppException(400, "Mật khẩu hiện tại không đúng.");
+        await using var transaction = await unitOfWork.BeginTransactionAsync(ct);
+        credential.PasswordHash = hasher.HashPassword(credential, request.NewPassword);
+        credential.FailedLoginCount = 0; credential.LockedUntil = null;
+        await unitOfWork.SaveChangesAsync(ct);
+        await auth.RevokeSessionsAsync(id, ct);
+        await auth.InvalidateOtpsAsync(id, ct);
+        await transaction.CommitAsync(ct);
     }
 
     private async Task<AuthenticationResultDto> IssueAsync(User user, Credential credential, string device, CancellationToken ct)

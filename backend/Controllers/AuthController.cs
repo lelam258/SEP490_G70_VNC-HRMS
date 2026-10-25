@@ -37,6 +37,13 @@ public sealed class AuthController(IAuthService auth, IWebHostEnvironment enviro
     [Authorize, HttpGet("me")]
     public Task<CurrentUserDto> Me(CancellationToken ct) => auth.GetCurrentUserAsync(Guid.Parse(User.FindFirstValue("sub")!), ct);
 
+    [Authorize, HttpPost("change-password")]
+    public async Task<IActionResult> ChangePassword(ChangePasswordRequest request, CancellationToken ct)
+    {
+        await auth.ChangePasswordAsync(Guid.Parse(User.FindFirstValue("sub")!), request, ct);
+        DeleteCookie(); return NoContent();
+    }
+
     private ActionResult<SessionResponse> CompleteLogin(AuthenticationResultDto result)
     {
         Response.Cookies.Append(CookieName, result.RefreshToken, CookieOptions(result.RefreshExpiresAt));
