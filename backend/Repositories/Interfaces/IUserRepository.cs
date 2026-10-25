@@ -10,4 +10,5 @@ public interface IUserRepository
     Task<bool> HasProvisionedAdminAsync(CancellationToken ct);
     void Add(User user);
     Task<AccountDto[]> ListAsync(CancellationToken ct);
+    Task<AccountDto?> GetDetailAsync(Guid id, CancellationToken ct);
 }

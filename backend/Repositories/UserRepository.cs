@@ -24,4 +24,5 @@ public sealed class UserRepository(AppDbContext db) : IUserRepository
                                                                           user.AccountStatus, user.IsProvisioned, user.CreatedAt, user.UpdatedAt,
                                                                           credential == null ? null : credential.LastLogin, Convert.ToBase64String(user.Version));
     public Task<AccountDto[]> ListAsync(CancellationToken ct) => Details(db.Users.AsNoTracking().OrderByDescending(x => x.CreatedAt)).ToArrayAsync(ct);
+    public Task<AccountDto?> GetDetailAsync(Guid id, CancellationToken ct) => Details(db.Users.AsNoTracking().Where(x => x.UserId == id)).SingleOrDefaultAsync(ct);
 }
