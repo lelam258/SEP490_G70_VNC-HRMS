@@ -5,6 +5,8 @@ import LoginPage from '../pages/auth/LoginPage';
 import ChangePasswordPage from '../pages/auth/ChangePasswordPage';
 import AccountListPage from '../pages/accounts/AccountListPage';
 import AccountCreatePage from '../pages/accounts/AccountCreatePage';
+import AccountDetailPage from '../pages/accounts/AccountDetailPage';
+import AccountEditPage from '../pages/accounts/AccountEditPage';
 import NotFoundPage from '../pages/NotFoundPage';
 import ProtectedRoute from './ProtectedRoute';
 
@@ -18,6 +20,8 @@ export default function AppRoutes() {
         <Route element={<ProtectedRoute roles={['admin']} />}>
           <Route path="/accounts" element={<AccountListPage />} />
           <Route path="/accounts/new" element={<AccountCreatePage />} />
+          <Route path="/accounts/:id" element={<AccountDetailPage />} />
+          <Route path="/accounts/:id/edit" element={<AccountEditPage />} />
         </Route>
       </Route>
     </Route>
