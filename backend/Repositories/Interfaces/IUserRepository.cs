@@ -1,3 +1,4 @@
+using Vnc.HRMS.DTOs.Users;
 using Vnc.HRMS.Models.Users;
 
 namespace Vnc.HRMS.Repositories.Interfaces;
@@ -8,4 +9,5 @@ public interface IUserRepository
     Task<User?> FindAsync(Guid id, CancellationToken ct);
     Task<bool> HasProvisionedAdminAsync(CancellationToken ct);
     void Add(User user);
+    Task<AccountDto[]> ListAsync(CancellationToken ct);
 }

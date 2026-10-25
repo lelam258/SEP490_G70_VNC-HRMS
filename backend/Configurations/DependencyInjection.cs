@@ -29,6 +29,9 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IAuthRepository, AuthRepository>();
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IEmployeeRepository, EmployeeRepository>();
+        services.AddScoped<IEmployeeDirectory, EmployeeDirectoryRepository>();
         services.AddScoped<ISessionInspector, LocalSessionInspector>();
         services.AddScoped<BootstrapService>();
         return services;
