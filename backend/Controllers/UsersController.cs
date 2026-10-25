@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Vnc.HRMS.DTOs.Users;
@@ -18,4 +19,7 @@ public sealed class UsersController(IUserService users, Vnc.HRMS.Contracts.IEmpl
         var account = await users.CreateAsync(request, false, ct);
         return CreatedAtAction(nameof(Get), new { id = account.Id }, account);
     }
+    [HttpPut("{id:guid}")]
+    public Task<AccountDto> Update(Guid id, SaveAccountRequest request, CancellationToken ct)
+        => users.UpdateAsync(id, request, Guid.Parse(User.FindFirstValue("sub")!), ct);
 }

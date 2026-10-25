@@ -7,4 +7,5 @@ public interface IUserService
     Task<AccountDto[]> ListAsync(CancellationToken ct);
     Task<AccountDto> GetAsync(Guid id, CancellationToken ct);
     Task<AccountDto> CreateAsync(SaveAccountRequest request, bool bootstrap, CancellationToken ct);
+    Task<AccountDto> UpdateAsync(Guid id, SaveAccountRequest request, Guid actorId, CancellationToken ct);
 }

@@ -25,4 +25,5 @@ public sealed class UserRepository(AppDbContext db) : IUserRepository
                                                                           credential == null ? null : credential.LastLogin, Convert.ToBase64String(user.Version));
     public Task<AccountDto[]> ListAsync(CancellationToken ct) => Details(db.Users.AsNoTracking().OrderByDescending(x => x.CreatedAt)).ToArrayAsync(ct);
     public Task<AccountDto?> GetDetailAsync(Guid id, CancellationToken ct) => Details(db.Users.AsNoTracking().Where(x => x.UserId == id)).SingleOrDefaultAsync(ct);
+    public Task<bool> HasActiveAdminAsync(Guid? exceptId, CancellationToken ct) => db.Users.AnyAsync(x => x.UserId != exceptId && x.Role == "admin" && x.AccountStatus == "active" && x.IsProvisioned, ct);
 }
