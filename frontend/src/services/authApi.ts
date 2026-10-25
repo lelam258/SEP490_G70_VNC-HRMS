@@ -13,4 +13,8 @@ export const authApi = {
     await publicClient.post('/auth/logout', {});
     useAuthStore.getState().setSession(null);
   },
+  async changePassword(currentPassword: string, newPassword: string) {
+    await axiosClient.post('/auth/change-password', { currentPassword, newPassword });
+    useAuthStore.getState().setSession(null);
+  },
 };
