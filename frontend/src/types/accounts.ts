@@ -6,3 +6,4 @@ export type Status = typeof statuses[number];
 export const statusLabels: Record<Status, string> = { active: 'Hoạt động', inactive: 'Ngừng hoạt động', locked: 'Đã khóa' };
 export type Employee = { id: string; code: string; name: string; department: string; departmentId: string | null; email: string | null; status: string };
 export type Account = { id: string; employeeId: string | null; username: string; email: string | null; fullName: string | null; role: Role; status: Status; isProvisioned: boolean; version: string; createdAt: string; updatedAt: string; lastLogin: string | null };
+export type AccountInput = Account & { password?: string };

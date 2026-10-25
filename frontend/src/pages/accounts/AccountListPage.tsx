@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Icon from '../../components/ui/Icon';
 import { useAppStore } from '../../store/useAppStore';
 import { useAccounts } from '../../hooks/useAccounts';
@@ -8,6 +9,7 @@ import { normalize, initials, formatDate } from '../../utils/format';
 
 const PAGE_SIZE = 6;
 export default function AccountListPage() {
+  const navigate = useNavigate();
   const { accounts, employees, loading, loadError, reload } = useAccounts();
   const notice = useAppStore(state => state.notice);
   const setNotice = useAppStore(state => state.setNotice);
@@ -30,7 +32,7 @@ export default function AccountListPage() {
   function resetFilters() { setQuery(''); setEmployeeId(''); setRole(''); setStatus(''); setPage(1); }
   return <div className="vnc admin-page">
     <>
-      <div className="page-heading"><div><span className="eyebrow">QUẢN TRỊ HỆ THỐNG</span><h1>Quản lý tài khoản</h1><p className="muted">Tra cứu tài khoản và trạng thái truy cập của đội ngũ VNC Clinic.</p></div></div>
+      <div className="page-heading"><div><span className="eyebrow">QUẢN TRỊ HỆ THỐNG</span><h1>Quản lý tài khoản</h1><p className="muted">Tra cứu tài khoản và trạng thái truy cập của đội ngũ VNC Clinic.</p></div><button className="button primary" disabled={!!loadError || loading} onClick={() => { setNotice(''); navigate('/accounts/new'); }}><Icon name="plus" size={18} />Tạo tài khoản</button></div>
       <div className="stats-grid"><div className="stat-card"><span className="stat-icon blue"><Icon name="users" size={22} /></span><div><span>Tổng tài khoản</span><strong>{accounts.length.toString().padStart(2, '0')}</strong></div><small>Toàn bộ hệ thống</small></div>{(['active', 'inactive', 'locked'] as Status[]).map(s => <div className="stat-card" key={s}><span className={`stat-icon ${s}`}><Icon name={s === 'active' ? 'check' : s === 'locked' ? 'lock' : 'clock'} size={22} /></span><div><span>{statusLabels[s]}</span><strong>{accounts.filter(a => a.status === s).length.toString().padStart(2, '0')}</strong></div><small>{s === 'active' ? 'Được phép truy cập' : s === 'locked' ? 'Tạm khóa truy cập' : 'Ngừng sử dụng'}</small></div>)}</div>
       {loadError && <div className="alert error" role="alert">{loadError}<button className="button" onClick={() => void reload()}>Tải lại</button></div>}{loading && <div className="loading-state" role="status">Đang tải dữ liệu…</div>}
       {notice && <div className="alert success" role="status"><Icon name="check" size={18} />{notice}<button className="icon-button" aria-label="Đóng thông báo" onClick={() => setNotice('')}><Icon name="close" size={16} /></button></div>}
