@@ -1,5 +1,6 @@
 export function roleHome(role: string): string {
   if (role === 'admin') return '/accounts';
+  if (role === 'hr_manager') return '/employees';
   return '/';
 }
 
@@ -10,6 +11,7 @@ export function loginDestination(role: string, from: unknown): string {
   if (url.origin !== 'https://vnc.local') return roleHome(role);
   const path = url.pathname;
   const permitted = path === '/' || path === '/change-password'
-    || (role === 'admin' && (path === '/accounts' || path.startsWith('/accounts/')));
+    || (role === 'admin' && (path === '/accounts' || path.startsWith('/accounts/')))
+    || (role === 'hr_manager' && ['/employees', '/departments', '/organization'].includes(path));
   return permitted ? url.pathname + url.search + url.hash : roleHome(role);
 }

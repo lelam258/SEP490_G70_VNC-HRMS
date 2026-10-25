@@ -35,6 +35,10 @@ public static class DependencyInjection
         services.AddScoped<IEmployeeDirectory, EmployeeDirectoryRepository>();
         services.AddScoped<ISessionInspector, LocalSessionInspector>();
         services.AddScoped<BootstrapService>();
+        services.AddScoped<IDepartmentRepository, DepartmentRepository>();
+        services.AddScoped<IEmployeeService, EmployeeService>();
+        services.AddScoped<IDepartmentService, DepartmentService>();
+        services.AddScoped<IFileService, FileService>();
         return services;
     }
 }

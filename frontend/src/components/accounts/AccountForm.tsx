@@ -5,7 +5,7 @@ import { formatDate, initials } from '../../utils/format';
 
 export default function AccountForm({ account, accounts, employees, mode, onBack, onEdit, onSave }: {
   account?: Account; accounts: Account[]; employees: Employee[]; mode: 'create' | 'detail' | 'edit';
-  onBack: () => void; onEdit?: () => void; onSave: (value: AccountInput) => Promise<string | null>;
+  onBack: () => void; onEdit: () => void; onSave: (value: AccountInput) => Promise<string | null>;
 }) {
   const readonly = mode === 'detail';
   const [employeeId, setEmployeeId] = useState(account?.employeeId || '');
@@ -40,7 +40,7 @@ export default function AccountForm({ account, accounts, employees, mode, onBack
   }
   return <section className="account-form-page">
     <button className="text-button back-button" onClick={back}><Icon name="arrow" size={18} /> Danh sách tài khoản</button>
-    <div className="page-heading"><div><span className="eyebrow">QUẢN TRỊ HỆ THỐNG</span><h1>{mode === 'create' ? 'Tạo tài khoản' : mode === 'edit' ? 'Chỉnh sửa tài khoản' : 'Chi tiết tài khoản'}</h1><p className="muted">{mode === 'create' ? 'Thiết lập quyền truy cập hệ thống cho thành viên đội ngũ.' : 'Thông tin tài khoản và quyền truy cập của nhân viên.'}</p></div>{readonly && onEdit && <button className="button primary" onClick={onEdit}><Icon name="edit" size={18} />Chỉnh sửa</button>}</div>
+    <div className="page-heading"><div><span className="eyebrow">QUẢN TRỊ HỆ THỐNG</span><h1>{mode === 'create' ? 'Tạo tài khoản' : mode === 'edit' ? 'Chỉnh sửa tài khoản' : 'Chi tiết tài khoản'}</h1><p className="muted">{mode === 'create' ? 'Thiết lập quyền truy cập hệ thống cho thành viên đội ngũ.' : 'Thông tin tài khoản và quyền truy cập của nhân viên.'}</p></div>{readonly && <button className="button primary" onClick={onEdit}><Icon name="edit" size={18} />Chỉnh sửa</button>}</div>
     <div className="form-layout"><form onSubmit={submit} className="panel account-form" aria-label={mode === 'create' ? 'Tạo tài khoản' : 'Thông tin tài khoản'}>
       <div className="panel-heading"><span className="section-number">01</span><div><h2>Thông tin nhân viên</h2><p>Liên kết tài khoản với hồ sơ nhân viên hiện có.</p></div></div>
       <div className="form-section"><label htmlFor="account-employee">Nhân viên {!employeeOptional && <span className="required">*</span>}</label><select id="account-employee" required={!employeeOptional} disabled={!!account?.employeeId || readonly} value={employeeId} onChange={e => { setEmployeeId(e.target.value); const selected = employees.find(x => x.id === e.target.value); setUsername(selected?.email?.split('@')[0] || selected?.code.toLowerCase() || ''); setEmail(selected?.email || ''); setFullName(selected?.name || ''); }}><option value="">{employeeOptional ? 'Chưa liên kết hồ sơ nhân viên' : 'Chọn nhân viên chưa có tài khoản'}</option>{available.map(e => <option key={e.id} value={e.id}>{e.code} — {e.name}</option>)}</select>{(!available.length || role === 'hr_manager') && <p className="field-hint">Administrator có thể cấp tài khoản HR Manager trước khi có hồ sơ nhân viên. Các vai trò khác cần hồ sơ do HR Manager tạo.</p>}
