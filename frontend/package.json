@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5173 --strictPort",
     "build": "tsc -b && vite build",
+    "test:logout": "node scripts/verify-logout.mjs",
+    "test:permissions": "node scripts/verify-permissions.mjs",
     "preview": "vite preview --host 0.0.0.0 --port 5173 --strictPort"
   },
   "type": "module",

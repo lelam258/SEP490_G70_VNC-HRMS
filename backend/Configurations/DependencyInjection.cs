@@ -6,6 +6,8 @@ using Vnc.HRMS.Models.Auth;
 using Vnc.HRMS.Persistence;
 using Vnc.HRMS.Repositories;
 using Vnc.HRMS.Repositories.Interfaces;
+using Vnc.HRMS.Services;
+using Vnc.HRMS.Services.Interfaces;
 
 namespace Vnc.HRMS.Configurations;
 
@@ -15,6 +17,15 @@ public static class DependencyInjection
     {
         services.AddDbContext<AppDbContext>(options => options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<IAuthRepository, AuthRepository>();
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IEmployeeRepository, EmployeeRepository>();
+        services.AddScoped<IDepartmentRepository, DepartmentRepository>();
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IAccountRecoveryService, AccountRecoveryService>();
+        services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IEmployeeService, EmployeeService>();
+        services.AddScoped<IDepartmentService, DepartmentService>();
         services.AddScoped<IPasswordHasher<Credential>, PasswordHasher<Credential>>();
         services.Configure<PasswordHasherOptions>(options => options.IterationCount = 210_000);
         services.AddOptions<OtpOptions>().Bind(configuration.GetSection("Otp")).ValidateDataAnnotations().ValidateOnStart();
@@ -22,7 +33,14 @@ public static class DependencyInjection
         services.AddSingleton<IEmailService, SmtpEmailService>();
         services.Configure<CloudinaryOptions>(configuration.GetSection("Cloudinary"));
         services.AddHttpClient<ICloudinaryService, CloudinaryService>(client => client.Timeout = TimeSpan.FromSeconds(30));
-        // Register each module's repositories and services when that feature is introduced.
+        services.AddScoped<IFileService, FileService>();
+        services.AddScoped<BootstrapService>();
+        services.AddScoped<Vnc.HRMS.Contracts.IEmployeeDirectory, EmployeeDirectoryRepository>();
+        services.AddScoped<Vnc.HRMS.Contracts.ISessionInspector, Vnc.HRMS.Security.LocalSessionInspector>();
+        services.AddScoped<AttendanceRepository>(); services.AddScoped<AttendanceService>();
+        services.AddScoped<PayrollRepository>(); services.AddScoped<PayrollService>();
+        services.AddScoped<ComplianceRepository>(); services.AddScoped<ComplianceService>();
+        services.AddScoped<NotificationRepository>(); services.AddScoped<NotificationService>();
         return services;
     }
 }
