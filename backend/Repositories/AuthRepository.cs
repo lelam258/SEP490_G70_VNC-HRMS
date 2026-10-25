@@ -40,4 +40,47 @@ public sealed class AuthRepository(AppDbContext db) : IAuthRepository
         .ExecuteUpdateAsync(set => set.SetProperty(x => x.Revoked, true).SetProperty(x => x.RevokedAt, DateTime.UtcNow), ct);
     public async Task InvalidateOtpsAsync(Guid userId, CancellationToken ct) => await db.PasswordResetTokens.Where(x => x.UserId == userId && x.UsedAt == null)
         .ExecuteUpdateAsync(set => set.SetProperty(x => x.UsedAt, DateTime.UtcNow), ct);
+
+    public async Task<bool> CreateRecoveryAsync(PasswordResetToken token, CancellationToken ct)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        // The same credential-first lock order is used by reset and resend.
+        var credential = await db.Credentials.FromSqlInterpolated($"SELECT * FROM [iam].[credentials] WITH (UPDLOCK, HOLDLOCK) WHERE [user_id] = {token.UserId}")
+            .AsNoTracking().SingleOrDefaultAsync(ct);
+        if (credential is null) return false;
+        token.PasswordStamp = PasswordHelper.Hash(credential.PasswordHash);
+        await db.PasswordResetTokens.Where(x => x.UserId == token.UserId && x.ExpiresAt <= DateTime.UtcNow).ExecuteDeleteAsync(ct);
+        await InvalidateOtpsAsync(token.UserId, ct);
+        db.PasswordResetTokens.Add(token);
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return true;
+    }
+    public async Task DeleteRecoveryAsync(Guid id, CancellationToken ct) => await db.PasswordResetTokens.Where(x => x.Id == id).ExecuteDeleteAsync(ct);
+
+    public async Task<PasswordResetToken?> ReserveOtpAttemptAsync(Guid id, CancellationToken ct)
+    {
+        var token = await db.PasswordResetTokens.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.UsedAt == null && x.ExpiresAt > DateTime.UtcNow
+            && x.CodeLength >= 6 && x.CodeLength <= 8 && x.Attempts < x.MaxAttempts, ct);
+        if (token is null) return null;
+        var updated = await db.PasswordResetTokens.Where(x => x.Id == id && x.UsedAt == null && x.ExpiresAt > DateTime.UtcNow && x.Attempts < x.MaxAttempts)
+            .ExecuteUpdateAsync(set => set.SetProperty(x => x.Attempts, x => x.Attempts + 1), ct);
+        return updated == 1 ? token : null;
+    }
+
+    public async Task<bool> ResetPasswordAsync(PasswordResetToken token, string originalHash, string newHash, CancellationToken ct)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var updated = await db.Credentials.Where(x => x.UserId == token.UserId && x.PasswordHash == originalHash).ExecuteUpdateAsync(set => set
+            .SetProperty(x => x.PasswordHash, newHash).SetProperty(x => x.FailedLoginCount, 0)
+            .SetProperty(x => x.LockedUntil, (DateTime?)null).SetProperty(x => x.UpdatedAt, DateTime.UtcNow), ct);
+        if (updated != 1) return false;
+        var consumed = await db.PasswordResetTokens.Where(x => x.Id == token.Id && x.UsedAt == null && x.ExpiresAt > DateTime.UtcNow && x.Attempts <= x.MaxAttempts)
+            .ExecuteUpdateAsync(set => set.SetProperty(x => x.UsedAt, DateTime.UtcNow), ct);
+        if (consumed != 1) return false;
+        await InvalidateOtpsAsync(token.UserId, ct);
+        await RevokeSessionsAsync(token.UserId, ct);
+        await transaction.CommitAsync(ct);
+        return true;
+    }
 }

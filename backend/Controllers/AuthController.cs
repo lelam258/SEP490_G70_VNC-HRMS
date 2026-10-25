@@ -9,7 +9,7 @@ namespace Vnc.HRMS.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public sealed class AuthController(IAuthService auth, IWebHostEnvironment environment, IConfiguration configuration) : ControllerBase
+public sealed class AuthController(IAuthService auth, IAccountRecoveryService recovery, IWebHostEnvironment environment, IConfiguration configuration) : ControllerBase
 {
     private const string CookieName = "vnc.hrms.refresh";
     [HttpPost("login"), EnableRateLimiting("login")]
@@ -42,6 +42,24 @@ public sealed class AuthController(IAuthService auth, IWebHostEnvironment enviro
     {
         await auth.ChangePasswordAsync(Guid.Parse(User.FindFirstValue("sub")!), request, ct);
         DeleteCookie(); return NoContent();
+    }
+
+    [HttpPost("register"), EnableRateLimiting("registration")]
+    public async Task<IActionResult> Register(RegistrationRequest request, CancellationToken ct)
+    {
+        await recovery.RegisterAsync(request, ct);
+        return StatusCode(201, new { message = "Đăng ký thành công. Bạn có thể đăng nhập ngay bằng tài khoản nhân viên vừa tạo." });
+    }
+
+    [HttpPost("forgot-password"), EnableRateLimiting("recovery")]
+    public async Task<ActionResult<RecoveryChallengeResponse>> ForgotPassword(ForgotPasswordRequest request, CancellationToken ct)
+        => Accepted(await recovery.ForgotAsync(request, ct));
+
+    [HttpPost("reset-password"), EnableRateLimiting("login")]
+    public async Task<IActionResult> ResetPassword(ResetPasswordRequest request, CancellationToken ct)
+    {
+        await recovery.ResetAsync(request, ct); DeleteCookie();
+        return Ok(new { message = "Đặt lại mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới." });
     }
 
     private ActionResult<SessionResponse> CompleteLogin(AuthenticationResultDto result)

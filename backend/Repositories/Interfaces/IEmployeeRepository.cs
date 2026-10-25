@@ -6,4 +6,5 @@ public interface IEmployeeRepository
 {
     Task<Vnc.HRMS.Contracts.AccountEmployeeOption[]> ListAccountOptionsAsync(CancellationToken ct);
     Task<Staff?> FindAsync(Guid id, CancellationToken ct);
+    Task<Staff?> FindForRegistrationAsync(string code, string email, CancellationToken ct);
 }

@@ -15,4 +15,10 @@ public sealed class EmployeeRepository(AppDbContext db) : IEmployeeRepository
          select new Vnc.HRMS.Contracts.AccountEmployeeOption(staff.StaffId, staff.StaffCode, staff.FullName,
              department == null ? "Chưa phân khoa" : department.Name, staff.DepartmentId, staff.Email, staff.Status)).ToArrayAsync(ct);
     public Task<Staff?> FindAsync(Guid id, CancellationToken ct) => db.Staff.SingleOrDefaultAsync(x => x.StaffId == id, ct);
+    public Task<Staff?> FindForRegistrationAsync(string code, string email, CancellationToken ct)
+    {
+        var normalizedCode = code.Trim().ToUpperInvariant();
+        var address = email.Trim().ToLowerInvariant();
+        return db.Staff.AsNoTracking().SingleOrDefaultAsync(x => x.StaffCode == normalizedCode && x.Email == address && x.Status == "active", ct);
+    }
 }
