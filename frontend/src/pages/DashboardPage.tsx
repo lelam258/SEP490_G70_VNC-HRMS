@@ -28,6 +28,9 @@ export default function DashboardPage() {
             <Link className="button" to="/certificates">
               Certificate / Qualification List
             </Link>
+            <Link className="button" to="/cme-records">
+              CME Records
+            </Link>
           </>
         )}
         <Link className="button" to="/change-password">

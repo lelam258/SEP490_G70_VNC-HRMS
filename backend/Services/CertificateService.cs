@@ -456,6 +456,18 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
         var entity = await db.Certificates.SingleOrDefaultAsync(c => c.CertificateId == id, ct)
             ?? throw new AppException(404, "Không tìm thấy chứng chỉ.");
 
+        var records = await db.CmeRecords.Where(r => r.CertificateId == id).ToListAsync(ct);
+        if (records.Count > 0)
+            db.CmeRecords.RemoveRange(records);
+
+        var cycles = await db.CmeCycles.Where(c => c.CertificateId == id).ToListAsync(ct);
+        if (cycles.Count > 0)
+            db.CmeCycles.RemoveRange(cycles);
+
+        var scans = await db.ComplianceScans.Where(s => s.CertificateId == id).ToListAsync(ct);
+        if (scans.Count > 0)
+            db.ComplianceScans.RemoveRange(scans);
+
         db.Certificates.Remove(entity);
         await unitOfWork.SaveChangesAsync(ct);
     }

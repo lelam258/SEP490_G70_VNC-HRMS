@@ -23,6 +23,8 @@ export default function AppLayout() {
     ? 'Khoa/phòng'
     : location.pathname.startsWith('/certificates')
     ? 'Certificate / Qualification List'
+    : location.pathname.startsWith('/cme-records')
+    ? 'CME Records'
     : location.pathname === '/change-password'
     ? 'Đổi mật khẩu'
     : 'Trang chủ';
@@ -78,6 +80,10 @@ export default function AppLayout() {
                 <NavLink to="/certificates" className={navClass}>
                   <Icon name="award" />
                   Certificate / Qualification List
+                </NavLink>
+                <NavLink to="/cme-records" className={navClass}>
+                  <Icon name="fileText" />
+                  CME Records
                 </NavLink>
               </>
             )}
