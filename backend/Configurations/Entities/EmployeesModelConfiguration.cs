@@ -6,7 +6,7 @@ public static class EmployeesModelConfiguration
     public static void Configure(ModelBuilder modelBuilder)
     {
         var staff = modelBuilder.Entity<Staff>();
-        staff.ToTable("staff", "hr", table => { table.HasCheckConstraint("CK_staff_1", "[date_left] IS NULL OR [date_left] >= [date_joined]"); table.HasCheckConstraint("CK_staff_2", "[dependent_count] >= 0"); });
+        staff.ToTable("staff", "dbo", table => { table.HasCheckConstraint("CK_staff_1", "[date_left] IS NULL OR [date_left] >= [date_joined]"); table.HasCheckConstraint("CK_staff_2", "[dependent_count] >= 0"); });
         staff.HasKey(x => x.StaffId);
         staff.Property(x => x.StaffId).HasColumnName("staff_id").HasDefaultValueSql("NEWID()");
         staff.Property(x => x.UserId).HasColumnName("user_id");
@@ -30,6 +30,7 @@ public static class EmployeesModelConfiguration
         staff.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
         staff.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
         staff.HasIndex(x => x.UserId).IsUnique();
+        staff.HasOne<Vnc.HRMS.Models.Users.User>().WithOne(x => x.Employee).HasForeignKey<Staff>(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
         staff.HasIndex(x => x.StaffCode).IsUnique();
         staff.HasIndex(x => x.DeviceEnrollId).IsUnique();
         staff.HasIndex(x => x.Email).IsUnique();
@@ -37,7 +38,7 @@ public static class EmployeesModelConfiguration
         staff.HasOne<Vnc.HRMS.Models.Organization.Department>().WithMany().HasForeignKey(x => x.DepartmentId).OnDelete(DeleteBehavior.Restrict);
         staff.HasOne<Vnc.HRMS.Models.Organization.Position>().WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict);
         var contract = modelBuilder.Entity<Contract>();
-        contract.ToTable("contracts", "hr", table => { table.HasCheckConstraint("CK_contracts_1", "[effective_to] IS NULL OR [effective_to] >= [effective_from]"); table.HasCheckConstraint("CK_contracts_2", "[daily_rate] >= 0 AND ([insurance_salary_basis] IS NULL OR [insurance_salary_basis] >= 0)"); });
+        contract.ToTable("contracts", "dbo", table => { table.HasCheckConstraint("CK_contracts_1", "[effective_to] IS NULL OR [effective_to] >= [effective_from]"); table.HasCheckConstraint("CK_contracts_2", "[daily_rate] >= 0 AND ([insurance_salary_basis] IS NULL OR [insurance_salary_basis] >= 0)"); });
         contract.HasKey(x => x.ContractId);
         contract.Property(x => x.ContractId).HasColumnName("contract_id").HasDefaultValueSql("NEWID()");
         contract.Property(x => x.StaffId).HasColumnName("staff_id");
@@ -54,7 +55,7 @@ public static class EmployeesModelConfiguration
         contract.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
         contract.HasIndex(x => x.ContractCode).IsUnique();
         var degree = modelBuilder.Entity<Degree>();
-        degree.ToTable("degrees", "hr");
+        degree.ToTable("degrees", "dbo");
         degree.HasKey(x => x.DegreeId);
         degree.Property(x => x.DegreeId).HasColumnName("degree_id").HasDefaultValueSql("NEWID()");
         degree.Property(x => x.StaffId).HasColumnName("staff_id");

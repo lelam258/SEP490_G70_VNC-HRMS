@@ -1,3 +1,4 @@
+using Vnc.HRMS.Models.Users;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Identity;
@@ -15,7 +16,7 @@ using Vnc.HRMS.Services.Interfaces;
 namespace Vnc.HRMS.Services;
 
 public sealed class AccountRecoveryService(IAuthRepository auth, IUserRepository users, Vnc.HRMS.Contracts.IEmployeeDirectory employees,
-    IUserService accounts, IPasswordHasher<Credential> hasher, IEmailService email, IOptions<OtpOptions> otpOptions,
+    IUserService accounts, IPasswordHasher<User> hasher, IEmailService email, IOptions<OtpOptions> otpOptions,
     IOptions<JwtOptions> jwtOptions, ILogger<AccountRecoveryService> logger) : IAccountRecoveryService
 {
     private const string GenericMessage = "Nếu email khớp với tài khoản đang hoạt động, bạn sẽ nhận được mã OTP đặt lại mật khẩu. Vui lòng kiểm tra cả thư mục thư rác.";
@@ -69,7 +70,7 @@ public sealed class AccountRecoveryService(IAuthRepository auth, IUserRepository
         if (request.Otp.Length != token.CodeLength || !request.Otp.All(char.IsAsciiDigit) ||
             !CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(token.TokenHash), Encoding.ASCII.GetBytes(expected))) throw new AppException(400, InvalidOtp);
         var user = await users.FindAsync(token.UserId, ct);
-        var credential = await auth.FindCredentialAsync(token.UserId, ct);
+        var credential = await auth.FindAuthenticationUserAsync(token.UserId, ct);
         if (user is not { IsProvisioned: true, AccountStatus: "active" } || !string.Equals(user.Email, token.Email, StringComparison.OrdinalIgnoreCase)
             || credential is null || PasswordHelper.Hash(credential.PasswordHash) != token.PasswordStamp) throw new AppException(400, InvalidOtp);
         if (!await auth.ResetPasswordAsync(token, credential.PasswordHash, hasher.HashPassword(credential, request.NewPassword), ct))

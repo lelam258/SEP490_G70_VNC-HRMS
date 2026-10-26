@@ -1,3 +1,4 @@
+using Vnc.HRMS.Models.Users;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Vnc.HRMS.Integrations;
@@ -28,7 +29,7 @@ public static class DependencyInjection
         services.AddScoped<IDepartmentService, DepartmentService>();
         services.AddScoped<ICertificateService, CertificateService>();
         services.AddScoped<ICmeRecordService, CmeRecordService>();
-        services.AddScoped<IPasswordHasher<Credential>, PasswordHasher<Credential>>();
+        services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
         services.Configure<PasswordHasherOptions>(options => options.IterationCount = 210_000);
         services.AddOptions<OtpOptions>().Bind(configuration.GetSection("Otp")).ValidateDataAnnotations().ValidateOnStart();
         services.Configure<SmtpSettings>(configuration.GetSection("Smtp"));

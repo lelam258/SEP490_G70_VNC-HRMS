@@ -12,4 +12,5 @@ public interface IUserRepository
     Task<bool> HasActiveAdminAsync(Guid? exceptId, CancellationToken ct);
     Task<bool> HasProvisionedAdminAsync(CancellationToken ct);
     void Add(User user);
+    void Remove(User user);
 }

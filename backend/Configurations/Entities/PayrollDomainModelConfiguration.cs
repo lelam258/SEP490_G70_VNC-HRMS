@@ -6,7 +6,7 @@ public static class PayrollDomainModelConfiguration
     public static void Configure(ModelBuilder modelBuilder)
     {
         {
-            var entity = modelBuilder.Entity<ProcedureService>(); entity.ToTable("procedure_services", "payroll");
+            var entity = modelBuilder.Entity<ProcedureService>(); entity.ToTable("procedure_services", "dbo");
             entity.Property(x => x.ServiceId).HasColumnName("service_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.ServiceCode).HasColumnName("service_code").HasColumnType("nvarchar(30)");
             entity.HasIndex(x => x.ServiceCode).IsUnique();
@@ -16,7 +16,7 @@ public static class PayrollDomainModelConfiguration
             entity.HasKey(x => x.ServiceId);
         }
         {
-            var entity = modelBuilder.Entity<CommissionRule>(); entity.ToTable("commission_rules", "payroll", table => { table.HasCheckConstraint("CK_commission_rules_1", "[effective_to] IS NULL OR [effective_to] >= [effective_from]"); table.HasCheckConstraint("CK_commission_rules_2", "[commission_value] >= 0"); });
+            var entity = modelBuilder.Entity<CommissionRule>(); entity.ToTable("commission_rules", "dbo", table => { table.HasCheckConstraint("CK_commission_rules_1", "[effective_to] IS NULL OR [effective_to] >= [effective_from]"); table.HasCheckConstraint("CK_commission_rules_2", "[commission_value] >= 0"); });
             entity.Property(x => x.RuleId).HasColumnName("rule_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.ServiceId).HasColumnName("service_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.Role).HasColumnName("role").HasColumnType("nvarchar(50)");
@@ -30,7 +30,7 @@ public static class PayrollDomainModelConfiguration
             entity.HasKey(x => x.RuleId);
         }
         {
-            var entity = modelBuilder.Entity<ProcedureSlip>(); entity.ToTable("procedure_slips", "payroll");
+            var entity = modelBuilder.Entity<ProcedureSlip>(); entity.ToTable("procedure_slips", "dbo");
             entity.Property(x => x.SlipId).HasColumnName("slip_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.ServiceId).HasColumnName("service_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.DepartmentId).HasColumnName("department_id").HasColumnType("uniqueidentifier");
@@ -47,7 +47,7 @@ public static class PayrollDomainModelConfiguration
             entity.HasKey(x => x.SlipId);
         }
         {
-            var entity = modelBuilder.Entity<ProcedureAssignment>(); entity.ToTable("procedure_assignments", "payroll");
+            var entity = modelBuilder.Entity<ProcedureAssignment>(); entity.ToTable("procedure_assignments", "dbo");
             entity.Property(x => x.AssignmentId).HasColumnName("assignment_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.SlipId).HasColumnName("slip_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.StaffId).HasColumnName("staff_id").HasColumnType("uniqueidentifier");
@@ -59,7 +59,7 @@ public static class PayrollDomainModelConfiguration
             entity.HasKey(x => x.AssignmentId);
         }
         {
-            var entity = modelBuilder.Entity<MaternityCase>(); entity.ToTable("maternity_cases", "payroll", table => { table.HasCheckConstraint("CK_maternity_cases_1", "[leave_end_date] >= [leave_start_date]"); table.HasCheckConstraint("CK_maternity_cases_2", "[benefit_amount] >= 0 AND [additional_benefit_amount] >= 0"); });
+            var entity = modelBuilder.Entity<MaternityCase>(); entity.ToTable("maternity_cases", "dbo", table => { table.HasCheckConstraint("CK_maternity_cases_1", "[leave_end_date] >= [leave_start_date]"); table.HasCheckConstraint("CK_maternity_cases_2", "[benefit_amount] >= 0 AND [additional_benefit_amount] >= 0"); });
             entity.Property(x => x.MaternityCaseId).HasColumnName("maternity_case_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.StaffId).HasColumnName("staff_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.LeaveRequestId).HasColumnName("leave_request_id").HasColumnType("uniqueidentifier");
@@ -83,7 +83,7 @@ public static class PayrollDomainModelConfiguration
             entity.HasKey(x => x.MaternityCaseId);
         }
         {
-            var entity = modelBuilder.Entity<AllowanceType>(); entity.ToTable("allowance_types", "payroll");
+            var entity = modelBuilder.Entity<AllowanceType>(); entity.ToTable("allowance_types", "dbo");
             entity.Property(x => x.AllowanceId).HasColumnName("allowance_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.Code).HasColumnName("code").HasColumnType("nvarchar(30)");
             entity.HasIndex(x => x.Code).IsUnique();
@@ -98,7 +98,7 @@ public static class PayrollDomainModelConfiguration
             entity.HasKey(x => x.AllowanceId);
         }
         {
-            var entity = modelBuilder.Entity<StaffAllowance>(); entity.ToTable("staff_allowances", "payroll", table => { table.HasCheckConstraint("CK_staff_allowances_1", "[effective_to] IS NULL OR [effective_to] >= [effective_from]"); table.HasCheckConstraint("CK_staff_allowances_2", "[amount_value] >= 0"); });
+            var entity = modelBuilder.Entity<StaffAllowance>(); entity.ToTable("staff_allowances", "dbo", table => { table.HasCheckConstraint("CK_staff_allowances_1", "[effective_to] IS NULL OR [effective_to] >= [effective_from]"); table.HasCheckConstraint("CK_staff_allowances_2", "[amount_value] >= 0"); });
             entity.Property(x => x.StaffAllowanceId).HasColumnName("staff_allowance_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.StaffId).HasColumnName("staff_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.AllowanceId).HasColumnName("allowance_id").HasColumnType("uniqueidentifier");
@@ -112,7 +112,7 @@ public static class PayrollDomainModelConfiguration
             entity.HasKey(x => x.StaffAllowanceId);
         }
         {
-            var entity = modelBuilder.Entity<PayrollTaxBracket>(); entity.ToTable("payroll_tax_brackets", "payroll", table => { table.HasCheckConstraint("CK_payroll_tax_brackets_1", "[income_from] >= 0 AND ([income_to] IS NULL OR [income_to] > [income_from])"); table.HasCheckConstraint("CK_payroll_tax_brackets_2", "[tax_rate_percent] BETWEEN 0 AND 100"); table.HasCheckConstraint("CK_payroll_tax_brackets_3", "[effective_to] IS NULL OR [effective_to] >= [effective_from]"); });
+            var entity = modelBuilder.Entity<PayrollTaxBracket>(); entity.ToTable("payroll_tax_brackets", "dbo", table => { table.HasCheckConstraint("CK_payroll_tax_brackets_1", "[income_from] >= 0 AND ([income_to] IS NULL OR [income_to] > [income_from])"); table.HasCheckConstraint("CK_payroll_tax_brackets_2", "[tax_rate_percent] BETWEEN 0 AND 100"); table.HasCheckConstraint("CK_payroll_tax_brackets_3", "[effective_to] IS NULL OR [effective_to] >= [effective_from]"); });
             entity.Property(x => x.BracketId).HasColumnName("bracket_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.IncomeFrom).HasColumnName("income_from").HasColumnType("decimal(15,2)");
             entity.Property(x => x.IncomeTo).HasColumnName("income_to").HasColumnType("decimal(15,2)");
@@ -123,7 +123,7 @@ public static class PayrollDomainModelConfiguration
             entity.HasKey(x => x.BracketId);
         }
         {
-            var entity = modelBuilder.Entity<PayrollInsuranceConfig>(); entity.ToTable("payroll_insurance_configs", "payroll", table => { table.HasCheckConstraint("CK_payroll_insurance_configs_1", "[rate_percent] BETWEEN 0 AND 100"); table.HasCheckConstraint("CK_payroll_insurance_configs_2", "[effective_to] IS NULL OR [effective_to] >= [effective_from]"); });
+            var entity = modelBuilder.Entity<PayrollInsuranceConfig>(); entity.ToTable("payroll_insurance_configs", "dbo", table => { table.HasCheckConstraint("CK_payroll_insurance_configs_1", "[rate_percent] BETWEEN 0 AND 100"); table.HasCheckConstraint("CK_payroll_insurance_configs_2", "[effective_to] IS NULL OR [effective_to] >= [effective_from]"); });
             entity.Property(x => x.ConfigId).HasColumnName("config_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.InsuranceType).HasColumnName("insurance_type").HasColumnType("nvarchar(20)");
             entity.Property(x => x.Payer).HasColumnName("payer").HasColumnType("nvarchar(20)");
@@ -135,7 +135,7 @@ public static class PayrollDomainModelConfiguration
             entity.HasKey(x => x.ConfigId);
         }
         {
-            var entity = modelBuilder.Entity<BankExport>(); entity.ToTable("bank_exports", "payroll");
+            var entity = modelBuilder.Entity<BankExport>(); entity.ToTable("bank_exports", "dbo");
             entity.Property(x => x.ExportId).HasColumnName("export_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.PayMonth).HasColumnName("pay_month").HasColumnType("nvarchar(7)");
             entity.Property(x => x.FileName).HasColumnName("file_name").HasColumnType("nvarchar(255)");
@@ -148,7 +148,7 @@ public static class PayrollDomainModelConfiguration
             entity.HasKey(x => x.ExportId);
         }
         {
-            var entity = modelBuilder.Entity<PayrollLock>(); entity.ToTable("payroll_locks", "payroll");
+            var entity = modelBuilder.Entity<PayrollLock>(); entity.ToTable("payroll_locks", "dbo");
             entity.Property(x => x.LockId).HasColumnName("lock_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.PayMonth).HasColumnName("pay_month").HasColumnType("nvarchar(7)");
             entity.HasIndex(x => x.PayMonth).IsUnique();
@@ -162,7 +162,7 @@ public static class PayrollDomainModelConfiguration
             entity.HasKey(x => x.LockId);
         }
         {
-            var entity = modelBuilder.Entity<Payslip>(); entity.ToTable("payslips", "payroll", table => { table.HasCheckConstraint("CK_payslips_1", "[pay_month] LIKE '[12][0-9][0-9][0-9]-[01][0-9]' AND TRY_CONVERT(date, [pay_month] + '-01', 23) IS NOT NULL"); });
+            var entity = modelBuilder.Entity<Payslip>(); entity.ToTable("payslips", "dbo", table => { table.HasCheckConstraint("CK_payslips_1", "[pay_month] LIKE '[12][0-9][0-9][0-9]-[01][0-9]' AND TRY_CONVERT(date, [pay_month] + '-01', 23) IS NOT NULL"); });
             entity.Property(x => x.PayslipId).HasColumnName("payslip_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.StaffId).HasColumnName("staff_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.StaffName).HasColumnName("staff_name").HasColumnType("nvarchar(100)");
@@ -203,7 +203,7 @@ public static class PayrollDomainModelConfiguration
             entity.HasIndex(x => new { x.StaffId, x.PayMonth }).IsUnique();
         }
         {
-            var entity = modelBuilder.Entity<PayslipAllowance>(); entity.ToTable("payslip_allowances", "payroll");
+            var entity = modelBuilder.Entity<PayslipAllowance>(); entity.ToTable("payslip_allowances", "dbo");
             entity.Property(x => x.Id).HasColumnName("id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.PayslipId).HasColumnName("payslip_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.AllowanceId).HasColumnName("allowance_id").HasColumnType("uniqueidentifier");
@@ -212,7 +212,7 @@ public static class PayrollDomainModelConfiguration
             entity.HasKey(x => x.Id);
         }
         {
-            var entity = modelBuilder.Entity<PayslipDeduction>(); entity.ToTable("payslip_deductions", "payroll");
+            var entity = modelBuilder.Entity<PayslipDeduction>(); entity.ToTable("payslip_deductions", "dbo");
             entity.Property(x => x.PayslipDeductionId).HasColumnName("payslip_deduction_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.PayslipId).HasColumnName("payslip_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.DeductionType).HasColumnName("deduction_type").HasColumnType("nvarchar(30)");
@@ -227,7 +227,7 @@ public static class PayrollDomainModelConfiguration
             entity.HasKey(x => x.PayslipDeductionId);
         }
         {
-            var entity = modelBuilder.Entity<Complaint>(); entity.ToTable("complaints", "payroll");
+            var entity = modelBuilder.Entity<Complaint>(); entity.ToTable("complaints", "dbo");
             entity.Property(x => x.ComplaintId).HasColumnName("complaint_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.StaffId).HasColumnName("staff_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.DepartmentId).HasColumnName("department_id").HasColumnType("uniqueidentifier");
@@ -244,7 +244,7 @@ public static class PayrollDomainModelConfiguration
             entity.HasKey(x => x.ComplaintId);
         }
         {
-            var entity = modelBuilder.Entity<ComplaintAttachment>(); entity.ToTable("complaint_attachments", "payroll");
+            var entity = modelBuilder.Entity<ComplaintAttachment>(); entity.ToTable("complaint_attachments", "dbo");
             entity.Property(x => x.AttachmentId).HasColumnName("attachment_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.ComplaintId).HasColumnName("complaint_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.FileUrl).HasColumnName("file_url").HasColumnType("nvarchar(500)");

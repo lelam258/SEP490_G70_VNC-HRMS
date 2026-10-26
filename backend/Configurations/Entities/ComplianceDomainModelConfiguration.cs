@@ -6,7 +6,7 @@ public static class ComplianceDomainModelConfiguration
     public static void Configure(ModelBuilder modelBuilder)
     {
         {
-            var entity = modelBuilder.Entity<Certificate>(); entity.ToTable("certificates", "compliance", table => { table.HasCheckConstraint("CK_certificates_1", "[expiry_date] IS NULL OR [issue_date] IS NULL OR [expiry_date] >= [issue_date]"); });
+            var entity = modelBuilder.Entity<Certificate>(); entity.ToTable("certificates", "dbo", table => { table.HasCheckConstraint("CK_certificates_1", "[expiry_date] IS NULL OR [issue_date] IS NULL OR [expiry_date] >= [issue_date]"); });
             entity.Property(x => x.CertificateId).HasColumnName("certificate_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.StaffId).HasColumnName("staff_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.DepartmentId).HasColumnName("department_id").HasColumnType("uniqueidentifier");
@@ -27,7 +27,7 @@ public static class ComplianceDomainModelConfiguration
             entity.HasKey(x => x.CertificateId);
         }
         {
-            var entity = modelBuilder.Entity<CmeCycle>(); entity.ToTable("cme_cycles", "compliance", table => { table.HasCheckConstraint("CK_cme_cycles_1", "[cycle_end] >= [cycle_start]"); table.HasCheckConstraint("CK_cme_cycles_2", "[cycle_number] > 0 AND [required_credits] >= 0 AND [earned_credits] >= 0"); });
+            var entity = modelBuilder.Entity<CmeCycle>(); entity.ToTable("cme_cycles", "dbo", table => { table.HasCheckConstraint("CK_cme_cycles_1", "[cycle_end] >= [cycle_start]"); table.HasCheckConstraint("CK_cme_cycles_2", "[cycle_number] > 0 AND [required_credits] >= 0 AND [earned_credits] >= 0"); });
             entity.Property(x => x.CycleId).HasColumnName("cycle_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.CertificateId).HasColumnName("certificate_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.CycleNumber).HasColumnName("cycle_number").HasColumnType("int");
@@ -40,7 +40,7 @@ public static class ComplianceDomainModelConfiguration
             entity.HasIndex(x => new { x.CertificateId, x.CycleNumber }).IsUnique();
         }
         {
-            var entity = modelBuilder.Entity<CmeRecord>(); entity.ToTable("cme_records", "compliance", table => { table.HasCheckConstraint("CK_cme_records_1", "[credits] >= 0"); });
+            var entity = modelBuilder.Entity<CmeRecord>(); entity.ToTable("cme_records", "dbo", table => { table.HasCheckConstraint("CK_cme_records_1", "[credits] >= 0"); });
             entity.Property(x => x.CmeId).HasColumnName("cme_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.CertificateId).HasColumnName("certificate_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.CmeCycleId).HasColumnName("cme_cycle_id").HasColumnType("uniqueidentifier");
@@ -56,7 +56,7 @@ public static class ComplianceDomainModelConfiguration
             entity.HasKey(x => x.CmeId);
         }
         {
-            var entity = modelBuilder.Entity<ComplianceScan>(); entity.ToTable("compliance_scans", "compliance");
+            var entity = modelBuilder.Entity<ComplianceScan>(); entity.ToTable("compliance_scans", "dbo");
             entity.Property(x => x.ScanId).HasColumnName("scan_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.StaffId).HasColumnName("staff_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.DepartmentId).HasColumnName("department_id").HasColumnType("uniqueidentifier");

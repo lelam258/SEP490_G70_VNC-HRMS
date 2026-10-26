@@ -17,14 +17,14 @@ using Vnc.HRMS.Services.Interfaces;
 namespace Vnc.HRMS.Services;
 
 public sealed class AuthService(IAuthRepository auth, IUserRepository users, IUnitOfWork unitOfWork,
-    IPasswordHasher<Credential> hasher, IOptions<JwtOptions> options) : IAuthService
+    IPasswordHasher<User> hasher, IOptions<JwtOptions> options) : IAuthService
 {
     private const string InvalidLogin = "Tên đăng nhập/email hoặc mật khẩu không đúng, hoặc tài khoản không khả dụng.";
 
     public async Task<AuthenticationResultDto> LoginAsync(LoginRequest request, string device, CancellationToken ct)
     {
         var user = await users.FindByLoginAsync(request.Login, ct);
-        var credential = user is null ? null : await auth.FindCredentialAsync(user.UserId, ct);
+        var credential = user is null ? null : await auth.FindAuthenticationUserAsync(user.UserId, ct);
         if (user is not { IsProvisioned: true, AccountStatus: "active" } || credential is null || credential.LockedUntil > DateTime.UtcNow)
             throw new AppException(401, InvalidLogin);
         var verified = hasher.VerifyHashedPassword(credential, credential.PasswordHash, request.Password);
@@ -46,7 +46,7 @@ public sealed class AuthService(IAuthRepository auth, IUserRepository users, IUn
         var user = await users.FindAsync(session.UserId, ct);
         if (user is not { IsProvisioned: true, AccountStatus: "active" } || user.SecurityVersion != session.AccountVersion)
             throw new AppException(401, "Tài khoản hoặc quyền truy cập đã thay đổi.");
-        var credential = await auth.FindCredentialAsync(user.UserId, ct);
+        var credential = await auth.FindAuthenticationUserAsync(user.UserId, ct);
         if (credential is null || !await auth.ConsumeRefreshTokenAsync(session.TokenId, ct)) throw new AppException(401, "Phiên đăng nhập đã hết hạn.");
         return await IssueAsync(user, credential, device, ct);
     }
@@ -63,7 +63,7 @@ public sealed class AuthService(IAuthRepository auth, IUserRepository users, IUn
     public async Task ChangePasswordAsync(Guid id, ChangePasswordRequest request, CancellationToken ct)
     {
         if (!PasswordHelper.IsStrong(request.NewPassword)) throw new AppException(400, "Mật khẩu mới cần từ 6 đến 128 ký tự.");
-        var credential = await auth.FindCredentialAsync(id, ct) ?? throw new AppException(401, "Tài khoản không khả dụng.");
+        var credential = await auth.FindAuthenticationUserAsync(id, ct) ?? throw new AppException(401, "Tài khoản không khả dụng.");
         if (hasher.VerifyHashedPassword(credential, credential.PasswordHash, request.CurrentPassword) == PasswordVerificationResult.Failed)
             throw new AppException(400, "Mật khẩu hiện tại không đúng.");
         await using var transaction = await unitOfWork.BeginTransactionAsync(ct);
@@ -75,7 +75,7 @@ public sealed class AuthService(IAuthRepository auth, IUserRepository users, IUn
         await transaction.CommitAsync(ct);
     }
 
-    private async Task<AuthenticationResultDto> IssueAsync(User user, Credential credential, string device, CancellationToken ct)
+    private async Task<AuthenticationResultDto> IssueAsync(User user, User credential, string device, CancellationToken ct)
     {
         var raw = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48));
         var session = new RefreshToken

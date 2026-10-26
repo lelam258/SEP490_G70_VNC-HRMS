@@ -5,20 +5,8 @@ public static class AuthModelConfiguration
 {
     public static void Configure(ModelBuilder modelBuilder)
     {
-        var credential = modelBuilder.Entity<Credential>();
-        credential.ToTable("credentials", "iam");
-        credential.HasKey(x => x.UserId);
-        credential.Property(x => x.UserId).HasColumnName("user_id").ValueGeneratedNever();
-        credential.Property(x => x.PasswordHash).HasColumnName("password_hash").HasMaxLength(255);
-        credential.Property(x => x.Version).HasColumnName("version").IsRowVersion();
-        credential.Property(x => x.FailedLoginCount).HasColumnName("failed_login_count");
-        credential.Property(x => x.LockedUntil).HasColumnName("locked_until").HasColumnType("datetime2(0)");
-        credential.Property(x => x.LastLogin).HasColumnName("last_login").HasColumnType("datetime2(0)");
-        credential.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
-        credential.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
-        credential.HasOne<Vnc.HRMS.Models.Users.User>().WithOne().HasForeignKey<Credential>(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
         var refreshtoken = modelBuilder.Entity<RefreshToken>();
-        refreshtoken.ToTable("refresh_tokens", "iam");
+        refreshtoken.ToTable("refresh_tokens", "dbo");
         refreshtoken.HasKey(x => x.TokenId);
         refreshtoken.Property(x => x.TokenId).HasColumnName("token_id").HasDefaultValueSql("NEWID()");
         refreshtoken.Property(x => x.UserId).HasColumnName("user_id");
@@ -30,9 +18,9 @@ public static class AuthModelConfiguration
         refreshtoken.Property(x => x.RevokedAt).HasColumnName("revoked_at").HasColumnType("datetime2(0)");
         refreshtoken.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
         refreshtoken.HasIndex(x => x.TokenHash).IsUnique();
-        modelBuilder.Entity<RefreshToken>().HasOne<Credential>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<RefreshToken>().HasOne<Vnc.HRMS.Models.Users.User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         var reset = modelBuilder.Entity<PasswordResetToken>();
-        reset.ToTable("password_reset_tokens", "iam");
+        reset.ToTable("password_reset_tokens", "dbo");
         reset.HasKey(x => x.Id);
         reset.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
         reset.Property(x => x.UserId).HasColumnName("user_id");
@@ -47,6 +35,6 @@ public static class AuthModelConfiguration
         reset.Property(x => x.CodeLength).HasColumnName("code_length");
         reset.HasIndex(x => x.TokenHash).IsUnique();
         reset.HasIndex(x => x.UserId);
-        reset.HasOne<Credential>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        reset.HasOne<Vnc.HRMS.Models.Users.User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
     }
 }
