@@ -84,7 +84,7 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("allowance_types", "payroll");
+                    b.ToTable("allowance_types", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.AttendanceImport", b =>
@@ -152,7 +152,9 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasKey("ImportId");
 
-                    b.ToTable("attendance_imports", "attendance", t =>
+                    b.HasIndex("ImportedBy");
+
+                    b.ToTable("attendance_imports", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_attendance_imports_1", "[total_rows] >= 0 AND [success_rows] >= 0 AND [error_rows] >= 0");
                         });
@@ -195,6 +197,11 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.Property<Guid?>("DepartmentId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("department_id");
+
+                    b.Property<string>("DeviceEnrollId")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("device_enroll_id");
 
                     b.Property<Guid?>("ImportId")
                         .HasColumnType("uniqueidentifier")
@@ -255,6 +262,8 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasKey("AttendanceId");
 
+                    b.HasIndex("DepartmentId");
+
                     b.HasIndex("ImportId");
 
                     b.HasIndex("OnCallShiftId");
@@ -269,7 +278,7 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.HasIndex("WorkDate", "DepartmentId", "ValidationStatus")
                         .HasDatabaseName("IX_attendance_records_work_date");
 
-                    b.ToTable("attendance_records", "attendance", t =>
+                    b.ToTable("attendance_records", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_attendance_records_1", "[check_out] IS NULL OR [check_in] IS NULL OR [check_out] >= [check_in]");
 
@@ -330,55 +339,7 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasKey("LogId");
 
-                    b.ToTable("audit_logs", "iam");
-                });
-
-            modelBuilder.Entity("Vnc.HRMS.Models.Auth.Credential", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier")
-                        .HasColumnName("user_id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime2(0)")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("SYSUTCDATETIME()");
-
-                    b.Property<int>("FailedLoginCount")
-                        .HasColumnType("int")
-                        .HasColumnName("failed_login_count");
-
-                    b.Property<DateTime?>("LastLogin")
-                        .HasColumnType("datetime2(0)")
-                        .HasColumnName("last_login");
-
-                    b.Property<DateTime?>("LockedUntil")
-                        .HasColumnType("datetime2(0)")
-                        .HasColumnName("locked_until");
-
-                    b.Property<string>("PasswordHash")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)")
-                        .HasColumnName("password_hash");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("datetime2(0)")
-                        .HasColumnName("updated_at")
-                        .HasDefaultValueSql("SYSUTCDATETIME()");
-
-                    b.Property<byte[]>("Version")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion")
-                        .HasColumnName("version");
-
-                    b.HasKey("UserId");
-
-                    b.ToTable("credentials", "iam");
+                    b.ToTable("audit_logs", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.Auth.PasswordResetToken", b =>
@@ -440,7 +401,7 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("password_reset_tokens", "iam");
+                    b.ToTable("password_reset_tokens", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.Auth.RefreshToken", b =>
@@ -495,7 +456,7 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("refresh_tokens", "iam");
+                    b.ToTable("refresh_tokens", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.BankExport", b =>
@@ -549,7 +510,9 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasKey("ExportId");
 
-                    b.ToTable("bank_exports", "payroll");
+                    b.HasIndex("ExportedBy");
+
+                    b.ToTable("bank_exports", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.Certificate", b =>
@@ -633,10 +596,12 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[certificate_number] IS NOT NULL");
 
+                    b.HasIndex("StaffId");
+
                     b.HasIndex("ExpiryDate", "Status")
                         .HasDatabaseName("IX_certificates_expiry_date");
 
-                    b.ToTable("certificates", "compliance", t =>
+                    b.ToTable("certificates", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_certificates_1", "[expiry_date] IS NULL OR [issue_date] IS NULL OR [expiry_date] >= [issue_date]");
                         });
@@ -690,7 +655,7 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.HasIndex("CycleEnd", "Status")
                         .HasDatabaseName("IX_cme_cycles_cycle_end");
 
-                    b.ToTable("cme_cycles", "compliance", t =>
+                    b.ToTable("cme_cycles", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_cme_cycles_1", "[cycle_end] >= [cycle_start]");
 
@@ -761,7 +726,7 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasIndex("CmeCycleId");
 
-                    b.ToTable("cme_records", "compliance", t =>
+                    b.ToTable("cme_records", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_cme_records_1", "[credits] >= 0");
                         });
@@ -821,7 +786,7 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasIndex("ServiceId");
 
-                    b.ToTable("commission_rules", "payroll", t =>
+                    b.ToTable("commission_rules", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_commission_rules_1", "[effective_to] IS NULL OR [effective_to] >= [effective_from]");
 
@@ -896,7 +861,9 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasIndex("PayslipId");
 
-                    b.ToTable("complaints", "payroll");
+                    b.HasIndex("StaffId");
+
+                    b.ToTable("complaints", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.ComplaintAttachment", b =>
@@ -934,7 +901,7 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasIndex("ComplaintId");
 
-                    b.ToTable("complaint_attachments", "payroll");
+                    b.ToTable("complaint_attachments", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.ComplianceScan", b =>
@@ -998,7 +965,9 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasIndex("CertificateId");
 
-                    b.ToTable("compliance_scans", "compliance");
+                    b.HasIndex("StaffId");
+
+                    b.ToTable("compliance_scans", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.Employees.Contract", b =>
@@ -1081,7 +1050,7 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasIndex("StaffId");
 
-                    b.ToTable("contracts", "hr", t =>
+                    b.ToTable("contracts", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_contracts_1", "[effective_to] IS NULL OR [effective_to] >= [effective_from]");
 
@@ -1135,7 +1104,7 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasIndex("StaffId");
 
-                    b.ToTable("degrees", "hr");
+                    b.ToTable("degrees", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.Employees.Staff", b =>
@@ -1241,11 +1210,13 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnName("updated_at")
                         .HasDefaultValueSql("SYSUTCDATETIME()");
 
-                    b.Property<Guid?>("UserId")
+                    b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("user_id");
 
                     b.HasKey("StaffId");
+
+                    b.HasIndex("CreatedBy");
 
                     b.HasIndex("DepartmentId");
 
@@ -1267,10 +1238,9 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("UserId")
-                        .IsUnique()
-                        .HasFilter("[user_id] IS NOT NULL");
+                        .IsUnique();
 
-                    b.ToTable("staff", "hr", t =>
+                    b.ToTable("staff", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_staff_1", "[date_left] IS NULL OR [date_left] >= [date_joined]");
 
@@ -1351,7 +1321,11 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasKey("RequestId");
 
-                    b.ToTable("leave_requests", "attendance", t =>
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("StaffId");
+
+                    b.ToTable("leave_requests", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_leave_requests_1", "[end_date] >= [start_date]");
 
@@ -1459,7 +1433,11 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasKey("MaternityCaseId");
 
-                    b.ToTable("maternity_cases", "payroll", t =>
+                    b.HasIndex("LeaveRequestId");
+
+                    b.HasIndex("StaffId");
+
+                    b.ToTable("maternity_cases", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_maternity_cases_1", "[leave_end_date] >= [leave_start_date]");
 
@@ -1509,10 +1487,12 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasKey("TimesheetId");
 
+                    b.HasIndex("LockedBy");
+
                     b.HasIndex("PayMonth")
                         .IsUnique();
 
-                    b.ToTable("monthly_timesheets", "attendance", t =>
+                    b.ToTable("monthly_timesheets", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_monthly_timesheets_1", "[pay_month] LIKE '[12][0-9][0-9][0-9]-[01][0-9]' AND TRY_CONVERT(date, [pay_month] + '-01', 23) IS NOT NULL");
                         });
@@ -1589,7 +1569,7 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .IsDescending(false, false, true)
                         .HasDatabaseName("IX_notifications_recipient_unread");
 
-                    b.ToTable("notifications", "notification");
+                    b.ToTable("notifications", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.OnCallShift", b =>
@@ -1659,7 +1639,11 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasKey("ShiftId");
 
-                    b.ToTable("on_call_shifts", "attendance", t =>
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("StaffId");
+
+                    b.ToTable("on_call_shifts", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_on_call_shifts_1", "[shift_end] IS NULL OR [shift_start] IS NULL OR [shift_end] > [shift_start]");
                         });
@@ -1719,7 +1703,7 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("departments", "hr");
+                    b.ToTable("departments", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.Organization.Position", b =>
@@ -1754,7 +1738,7 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("positions", "hr");
+                    b.ToTable("positions", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.PayrollInsuranceConfig", b =>
@@ -1801,7 +1785,7 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasKey("ConfigId");
 
-                    b.ToTable("payroll_insurance_configs", "payroll", t =>
+                    b.ToTable("payroll_insurance_configs", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_payroll_insurance_configs_1", "[rate_percent] BETWEEN 0 AND 100");
 
@@ -1859,7 +1843,7 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.HasIndex("PayMonth")
                         .IsUnique();
 
-                    b.ToTable("payroll_locks", "payroll");
+                    b.ToTable("payroll_locks", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.PayrollTaxBracket", b =>
@@ -1898,7 +1882,7 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasKey("BracketId");
 
-                    b.ToTable("payroll_tax_brackets", "payroll", t =>
+                    b.ToTable("payroll_tax_brackets", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_payroll_tax_brackets_1", "[income_from] >= 0 AND ([income_to] IS NULL OR [income_to] > [income_from])");
 
@@ -2095,13 +2079,15 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasIndex("BankExportId");
 
+                    b.HasIndex("ContractId");
+
                     b.HasIndex("StaffId", "PayMonth")
                         .IsUnique();
 
                     b.HasIndex("PayMonth", "Status", "DepartmentId")
                         .HasDatabaseName("IX_payslips_pay_month_status");
 
-                    b.ToTable("payslips", "payroll", t =>
+                    b.ToTable("payslips", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_payslips_1", "[pay_month] LIKE '[12][0-9][0-9][0-9]-[01][0-9]' AND TRY_CONVERT(date, [pay_month] + '-01', 23) IS NOT NULL");
                         });
@@ -2138,7 +2124,7 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasIndex("PayslipId");
 
-                    b.ToTable("payslip_allowances", "payroll");
+                    b.ToTable("payslip_allowances", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.PayslipDeduction", b =>
@@ -2205,7 +2191,7 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.HasIndex("PayslipId", "DeductionType")
                         .HasDatabaseName("IX_payslip_deductions_payslip");
 
-                    b.ToTable("payslip_deductions", "payroll");
+                    b.ToTable("payslip_deductions", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.ProcedureAssignment", b =>
@@ -2255,7 +2241,9 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasIndex("SlipId");
 
-                    b.ToTable("procedure_assignments", "payroll");
+                    b.HasIndex("StaffId");
+
+                    b.ToTable("procedure_assignments", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.ProcedureService", b =>
@@ -2291,7 +2279,7 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.HasIndex("ServiceCode")
                         .IsUnique();
 
-                    b.ToTable("procedure_services", "payroll");
+                    b.ToTable("procedure_services", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.ProcedureSlip", b =>
@@ -2353,12 +2341,14 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasKey("SlipId");
 
+                    b.HasIndex("DepartmentId");
+
                     b.HasIndex("ServiceId");
 
                     b.HasIndex("SlipNumber")
                         .IsUnique();
 
-                    b.ToTable("procedure_slips", "payroll");
+                    b.ToTable("procedure_slips", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.StaffAllowance", b =>
@@ -2418,7 +2408,7 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.HasIndex("StaffId", "Status", "EffectiveFrom", "EffectiveTo")
                         .HasDatabaseName("IX_staff_allowances_staff_effective");
 
-                    b.ToTable("staff_allowances", "payroll", t =>
+                    b.ToTable("staff_allowances", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_staff_allowances_1", "[effective_to] IS NULL OR [effective_to] >= [effective_from]");
 
@@ -2471,7 +2461,7 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasIndex("UpdatedBy");
 
-                    b.ToTable("system_policies", "iam");
+                    b.ToTable("system_policies", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.Users.User", b =>
@@ -2501,9 +2491,11 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnType("nvarchar(100)")
                         .HasColumnName("email");
 
-                    b.Property<Guid?>("EmployeeId")
-                        .HasColumnType("uniqueidentifier")
-                        .HasColumnName("employee_id");
+                    b.Property<int>("FailedLoginCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("failed_login_count");
 
                     b.Property<string>("FullName")
                         .HasMaxLength(100)
@@ -2514,11 +2506,25 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnType("bit")
                         .HasColumnName("is_provisioned");
 
+                    b.Property<DateTime?>("LastLogin")
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("last_login");
+
+                    b.Property<DateTime?>("LockedUntil")
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("locked_until");
+
                     b.Property<string>("NormalizedUsername")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("normalized_username");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("password_hash");
 
                     b.Property<string>("Role")
                         .IsRequired()
@@ -2555,17 +2561,13 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[email] IS NOT NULL");
 
-                    b.HasIndex("EmployeeId")
-                        .IsUnique()
-                        .HasFilter("[employee_id] IS NOT NULL");
-
                     b.HasIndex("NormalizedUsername")
                         .IsUnique();
 
                     b.HasIndex("Username")
                         .IsUnique();
 
-                    b.ToTable("users", "iam");
+                    b.ToTable("users", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.WorkScheduleTemplate", b =>
@@ -2611,14 +2613,28 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasKey("TemplateId");
 
-                    b.ToTable("work_schedule_templates", "attendance", t =>
+                    b.ToTable("work_schedule_templates", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_work_schedule_templates_1", "[break_minutes] >= 0");
                         });
                 });
 
+            modelBuilder.Entity("Vnc.HRMS.Models.AttendanceImport", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("ImportedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Vnc.HRMS.Models.AttendanceRecord", b =>
                 {
+                    b.HasOne("Vnc.HRMS.Models.Organization.Department", null)
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Vnc.HRMS.Models.AttendanceImport", null)
                         .WithMany()
                         .HasForeignKey("ImportId")
@@ -2628,20 +2644,17 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("OnCallShiftId")
                         .OnDelete(DeleteBehavior.Restrict);
-                });
 
-            modelBuilder.Entity("Vnc.HRMS.Models.Auth.Credential", b =>
-                {
-                    b.HasOne("Vnc.HRMS.Models.Users.User", null)
-                        .WithOne()
-                        .HasForeignKey("Vnc.HRMS.Models.Auth.Credential", "UserId")
+                    b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.Auth.PasswordResetToken", b =>
                 {
-                    b.HasOne("Vnc.HRMS.Models.Auth.Credential", null)
+                    b.HasOne("Vnc.HRMS.Models.Users.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -2650,10 +2663,28 @@ namespace Vnc.HRMS.Persistence.Migrations
 
             modelBuilder.Entity("Vnc.HRMS.Models.Auth.RefreshToken", b =>
                 {
-                    b.HasOne("Vnc.HRMS.Models.Auth.Credential", null)
+                    b.HasOne("Vnc.HRMS.Models.Users.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.BankExport", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("ExportedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.Certificate", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
@@ -2695,6 +2726,12 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("PayslipId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.ComplaintAttachment", b =>
@@ -2712,6 +2749,12 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("CertificateId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.Employees.Contract", b =>
@@ -2734,6 +2777,11 @@ namespace Vnc.HRMS.Persistence.Migrations
 
             modelBuilder.Entity("Vnc.HRMS.Models.Employees.Staff", b =>
                 {
+                    b.HasOne("Vnc.HRMS.Models.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Vnc.HRMS.Models.Organization.Department", null)
                         .WithMany()
                         .HasForeignKey("DepartmentId")
@@ -2743,6 +2791,73 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("PositionId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Vnc.HRMS.Models.Users.User", null)
+                        .WithOne("Employee")
+                        .HasForeignKey("Vnc.HRMS.Models.Employees.Staff", "UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.LeaveRequest", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.Organization.Department", null)
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.MaternityCase", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.LeaveRequest", null)
+                        .WithMany()
+                        .HasForeignKey("LeaveRequestId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.MonthlyTimesheet", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("LockedBy")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.Notification", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("RecipientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.OnCallShift", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.Organization.Department", null)
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.Organization.Department", b =>
@@ -2759,6 +2874,17 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("BankExportId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Vnc.HRMS.Models.Employees.Contract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.PayslipAllowance", b =>
@@ -2801,10 +2927,21 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasForeignKey("SlipId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.ProcedureSlip", b =>
                 {
+                    b.HasOne("Vnc.HRMS.Models.Organization.Department", null)
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Vnc.HRMS.Models.ProcedureService", null)
                         .WithMany()
                         .HasForeignKey("ServiceId")
@@ -2819,6 +2956,12 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasForeignKey("AllowanceId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.SystemPolicy", b =>
@@ -2827,6 +2970,11 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("UpdatedBy")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.Users.User", b =>
+                {
+                    b.Navigation("Employee");
                 });
 #pragma warning restore 612, 618
         }

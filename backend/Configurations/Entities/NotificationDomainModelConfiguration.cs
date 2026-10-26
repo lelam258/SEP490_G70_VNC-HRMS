@@ -6,7 +6,7 @@ public static class NotificationDomainModelConfiguration
     public static void Configure(ModelBuilder modelBuilder)
     {
         {
-            var entity = modelBuilder.Entity<Notification>(); entity.ToTable("notifications", "notification");
+            var entity = modelBuilder.Entity<Notification>(); entity.ToTable("notifications", "dbo");
             entity.Property(x => x.NotificationId).HasColumnName("notification_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.RecipientId).HasColumnName("recipient_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.SenderService).HasColumnName("sender_service").HasColumnType("nvarchar(50)");

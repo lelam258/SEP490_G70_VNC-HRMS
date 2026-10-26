@@ -4,6 +4,7 @@ public sealed class AttendanceRecord
     public Guid AttendanceId { get; set; }
     public Guid StaffId { get; set; }
     public string StaffCode { get; set; } = string.Empty;
+    public string? DeviceEnrollId { get; set; }
     public Guid? DepartmentId { get; set; }
     public Guid? ImportId { get; set; }
     public Guid? OnCallShiftId { get; set; }

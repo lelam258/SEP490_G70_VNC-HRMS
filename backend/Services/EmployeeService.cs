@@ -6,7 +6,8 @@ using Vnc.HRMS.Services.Interfaces;
 
 namespace Vnc.HRMS.Services;
 
-public sealed class EmployeeService(IEmployeeRepository employees, IDepartmentRepository departments, IUnitOfWork unitOfWork) : IEmployeeService
+public sealed class EmployeeService(IEmployeeRepository employees, IDepartmentRepository departments, IUserRepository users,
+    Microsoft.AspNetCore.Identity.IPasswordHasher<Vnc.HRMS.Models.Users.User> hasher, IUnitOfWork unitOfWork) : IEmployeeService
 {
     public Task<EmployeeDto[]> ListAsync(CancellationToken ct) => employees.ListAsync(ct);
     public async Task<EmployeeDto> GetAsync(Guid id, CancellationToken ct)
@@ -29,8 +30,22 @@ public sealed class EmployeeService(IEmployeeRepository employees, IDepartmentRe
             DepartmentId = request.DepartmentId,
             DateJoined = request.DateJoined ?? DateOnly.FromDateTime(DateTime.UtcNow)
         };
+        // Schema 2.0 requires a user before a staff row. This reserved account cannot log in
+        // until an administrator provisions it or the employee completes registration.
+        var user = new Vnc.HRMS.Models.Users.User
+        {
+            UserId = Guid.NewGuid(), Username = "pending_" + Guid.NewGuid().ToString("N"),
+            FullName = employee.FullName, Email = employee.Email, Role = "employee",
+            AccountStatus = "inactive", IsProvisioned = false, Employee = employee
+        };
+        user.NormalizedUsername = user.Username.ToUpperInvariant();
+        user.PasswordHash = hasher.HashPassword(user, Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(48)));
+        employee.UserId = user.UserId;
+        await using var transaction = await unitOfWork.BeginTransactionAsync(ct);
+        users.Add(user);
         employees.Add(employee);
         await unitOfWork.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return await GetAsync(employee.StaffId, ct);
     }
 }

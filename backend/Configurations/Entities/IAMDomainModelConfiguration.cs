@@ -6,7 +6,7 @@ public static class IAMDomainModelConfiguration
     public static void Configure(ModelBuilder modelBuilder)
     {
         {
-            var entity = modelBuilder.Entity<AuditLog>(); entity.ToTable("audit_logs", "iam");
+            var entity = modelBuilder.Entity<AuditLog>(); entity.ToTable("audit_logs", "dbo");
             entity.Property(x => x.LogId).HasColumnName("log_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.UserId).HasColumnName("user_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.Username).HasColumnName("username").HasColumnType("nvarchar(50)");
@@ -21,7 +21,7 @@ public static class IAMDomainModelConfiguration
             entity.HasKey(x => x.LogId);
         }
         {
-            var entity = modelBuilder.Entity<SystemPolicy>(); entity.ToTable("system_policies", "iam");
+            var entity = modelBuilder.Entity<SystemPolicy>(); entity.ToTable("system_policies", "dbo");
             entity.Property(x => x.PolicyId).HasColumnName("policy_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.PolicyKey).HasColumnName("policy_key").HasColumnType("nvarchar(100)");
             entity.HasIndex(x => x.PolicyKey).IsUnique();

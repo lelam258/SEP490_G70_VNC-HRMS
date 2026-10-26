@@ -2,15 +2,15 @@
 
 Một React SPA và một ASP.NET Core 8 Web API phân lớp, dùng chung SQL Server database **VNC_HRMS_Iteration1** và EF Core Code First.
 
-## Phạm vi bản base
+## Cấu trúc và chức năng
 
 - Cấu trúc React: pages, components/ui, layouts, services, store, routes; Vite/TypeScript/Tailwind.
 - Axios client, Zustand store, khung route guard và các UI dùng lại.
 - Backend: Controller → Service → Repository → AppDbContext; một project, một tiến trình.
 - Domain models, mapping và migration chung cho các module; UnitOfWork, xử lý lỗi và cấu hình JWT/6 role.
-- Adapter SMTP/Cloudinary dùng chung, chưa có endpoint nghiệp vụ.
+- Adapter SMTP gửi OTP và Cloudinary upload tệp.
 
-Bản này chỉ có trang khung và endpoint **GET /health**. Các module nghiệp vụ sử dụng cấu trúc lớp, hợp đồng dữ liệu và quy tắc phân quyền chung. Model/bảng tồn tại không có nghĩa nghiệp vụ đã triển khai. Chưa tạo admin hoặc cấp token trong bản base.
+Đã có xác thực và quản lý phiên, đăng ký/đổi/quên mật khẩu, quản lý tài khoản, khoa/phòng và nhân viên. Các API đọc dữ liệu chấm công, lương, tuân thủ và thông báo dùng chung cấu trúc lớp và phân quyền; model/bảng tồn tại không có nghĩa toàn bộ nghiệp vụ đã triển khai. Database theo thiết kế 2.0, dùng `dbo`, bổ sung bảng OTP và các cột bảo vệ tài khoản. Xem tài liệu migration trước khi cập nhật database đã có.
 
 ## Khởi tạo
 
@@ -34,7 +34,7 @@ npm run dev
 
 Frontend: http://localhost:5173. Swagger: http://localhost:5100/swagger. Health: http://localhost:5100/health. Ctrl+C dừng ứng dụng.
 
-Script giữ dữ liệu đã có, sao lưu database đích trước DDL và không tạo tài khoản demo. Cấu hình riêng lưu trong User Secrets; không commit .local hoặc secret. Không cần SMTP/Cloudinary để chạy base; chỉ cấu hình khi sử dụng tích hợp đó.
+Script giữ dữ liệu đã có, sao lưu database đích trước DDL và tạo admin ban đầu khi chưa có. Cấu hình riêng lưu trong User Secrets; không commit .local hoặc secret. SMTP/Cloudinary chỉ cần cấu hình khi sử dụng gửi OTP hoặc upload.
 
 - [Kiến trúc và quy ước](docs/ARCHITECTURE.md)
 - [Database và migration](docs/MIGRATION.md)

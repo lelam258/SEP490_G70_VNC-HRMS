@@ -6,7 +6,7 @@ public static class OrganizationModelConfiguration
     public static void Configure(ModelBuilder modelBuilder)
     {
         var department = modelBuilder.Entity<Department>();
-        department.ToTable("departments", "hr");
+        department.ToTable("departments", "dbo");
         department.HasKey(x => x.DepartmentId);
         department.Property(x => x.DepartmentId).HasColumnName("department_id").HasDefaultValueSql("NEWID()");
         department.Property(x => x.DeptCode).HasColumnName("dept_code").HasMaxLength(20);
@@ -19,7 +19,7 @@ public static class OrganizationModelConfiguration
         department.HasIndex(x => x.Name).IsUnique();
         department.HasOne<Vnc.HRMS.Models.Employees.Staff>().WithMany().HasForeignKey(x => x.ManagerId).OnDelete(DeleteBehavior.Restrict);
         var position = modelBuilder.Entity<Position>();
-        position.ToTable("positions", "hr");
+        position.ToTable("positions", "dbo");
         position.HasKey(x => x.PositionId);
         position.Property(x => x.PositionId).HasColumnName("position_id").HasDefaultValueSql("NEWID()");
         position.Property(x => x.Name).HasColumnName("name").HasMaxLength(100);

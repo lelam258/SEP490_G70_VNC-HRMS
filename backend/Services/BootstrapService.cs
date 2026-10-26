@@ -10,8 +10,8 @@ using Vnc.HRMS.Security;
 
 namespace Vnc.HRMS.Services;
 
-public sealed class BootstrapService(IConfiguration configuration, IUserRepository users, IAuthRepository auth,
-    IUnitOfWork unitOfWork, IPasswordHasher<Credential> hasher, ILogger<BootstrapService> logger)
+public sealed class BootstrapService(IConfiguration configuration, IUserRepository users,
+    IUnitOfWork unitOfWork, IPasswordHasher<User> hasher, ILogger<BootstrapService> logger)
 {
     public async Task InitializeAsync(CancellationToken ct)
     {
@@ -34,10 +34,8 @@ public sealed class BootstrapService(IConfiguration configuration, IUserReposito
             Email = email, FullName = "Administrator", Role = AccountRoles.Administrator,
             AccountStatus = "active", IsProvisioned = true
         };
-        var credential = new Credential { UserId = user.UserId };
-        credential.PasswordHash = hasher.HashPassword(credential, password);
+        user.PasswordHash = hasher.HashPassword(user, password);
         users.Add(user);
-        auth.AddCredential(credential);
         await unitOfWork.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         logger.LogInformation("Initial administrator created. Credentials are stored privately by Initialize-Local.ps1.");
