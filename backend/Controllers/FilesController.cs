@@ -1,11 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Vnc.HRMS.DTOs.Files;
+using Vnc.HRMS.Security;
 using Vnc.HRMS.Services.Interfaces;
 
 namespace Vnc.HRMS.Controllers;
 
-[ApiController, Authorize(Policy = "Admin"), Route("api/files")]
+[ApiController, Authorize(Roles = $"{AccountRoles.Administrator},{AccountRoles.HrManager}"), Route("api/files")]
 public sealed class FilesController(IFileService files) : ControllerBase
 {
     [HttpPost, RequestSizeLimit(11 * 1024 * 1024)]
