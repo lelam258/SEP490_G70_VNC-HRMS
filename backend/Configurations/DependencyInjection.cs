@@ -26,6 +26,7 @@ public static class DependencyInjection
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IEmployeeService, EmployeeService>();
         services.AddScoped<IDepartmentService, DepartmentService>();
+        services.AddScoped<ICertificateService, CertificateService>();
         services.AddScoped<IPasswordHasher<Credential>, PasswordHasher<Credential>>();
         services.Configure<PasswordHasherOptions>(options => options.IterationCount = 210_000);
         services.AddOptions<OtpOptions>().Bind(configuration.GetSection("Otp")).ValidateDataAnnotations().ValidateOnStart();

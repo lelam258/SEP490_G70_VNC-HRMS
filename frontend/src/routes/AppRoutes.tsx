@@ -13,6 +13,7 @@ import EmployeeListPage from '../pages/employees/EmployeeListPage';
 import EmployeeDetailPage from '../pages/employees/EmployeeDetailPage';
 import EmployeeEditPage from '../pages/employees/EmployeeEditPage';
 import DepartmentPage from '../pages/departments/DepartmentPage';
+import CertificateListPage from '../pages/certificates/CertificateListPage';
 import DashboardPage from '../pages/DashboardPage';
 import NotFoundPage from '../pages/NotFoundPage';
 import ProtectedRoute from './ProtectedRoute';
@@ -39,6 +40,7 @@ export default function AppRoutes() {
             <Route path="/employees/:id" element={<EmployeeDetailPage />} />
             <Route path="/employees/:id/edit" element={<EmployeeEditPage />} />
             <Route path="/departments" element={<DepartmentPage />} />
+            <Route path="/certificates" element={<CertificateListPage />} />
             <Route path="/organization" element={<Navigate to="/employees" replace />} />
           </Route>
         </Route>

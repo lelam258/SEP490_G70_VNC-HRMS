@@ -12,6 +12,6 @@ export function loginDestination(role: string, from: unknown): string {
   const path = url.pathname;
   const permitted = path === '/' || path === '/change-password'
     || (role === 'admin' && (path === '/accounts' || path.startsWith('/accounts/')))
-    || (role === 'hr_manager' && (path === '/employees' || path.startsWith('/employees/') || ['/departments', '/organization'].includes(path)));
+    || (role === 'hr_manager' && (path === '/employees' || path.startsWith('/employees/') || ['/departments', '/organization', '/certificates'].includes(path) || path.startsWith('/certificates/')));
   return permitted ? url.pathname + url.search + url.hash : roleHome(role);
 }
