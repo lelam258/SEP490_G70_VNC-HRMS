@@ -6,7 +6,7 @@ public static class AttendanceDomainModelConfiguration
     public static void Configure(ModelBuilder modelBuilder)
     {
         {
-            var entity = modelBuilder.Entity<AttendanceImport>(); entity.ToTable("attendance_imports", "attendance", table => { table.HasCheckConstraint("CK_attendance_imports_1", "[total_rows] >= 0 AND [success_rows] >= 0 AND [error_rows] >= 0"); });
+            var entity = modelBuilder.Entity<AttendanceImport>(); entity.ToTable("attendance_imports", "dbo", table => { table.HasCheckConstraint("CK_attendance_imports_1", "[total_rows] >= 0 AND [success_rows] >= 0 AND [error_rows] >= 0"); });
             entity.Property(x => x.ImportId).HasColumnName("import_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.FileName).HasColumnName("file_name").HasColumnType("nvarchar(255)");
             entity.Property(x => x.FileUrl).HasColumnName("file_url").HasColumnType("nvarchar(500)");
@@ -22,7 +22,7 @@ public static class AttendanceDomainModelConfiguration
             entity.HasKey(x => x.ImportId);
         }
         {
-            var entity = modelBuilder.Entity<OnCallShift>(); entity.ToTable("on_call_shifts", "attendance", table => { table.HasCheckConstraint("CK_on_call_shifts_1", "[shift_end] IS NULL OR [shift_start] IS NULL OR [shift_end] > [shift_start]"); });
+            var entity = modelBuilder.Entity<OnCallShift>(); entity.ToTable("on_call_shifts", "dbo", table => { table.HasCheckConstraint("CK_on_call_shifts_1", "[shift_end] IS NULL OR [shift_start] IS NULL OR [shift_end] > [shift_start]"); });
             entity.Property(x => x.ShiftId).HasColumnName("shift_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.StaffId).HasColumnName("staff_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.DepartmentId).HasColumnName("department_id").HasColumnType("uniqueidentifier");
@@ -40,10 +40,11 @@ public static class AttendanceDomainModelConfiguration
             entity.HasKey(x => x.ShiftId);
         }
         {
-            var entity = modelBuilder.Entity<AttendanceRecord>(); entity.ToTable("attendance_records", "attendance", table => { table.HasCheckConstraint("CK_attendance_records_1", "[check_out] IS NULL OR [check_in] IS NULL OR [check_out] >= [check_in]"); table.HasCheckConstraint("CK_attendance_records_2", "[actual_hours] IS NULL OR [actual_hours] >= 0"); });
+            var entity = modelBuilder.Entity<AttendanceRecord>(); entity.ToTable("attendance_records", "dbo", table => { table.HasCheckConstraint("CK_attendance_records_1", "[check_out] IS NULL OR [check_in] IS NULL OR [check_out] >= [check_in]"); table.HasCheckConstraint("CK_attendance_records_2", "[actual_hours] IS NULL OR [actual_hours] >= 0"); });
             entity.Property(x => x.AttendanceId).HasColumnName("attendance_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.StaffId).HasColumnName("staff_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.StaffCode).HasColumnName("staff_code").HasColumnType("nvarchar(20)");
+            entity.Property(x => x.DeviceEnrollId).HasColumnName("device_enroll_id").HasMaxLength(50);
             entity.Property(x => x.DepartmentId).HasColumnName("department_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.ImportId).HasColumnName("import_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.OnCallShiftId).HasColumnName("on_call_shift_id").HasColumnType("uniqueidentifier");
@@ -66,7 +67,7 @@ public static class AttendanceDomainModelConfiguration
             entity.HasIndex(x => new { x.StaffId, x.WorkDate, x.ShiftType }).IsUnique();
         }
         {
-            var entity = modelBuilder.Entity<LeaveRequest>(); entity.ToTable("leave_requests", "attendance", table => { table.HasCheckConstraint("CK_leave_requests_1", "[end_date] >= [start_date]"); table.HasCheckConstraint("CK_leave_requests_2", "[total_days] IS NULL OR [total_days] > 0"); });
+            var entity = modelBuilder.Entity<LeaveRequest>(); entity.ToTable("leave_requests", "dbo", table => { table.HasCheckConstraint("CK_leave_requests_1", "[end_date] >= [start_date]"); table.HasCheckConstraint("CK_leave_requests_2", "[total_days] IS NULL OR [total_days] > 0"); });
             entity.Property(x => x.RequestId).HasColumnName("request_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.StaffId).HasColumnName("staff_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.DepartmentId).HasColumnName("department_id").HasColumnType("uniqueidentifier");
@@ -85,7 +86,7 @@ public static class AttendanceDomainModelConfiguration
             entity.HasKey(x => x.RequestId);
         }
         {
-            var entity = modelBuilder.Entity<WorkScheduleTemplate>(); entity.ToTable("work_schedule_templates", "attendance", table => { table.HasCheckConstraint("CK_work_schedule_templates_1", "[break_minutes] >= 0"); });
+            var entity = modelBuilder.Entity<WorkScheduleTemplate>(); entity.ToTable("work_schedule_templates", "dbo", table => { table.HasCheckConstraint("CK_work_schedule_templates_1", "[break_minutes] >= 0"); });
             entity.Property(x => x.TemplateId).HasColumnName("template_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.Name).HasColumnName("name").HasColumnType("nvarchar(100)");
             entity.Property(x => x.ShiftStart).HasColumnName("shift_start").HasColumnType("time");
@@ -97,7 +98,7 @@ public static class AttendanceDomainModelConfiguration
             entity.HasKey(x => x.TemplateId);
         }
         {
-            var entity = modelBuilder.Entity<MonthlyTimesheet>(); entity.ToTable("monthly_timesheets", "attendance", table => { table.HasCheckConstraint("CK_monthly_timesheets_1", "[pay_month] LIKE '[12][0-9][0-9][0-9]-[01][0-9]' AND TRY_CONVERT(date, [pay_month] + '-01', 23) IS NOT NULL"); });
+            var entity = modelBuilder.Entity<MonthlyTimesheet>(); entity.ToTable("monthly_timesheets", "dbo", table => { table.HasCheckConstraint("CK_monthly_timesheets_1", "[pay_month] LIKE '[12][0-9][0-9][0-9]-[01][0-9]' AND TRY_CONVERT(date, [pay_month] + '-01', 23) IS NOT NULL"); });
             entity.Property(x => x.TimesheetId).HasColumnName("timesheet_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.PayMonth).HasColumnName("pay_month").HasColumnType("nvarchar(7)");
             entity.HasIndex(x => x.PayMonth).IsUnique();

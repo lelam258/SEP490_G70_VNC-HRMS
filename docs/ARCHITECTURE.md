@@ -24,17 +24,17 @@ flowchart TD
 - Models: entity danh từ số ít PascalCase; DTOs: ...Request/...Response/...Dto.
 - Persistence: AppDbContext, factory, migrations và timestamp; Configurations: DI, JWT, Swagger, options và mapping EF.
 - Common/Middlewares/Security: exception, helper, lỗi toàn cục và 6 role policies.
-- Integrations: adapter SMTP và Cloudinary dùng chung, chưa có endpoint upload/email.
+- Integrations: adapter SMTP gửi OTP và Cloudinary upload tệp, được gọi từ service.
 
-JWT signature/issuer/audience/expiry và role policy đã được cấu hình. Kiểm tra phiên SQL và cấp/refresh/revoke token thuộc nghiệp vụ xác thực; các module được bảo vệ cần tuân thủ hợp đồng phiên chung. Không xem JWT policy trong base là toàn bộ luồng xác thực đã hoàn thiện.
+JWT xác minh chữ ký, issuer, audience và hạn dùng. Middleware kiểm tra phiên trong SQL, trạng thái tài khoản và phiên bản phân quyền; chức năng xác thực cấp/refresh/thu hồi token. Các module dùng chung 6 role policies.
 
 ## Frontend
 
-pages, components/ui, layouts, services (Axios), store (Zustand), routes, hooks/types/utils/styles. Mỗi màn kết thúc bằng Page.tsx, HTTP module ...Api.ts, store use...Store.ts. Base chỉ đăng ký trang Home và 404; guard/store/client được chuẩn bị để thêm chức năng.
+pages, components/ui, layouts, services (Axios), store (Zustand), routes, hooks/types/utils/styles. Mỗi màn kết thúc bằng Page.tsx, HTTP module ...Api.ts, store use...Store.ts. React Router đăng ký các màn xác thực, tài khoản và nhân sự; ProtectedRoute kiểm tra đăng nhập và quyền truy cập.
 
 ## Database
 
-Một context quản lý toàn bộ các schema iam, hr, attendance, payroll, compliance, notification trong cùng database. InitialApplication là migration nền cho các module. Giữ nguyên ID và password hash khi import; các bảng không đồng nghĩa các API/nghiệp vụ đã hoàn thành.
+Một context quản lý 37 bảng ứng dụng trong schema `dbo`: 36 bảng theo thiết kế 2.0 và bảng OTP bổ sung. Mật khẩu nằm trong `users`; `staff.user_id` bắt buộc và duy nhất. Không dùng bảng `credentials` riêng. `InitialApplication` giữ nguyên lịch sử; `AlignSchemaVersion2` chuyển schema, gộp dữ liệu xác thực và bổ sung khóa ngoại mà giữ ID, mật khẩu và quyền. Chi tiết các cột kỹ thuật bổ sung, quy trình cấp tài khoản và cập nhật database xem [MIGRATION.md](MIGRATION.md). Các bảng không đồng nghĩa mọi nghiệp vụ đã hoàn thành.
 
 ## Quy trình nhóm
 

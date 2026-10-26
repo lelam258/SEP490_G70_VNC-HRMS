@@ -1,3 +1,4 @@
+using Vnc.HRMS.Models.Users;
 using Microsoft.EntityFrameworkCore;
 using Vnc.HRMS.Common.Utils;
 using Vnc.HRMS.DTOs.Auth;
@@ -9,12 +10,11 @@ namespace Vnc.HRMS.Repositories;
 
 public sealed class AuthRepository(AppDbContext db) : IAuthRepository
 {
-    public Task<Credential?> FindCredentialAsync(Guid userId, CancellationToken ct) => db.Credentials.SingleOrDefaultAsync(x => x.UserId == userId, ct);
-    public void AddCredential(Credential credential) => db.Credentials.Add(credential);
+    public Task<User?> FindAuthenticationUserAsync(Guid userId, CancellationToken ct) => db.Users.SingleOrDefaultAsync(x => x.UserId == userId, ct);
     public async Task RecordFailedLoginAsync(Guid userId, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
-        await db.Credentials.Where(x => x.UserId == userId).ExecuteUpdateAsync(set => set
+        await db.Users.Where(x => x.UserId == userId).ExecuteUpdateAsync(set => set
             .SetProperty(x => x.FailedLoginCount, x => x.LockedUntil != null && x.LockedUntil <= now ? 1 : x.FailedLoginCount + 1)
             .SetProperty(x => x.LockedUntil, x => (x.LockedUntil == null || x.LockedUntil > now) && x.FailedLoginCount + 1 >= 5 ? now.AddMinutes(15) : (DateTime?)null)
             .SetProperty(x => x.UpdatedAt, now), ct);
@@ -23,7 +23,7 @@ public sealed class AuthRepository(AppDbContext db) : IAuthRepository
     public async Task<bool> ConsumeRefreshTokenAsync(Guid id, CancellationToken ct) => await db.RefreshTokens
         .Where(x => x.TokenId == id && !x.Revoked && x.ExpiresAt > DateTime.UtcNow)
         .ExecuteUpdateAsync(set => set.SetProperty(x => x.Revoked, true).SetProperty(x => x.RevokedAt, DateTime.UtcNow), ct) == 1;
-    public async Task SaveSessionAsync(RefreshToken session, Credential credential, CancellationToken ct)
+    public async Task SaveSessionAsync(RefreshToken session, User credential, CancellationToken ct)
     {
         db.RefreshTokens.Add(session);
         db.Entry(credential).Property(x => x.UpdatedAt).IsModified = true;
@@ -44,8 +44,8 @@ public sealed class AuthRepository(AppDbContext db) : IAuthRepository
     public async Task<bool> CreateRecoveryAsync(PasswordResetToken token, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        // The same credential-first lock order is used by reset and resend.
-        var credential = await db.Credentials.FromSqlInterpolated($"SELECT * FROM [iam].[credentials] WITH (UPDLOCK, HOLDLOCK) WHERE [user_id] = {token.UserId}")
+        // The same user-first lock order is used by reset and resend.
+        var credential = await db.Users.FromSqlInterpolated($"SELECT * FROM [dbo].[users] WITH (UPDLOCK, HOLDLOCK) WHERE [user_id] = {token.UserId}")
             .AsNoTracking().SingleOrDefaultAsync(ct);
         if (credential is null) return false;
         token.PasswordStamp = PasswordHelper.Hash(credential.PasswordHash);
@@ -71,7 +71,7 @@ public sealed class AuthRepository(AppDbContext db) : IAuthRepository
     public async Task<bool> ResetPasswordAsync(PasswordResetToken token, string originalHash, string newHash, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        var updated = await db.Credentials.Where(x => x.UserId == token.UserId && x.PasswordHash == originalHash).ExecuteUpdateAsync(set => set
+        var updated = await db.Users.Where(x => x.UserId == token.UserId && x.PasswordHash == originalHash).ExecuteUpdateAsync(set => set
             .SetProperty(x => x.PasswordHash, newHash).SetProperty(x => x.FailedLoginCount, 0)
             .SetProperty(x => x.LockedUntil, (DateTime?)null).SetProperty(x => x.UpdatedAt, DateTime.UtcNow), ct);
         if (updated != 1) return false;

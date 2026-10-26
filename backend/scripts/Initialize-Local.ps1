@@ -1,7 +1,5 @@
 param(
     [string]$ConnectionString = 'Server=localhost;Database=VNC_HRMS_Iteration1;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;',
-    [string]$DatabasePrefix = 'VNC',
-    [string]$LegacySourceDatabase = 'VNC_HRMS_Iteration1',
     [string]$Configuration = 'Debug',
     [switch]$SkipBootstrap
 )
@@ -47,7 +45,7 @@ try {
             $backupDirectory=[string]$cmd.ExecuteScalar()
             if ([string]::IsNullOrWhiteSpace($backupDirectory)) { throw 'Cannot find SQL backup directory. Back up the database in SSMS first.' }
             $safeName=$database -replace '[^a-zA-Z0-9_-]','_'
-            $backupPath=Join-Path $backupDirectory ($safeName+'_before_consolidation_'+(Get-Date -Format 'yyyyMMdd_HHmmss_fff')+'.bak')
+            $backupPath=Join-Path $backupDirectory ($safeName+'_before_schema_update_'+(Get-Date -Format 'yyyyMMdd_HHmmss_fff')+'.bak')
             $quotedDatabase='['+$database.Replace(']',']]')+']'
             $cmd.CommandText="BACKUP DATABASE $quotedDatabase TO DISK=@path WITH COPY_ONLY,CHECKSUM;"
             [void]$cmd.Parameters.AddWithValue('@path',$backupPath); [void]$cmd.ExecuteNonQuery()
@@ -56,19 +54,11 @@ try {
         $cmd.Dispose()
     } finally { $connection.Dispose() }
     & (Join-Path $PSScriptRoot 'Update-Database.ps1') -Configuration $Configuration -NoBuild
-    $connection=New-Object System.Data.SqlClient.SqlConnection $ConnectionString
-    try {
-        $connection.Open(); $cmd=$connection.CreateCommand(); $cmd.CommandText='SELECT COUNT_BIG(*) FROM iam.users'
-        $existingUsers=[long]$cmd.ExecuteScalar(); $cmd.Dispose()
-    } finally { $connection.Dispose() }
-    if ($existingUsers -eq 0) {
-        & (Join-Path $PSScriptRoot 'Import-ExistingData.ps1') -ConnectionString $ConnectionString -DatabasePrefix $DatabasePrefix -LegacySourceDatabase $LegacySourceDatabase
-    } else { Write-Output 'Existing application accounts preserved; import skipped.' }
     if (-not $SkipBootstrap) {
         $connection=New-Object System.Data.SqlClient.SqlConnection $ConnectionString
         try {
             $connection.Open(); $cmd=$connection.CreateCommand()
-            $cmd.CommandText="SELECT COUNT_BIG(*) FROM iam.users WHERE role='admin' AND is_provisioned=1"
+            $cmd.CommandText="SELECT COUNT_BIG(*) FROM dbo.users WHERE role='admin' AND is_provisioned=1"
             $hadAdmin=[long]$cmd.ExecuteScalar() -gt 0; $cmd.Dispose()
         } finally { $connection.Dispose() }
         $saved=@{}

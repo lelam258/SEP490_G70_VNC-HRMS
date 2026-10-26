@@ -9,7 +9,6 @@ namespace Vnc.HRMS.Persistence;
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : TimestampDbContext(options)
 {
     public DbSet<User> Users => Set<User>();
-    public DbSet<Credential> Credentials => Set<Credential>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<Staff> Staff => Set<Staff>();
@@ -55,5 +54,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Times
         PayrollDomainModelConfiguration.Configure(modelBuilder);
         ComplianceDomainModelConfiguration.Configure(modelBuilder);
         NotificationDomainModelConfiguration.Configure(modelBuilder);
+        Version2RelationshipsConfiguration.Configure(modelBuilder);
     }
 }
