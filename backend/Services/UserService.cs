@@ -106,7 +106,7 @@ public sealed class UserService(IUserRepository users, IEmployeeRepository emplo
         if (request.FullName?.Length > 100) throw new AppException(400, "Họ tên tối đa 100 ký tự.");
         if (request.Email?.Length > 100 || (!string.IsNullOrWhiteSpace(request.Email) && !new EmailAddressAttribute().IsValid(request.Email.Trim()))) throw new AppException(400, "Email không hợp lệ.");
         if ((passwordRequired || !string.IsNullOrEmpty(request.Password)) && !PasswordHelper.IsStrong(request.Password))
-            throw new AppException(400, "Mật khẩu cần từ 6 đến 128 ký tự.");
+            throw new AppException(400, PasswordHelper.Requirements);
     }
     private static string? CleanEmail(string? email) => string.IsNullOrWhiteSpace(email) ? null : email.Trim().ToLowerInvariant();
 }
