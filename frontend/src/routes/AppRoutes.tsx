@@ -13,6 +13,8 @@ import EmployeeListPage from '../pages/employees/EmployeeListPage';
 import DepartmentPage from '../pages/departments/DepartmentPage';
 import DashboardPage from '../pages/DashboardPage';
 import NotFoundPage from '../pages/NotFoundPage';
+import PayrollParameterPage from '../pages/payroll/PayrollParameterPage';
+import CompensationPage from '../pages/payroll/CompensationPage';
 import ProtectedRoute from './ProtectedRoute';
 
 export default function AppRoutes() {
@@ -28,6 +30,10 @@ export default function AppRoutes() {
       <Route element={<ProtectedRoute roles={['hr_manager']} />}>
         <Route path="/employees" element={<EmployeeListPage />} /><Route path="/departments" element={<DepartmentPage />} />
         <Route path="/organization" element={<Navigate to="/employees" replace />} />
+      </Route>
+      <Route element={<ProtectedRoute roles={['accountant']} />}>
+        <Route path="/payroll/parameters" element={<PayrollParameterPage />} />
+        <Route path="/payroll/compensation" element={<CompensationPage />} />
       </Route>
     </Route></Route>
     <Route path="*" element={<NotFoundPage />} />
