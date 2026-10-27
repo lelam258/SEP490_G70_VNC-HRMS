@@ -21,6 +21,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Times
     public DbSet<OnCallShift> OnCallShifts => Set<OnCallShift>();
     public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
     public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
+    public DbSet<LeaveType> LeaveTypes => Set<LeaveType>();
     public DbSet<WorkScheduleTemplate> WorkScheduleTemplates => Set<WorkScheduleTemplate>();
     public DbSet<MonthlyTimesheet> MonthlyTimesheets => Set<MonthlyTimesheet>();
     public DbSet<ProcedureService> ProcedureServices => Set<ProcedureService>();
