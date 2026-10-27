@@ -1,0 +1,30 @@
+namespace Vnc.HRMS.DTOs.Certificates;
+
+public sealed record CertificateDto(
+    Guid CertificateId,
+    Guid StaffId,
+    string StaffCode,
+    string StaffName,
+    Guid? DepartmentId,
+    string? DepartmentName,
+    string? CertificateNumber,
+    string Category,
+    string CategoryLabel,
+    string CertificateType,
+    string? IssuingAuthority,
+    DateOnly? IssueDate,
+    DateOnly? ExpiryDate,
+    string? ScopeOfPractice,
+    int? CmeCycleMonths,
+    decimal? CmeRequiredCredits,
+    string Status,
+    string? FileUrl,
+    DateTime? CreatedAt,
+    DateTime? UpdatedAt,
+    string? DegreeType = null,
+    string? Major = null,
+    string? VerificationStatus = null,
+    string? Notes = null,
+    string? ProfessionalDegree = null,
+    string? IssuanceMethod = null
+);
