@@ -12,3 +12,272 @@
 @media(max-width:600px){.vnc.login-page{display:block}.vnc .login-story{min-height:0;padding:20px 24px}.vnc .login-story .brand{font-size:20px}.vnc .story-content,.vnc .story-footer{display:none}.vnc .login-main{padding:45px 24px 25px;min-height:calc(100vh - 85px)}.vnc .login-box h2{font-size:27px}.vnc.workspace{display:block}.vnc .sidebar{width:100%;height:auto;position:static;padding:15px}.vnc .sidebar .brand{font-size:20px}.vnc .sidebar .brand small{font-size:8px}.vnc .workspace-label,.vnc .sidebar-note{display:none}.vnc .sidebar nav{flex-direction:row;margin-top:17px;gap:5px}.vnc .nav-item{width:auto;font-size:11px;padding:10px}.vnc .sidebar-bottom{position:absolute;right:15px;top:20px}.vnc .logout{font-size:0;padding:6px}.vnc .logout svg{width:20px}.vnc .topbar{height:56px;padding:0 18px}.vnc .topbar-user strong{font-size:11px}.vnc .topbar-user small{font-size:9px}.vnc .page-content{padding:24px 15px}.vnc.admin-page:not(.page-content .admin-page){padding:20px 15px}.vnc .page-heading{flex-wrap:wrap;gap:16px}.vnc .page-heading h1{font-size:25px}.vnc .page-heading p{font-size:11px}.vnc .page-heading>.button{padding:9px 13px;min-height:38px}.vnc .stats-grid{gap:10px;margin-bottom:18px}.vnc .list-heading{padding:20px 16px;align-items:flex-start}.vnc .list-heading h2{font-size:14px}.vnc .list-heading p{font-size:10px;max-width:230px}.vnc .filter-bar{padding:0 16px 18px;gap:12px}.vnc .search-field{grid-column:1/-1}.vnc .filter-select:last-child{grid-column:1/-1}.vnc .table-footer{padding:15px 16px;flex-wrap:wrap}.vnc .filter-summary{padding-left:16px}.vnc .page-footnote{align-items:flex-start;line-height:1.8}.vnc .panel-heading{padding:22px 19px 0}.vnc .form-section{padding:20px 19px}.vnc .form-grid,.vnc .metadata{grid-template-columns:1fr;gap:17px}.vnc .form-actions{padding:16px 19px}.vnc .form-guide{padding:20px}.vnc .form-guide ul{margin-bottom:0}.vnc .workspace-footer{font-size:9px;padding:10px 15px 20px}}
 @media(prefers-reduced-motion:reduce){.vnc *{transition:none!important}}
 @media(max-width:600px){.vnc .sidebar nav{flex-wrap:wrap}}
+
+/* Profile Page (FUNC 19-20) */
+.profile-page-container{display:flex;flex-direction:column;gap:24px}
+.profile-banner-card{padding:24px;display:flex;align-items:center;gap:24px}
+.profile-avatar-box{position:relative;width:90px;height:90px;flex-shrink:0}
+.profile-avatar-circle{width:90px;height:90px;border-radius:50%;object-fit:cover}
+.profile-avatar-fallback{width:90px;height:90px;border-radius:50%;background:#edf5f4;color:#398980;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;border:2px solid #cde4e0}
+.profile-camera-btn{position:absolute;bottom:0;right:0;width:30px;height:30px;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;background:#28716f;color:#fff;border:2px solid #fff;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:background .15s ease}
+.profile-camera-btn:hover:not(:disabled){background:#1c5251}
+.profile-camera-btn:disabled{opacity:.6;cursor:not-allowed}
+.profile-banner-info{flex:1;min-width:0}
+.profile-banner-name-row{display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+.profile-banner-name{font-size:22px;font-weight:650;color:#294656;margin:0}
+.profile-banner-meta{display:flex;align-items:center;gap:8px;font-size:13px;color:#748793;flex-wrap:wrap}
+.profile-banner-meta-sep{color:#c4d1d9}
+.profile-grid{display:grid;grid-template-columns:1fr 1fr;align-items:start;gap:24px}
+@media(max-width:1024px){.profile-grid{grid-template-columns:1fr}}
+.profile-card-header{padding:20px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+.profile-card-title{font-size:15px;font-weight:650;display:flex;align-items:center;gap:9px;margin:0;color:#294656}
+.profile-card-body{padding:24px}
+.profile-dl{margin:0;padding:0;display:flex;flex-direction:column}
+.profile-row{display:flex;align-items:center;min-height:48px;padding:8px 0;border-bottom:1px solid #edf1f4}
+.profile-row:last-child{border-bottom:none}
+.profile-dt{width:160px;flex:0 0 160px;font-size:13px;color:#748793;font-weight:400;margin:0}
+.profile-dd{flex:1;min-width:0;font-size:13px;font-weight:500;color:#294656;margin:0;text-align:left}
+@media(max-width:768px){.profile-row{flex-direction:column;align-items:flex-start;gap:4px;padding:10px 0;min-height:auto}.profile-dt{width:100%;flex:none;font-size:12px}.profile-dd{width:100%}.profile-banner-card{flex-direction:column;align-items:flex-start;gap:16px}}
+.profile-empty-val{font-style:italic;color:#94a2ac;font-weight:400}
+.profile-field-item{display:flex;flex-direction:column;gap:4px;padding:10px 0;border-bottom:1px solid #edf1f4}
+.profile-field-item:last-child{border-bottom:none}
+.profile-field-label{font-size:12px;font-weight:500;color:#526a7a}
+.profile-inline-error{font-size:11px;color:#cf7c66;margin-top:2px}
+.profile-note-small{font-size:11px;color:#8b9aa5;font-style:italic;margin-top:16px}
+
+/* Leave Requests Filter Toolbar & Polish */
+.leave-filter-container{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:1.15rem;background:#f8fafb;border:1px solid #e2eaf0;border-radius:8px;padding:14px 16px}
+.leave-filter-item{display:flex;flex-direction:column;gap:5px}
+.leave-filter-item label{font-size:11px;font-weight:600;color:#7a8d99;margin:0}
+.leave-filter-search{flex:1 1 240px;min-width:200px}
+.leave-filter-status{flex:0 1 180px;min-width:150px}
+.leave-filter-date{flex:0 1 155px;min-width:135px}
+@media(max-width:768px){.leave-filter-container{gap:10px;padding:12px}.leave-filter-search{flex:1 1 100%}.leave-filter-status{flex:1 1 100%}.leave-filter-date{flex:1 1 calc(50% - 5px)}}
+
+/* Spinner Animation */
+@keyframes vnc-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.vnc-spinner{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:vnc-spin .75s linear infinite;vertical-align:middle;flex-shrink:0}
+
+/* ==========================================================================
+   VNC Premium Modal System (Perfect Centering, Blurred Backdrop, Smooth Pop)
+   ========================================================================== */
+dialog.vnc-modal-dialog {
+  position: fixed !important;
+  inset: 0 !important;
+  margin: auto !important;
+  width: min(92vw, 580px) !important;
+  max-width: 580px !important;
+  max-height: calc(100vh - 4rem) !important;
+  padding: 0 !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.28), 0 0 0 1px rgba(0, 0, 0, 0.05) !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  animation: vnc-modal-pop 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  color: #1e293b;
+  z-index: 9999;
+}
+
+dialog.vnc-modal-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.6) !important;
+  backdrop-filter: blur(5px) !important;
+  -webkit-backdrop-filter: blur(5px) !important;
+  animation: vnc-backdrop-fade 0.2s ease-out forwards !important;
+}
+
+@keyframes vnc-modal-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(-6px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes vnc-backdrop-fade {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.vnc-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.15rem 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  background: #ffffff;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.vnc-modal-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 650;
+  color: #0f172a;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+
+.vnc-modal-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.vnc-modal-close-btn:hover:not(:disabled) {
+  background: #e2e8f0;
+  color: #0f172a;
+  transform: scale(1.06);
+}
+
+.vnc-modal-close-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.vnc-modal-content {
+  overflow-y: auto;
+  max-height: calc(85vh - 100px);
+  flex: 1 1 auto;
+}
+
+/* ==========================================================================
+   Change Password Card & Visual Checklist Styles
+   ========================================================================== */
+.change-password-card {
+  max-width: 520px;
+  margin: 1.5rem auto 2.5rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.06), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+}
+
+.change-password-header {
+  padding: 1.75rem 1.75rem 1.25rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  border-bottom: 1px solid #f1f5f9;
+  background: linear-gradient(to bottom, #fcfefe, #ffffff);
+}
+
+.change-password-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #087f7a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.change-password-header-text h1 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  margin: 0 0 4px;
+}
+
+.change-password-header-text p {
+  font-size: 0.8125rem;
+  color: #64748b;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.change-password-body {
+  padding: 1.5rem 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.password-checklist-box {
+  margin-top: -0.25rem;
+  padding: 0.75rem 0.875rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.password-checklist-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 6px;
+}
+
+.password-checklist-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+}
+
+@media(max-width: 480px) {
+  .password-checklist-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.password-checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #94a3b8;
+  transition: color 0.15s ease;
+}
+
+.password-checklist-item.valid {
+  color: #15803d;
+  font-weight: 500;
+}
+
+.password-checklist-item .checklist-icon {
+  font-size: 13px;
+  font-weight: bold;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+}
+
+.change-password-footer {
+  padding: 1.25rem 1.75rem;
+  background: #f8fafc;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
