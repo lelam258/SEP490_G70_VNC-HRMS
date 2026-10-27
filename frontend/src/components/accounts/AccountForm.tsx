@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import Icon from '../ui/Icon';
+import { isStrongPassword, passwordHint } from '../../utils/password';
 import { roleLabels, roles, statuses, statusLabels, type Account, type AccountInput, type Employee, type Role, type Status } from '../../types/accounts';
 import { formatDate, initials } from '../../utils/format';
 
@@ -27,6 +28,7 @@ export default function AccountForm({ account, accounts, employees, mode, onBack
     if (busy) return;
     setError('');
     const login = username.trim();
+    if ((mode === 'create' || !account?.isProvisioned || password.length > 0) && !isStrongPassword(password)) { setError(passwordHint); return; }
     if (!employee && !employeeOptional) { setError('Vui lòng chọn nhân viên.'); return; }
     if (!/^[a-zA-Z0-9._-]{3,50}$/.test(login)) { setError('Tên đăng nhập cần 3–50 ký tự, chỉ gồm chữ không dấu, số và . _ -'); return; }
     if (accounts.some(a => a.id !== account?.id && a.username.toLowerCase() === login.toLowerCase())) { setError('Tên đăng nhập đã tồn tại. Vui lòng chọn tên khác.'); return; }
@@ -48,7 +50,7 @@ export default function AccountForm({ account, accounts, employees, mode, onBack
       <div className="panel-heading divided"><span className="section-number">02</span><div><h2>Thông tin tài khoản</h2><p>Cấu hình tên đăng nhập, vai trò và trạng thái.</p></div></div>
       <div className="form-section"><label htmlFor="account-username">Tên đăng nhập <span className="required">*</span></label><input id="account-username" value={username} onChange={e => setUsername(e.target.value)} readOnly={readonly} required minLength={3} maxLength={50} autoComplete="off" placeholder="Ví dụ: nguyenvana" /><p className="field-hint">3–50 ký tự. Cho phép chữ không dấu, số và . _ -</p>
         <div className="form-grid"><div><label htmlFor="account-fullname">Họ tên hiển thị</label><input id="account-fullname" value={fullName} readOnly={readonly} maxLength={100} onChange={e => setFullName(e.target.value)} /></div><div><label htmlFor="account-email">Email đăng nhập</label><input id="account-email" type="email" value={email} readOnly={readonly} maxLength={100} onChange={e => setEmail(e.target.value)} /></div></div>
-        {!readonly && <div style={{ marginTop: 20 }}><label htmlFor="account-password">{mode === 'create' || !account?.isProvisioned ? 'Mật khẩu ban đầu *' : 'Đặt lại mật khẩu (không bắt buộc)'}</label><input id="account-password" type="password" autoComplete="new-password" value={password} required={mode === 'create' || !account?.isProvisioned} minLength={6} maxLength={128} onChange={e => setPassword(e.target.value)} /><p className="field-hint">Từ 6 đến 128 ký tự. Đặt lại mật khẩu sẽ kết thúc mọi phiên của tài khoản.</p></div>}
+        {!readonly && <div style={{ marginTop: 20 }}><label htmlFor="account-password">{mode === 'create' || !account?.isProvisioned ? 'Mật khẩu ban đầu *' : 'Đặt lại mật khẩu (không bắt buộc)'}</label><input id="account-password" type="password" autoComplete="new-password" value={password} required={mode === 'create' || !account?.isProvisioned} minLength={6} maxLength={128} onChange={e => setPassword(e.target.value)} /><p className="field-hint">{passwordHint} Đặt lại mật khẩu sẽ kết thúc mọi phiên của tài khoản.</p></div>}
         <div className="form-grid"><div><label htmlFor="account-role">Vai trò <span className="required">*</span></label><select id="account-role" value={role} disabled={readonly} onChange={e => setRole(e.target.value as Role)}>{roles.map(r => <option key={r} value={r}>{roleLabels[r]}</option>)}</select></div><div><label htmlFor="account-status">Trạng thái <span className="required">*</span></label><select id="account-status" value={status} disabled={readonly} onChange={e => setStatus(e.target.value as Status)}>{statuses.map(s => <option key={s} value={s}>{statusLabels[s]}</option>)}</select></div></div>
         {account && <dl className="metadata"><div><dt>Ngày tạo</dt><dd>{formatDate(account.createdAt)}</dd></div><div><dt>Cập nhật gần nhất</dt><dd>{formatDate(account.updatedAt)}</dd></div><div><dt>Đăng nhập gần nhất</dt><dd>{formatDate(account.lastLogin)}</dd></div></dl>}
         {error && <div className="alert error" role="alert">{error}</div>}

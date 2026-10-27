@@ -64,7 +64,7 @@ public sealed class AccountRecoveryService(IAuthRepository auth, IUserRepository
 
     public async Task ResetAsync(ResetPasswordRequest request, CancellationToken ct)
     {
-        if (!PasswordHelper.IsStrong(request.NewPassword)) throw new AppException(400, "Mật khẩu mới cần từ 6 đến 128 ký tự.");
+        if (!PasswordHelper.IsStrong(request.NewPassword)) throw new AppException(400, PasswordHelper.Requirements);
         var token = await auth.ReserveOtpAttemptAsync(request.ChallengeId, ct) ?? throw new AppException(400, InvalidOtp);
         var expected = PasswordHelper.OtpHash(jwtOptions.Value.SigningKey, token.Id, request.Otp);
         if (request.Otp.Length != token.CodeLength || !request.Otp.All(char.IsAsciiDigit) ||
