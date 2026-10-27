@@ -11,9 +11,11 @@ export function loginDestination(role: string, from: unknown): string {
   const url = new URL(from, 'https://vnc.local');
   if (url.origin !== 'https://vnc.local') return roleHome(role);
   const path = url.pathname;
+  const isSelfService = role !== 'admin' && (path === '/me/profile' || path === '/me/leave-requests' || path === '/me/leave-requests/new');
   const permitted = path === '/' || path === '/change-password'
     || (role === 'admin' && (path === '/accounts' || path.startsWith('/accounts/')))
     || (role === 'hr_manager' && ['/employees', '/departments', '/organization'].includes(path))
-    || (role === 'accountant' && (path === '/payroll/parameters' || path === '/payroll/compensation'));
+    || (role === 'accountant' && (path === '/payroll/parameters' || path === '/payroll/compensation' || path === '/payroll/periods' || path.startsWith('/payroll/periods/')))
+    || isSelfService;
   return permitted ? url.pathname + url.search + url.hash : roleHome(role);
 }

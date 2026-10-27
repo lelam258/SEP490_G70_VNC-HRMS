@@ -9,15 +9,15 @@ export const publicClient = axios.create(options);
 export const axiosClient = axios.create(options);
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) { super(message); this.name = 'ApiError'; }
+  constructor(public status: number, message: string, public field?: string) { super(message); this.name = 'ApiError'; }
 }
 
-function apiError(error: AxiosError<{ message?: string; detail?: string; title?: string }>) {
+function apiError(error: AxiosError<{ message?: string; detail?: string; title?: string; field?: string }>) {
   const response = error.response;
   const fallback = response?.status === 429 ? 'Bạn thao tác quá nhiều lần. Vui lòng đợi rồi thử lại.'
     : response?.status === 403 ? 'Bạn không có quyền thực hiện chức năng này.'
     : response ? `Yêu cầu thất bại (${response.status}).` : 'Không kết nối được backend. Kiểm tra kết nối rồi thử lại.';
-  return new ApiError(response?.status || 0, response?.data?.message || response?.data?.detail || response?.data?.title || fallback);
+  return new ApiError(response?.status || 0, response?.data?.message || response?.data?.detail || response?.data?.title || fallback, response?.data?.field);
 }
 
 let refreshing: Promise<Session> | null = null;

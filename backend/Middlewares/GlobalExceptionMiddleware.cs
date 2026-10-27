@@ -30,7 +30,14 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
                 else logger.LogError("Request failed: {ErrorType}; trace: {TraceId}", error.GetType().Name, context.TraceIdentifier);
             }
             context.Response.StatusCode = status;
-            await context.Response.WriteAsJsonAsync(new { message, traceId = context.TraceIdentifier }, context.RequestAborted);
+            if (error is AppException { Field: not null } knownField)
+            {
+                await context.Response.WriteAsJsonAsync(new { message, field = knownField.Field, traceId = context.TraceIdentifier }, context.RequestAborted);
+            }
+            else
+            {
+                await context.Response.WriteAsJsonAsync(new { message, traceId = context.TraceIdentifier }, context.RequestAborted);
+            }
         }
     }
 }
