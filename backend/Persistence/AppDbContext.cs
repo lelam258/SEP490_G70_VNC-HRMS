@@ -9,6 +9,7 @@ namespace Vnc.HRMS.Persistence;
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : TimestampDbContext(options)
 {
     public DbSet<User> Users => Set<User>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<Staff> Staff => Set<Staff>();
