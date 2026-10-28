@@ -1,5 +1,5 @@
 .vnc{--ink:#193248;--muted:#71818e;--teal:#087f7a;--line:#e6ecef;--bg:#f5f7fa;font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);font-size:14px;line-height:1.5;box-sizing:border-box}
-.vnc *,.vnc *::before,.vnc *::after{box-sizing:inherit}.vnc h1,.vnc h2,.vnc h3,.vnc p{margin:0}.vnc button,.vnc input,.vnc select{font:inherit}.vnc button{cursor:pointer}.vnc button:disabled{cursor:not-allowed;opacity:.45}.vnc button:focus-visible,.vnc input:focus-visible,.vnc select:focus-visible{outline:3px solid #52b9b7;outline-offset:3px}.vnc button{transition:background .15s,color .15s}.vnc svg{flex-shrink:0;vertical-align:middle}.vnc .muted{color:var(--muted)}.vnc .eyebrow{display:block;font-size:10px;font-weight:700;letter-spacing:1.7px;color:var(--teal);margin-bottom:10px}.vnc .eyebrow.light{color:#a2d9d3}.vnc .button{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:11px 18px;min-height:44px;border:1px solid #d9e3e8;border-radius:7px;background:white;color:var(--ink);font-weight:600;white-space:nowrap}.vnc .button:hover{background:#edf3f4}.vnc .button.primary{background:var(--teal);border-color:var(--teal);color:white;box-shadow:0 3px 5px #087f7a12}.vnc .button.primary:hover{background:#096c69}.vnc .icon-button{display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;color:#768994;border-radius:5px;width:34px;height:34px;padding:6px;flex-shrink:0}.vnc .icon-button:hover{background:#e9f4f2;color:var(--teal)}.vnc .text-button{display:inline-flex;align-items:center;gap:7px;border:0;background:transparent;color:var(--teal);padding:0;font-weight:600}.vnc label{display:block;font-size:12px;font-weight:600;margin-bottom:8px}.vnc input,.vnc select{width:100%;border:1px solid #dce4e9;background:white;border-radius:6px;padding:11px 12px;color:var(--ink);min-height:43px;outline-offset:2px}.vnc input::placeholder{color:#8d9aa6}.vnc input:read-only,.vnc select:disabled{background:#f7f9fa;color:#536b7b;opacity:1}.vnc .input-icon{display:flex;align-items:center;gap:10px;border:1px solid #dce4e9;border-radius:6px;padding:0 12px;background:white;color:#8496a2;min-height:44px}.vnc .input-icon:focus-within{border-color:var(--teal);box-shadow:0 0 0 3px #087f7a12}.vnc .input-icon input{border:0;background:transparent;min-width:0;padding:11px 0;outline:none}.vnc .input-icon .icon-button{margin-right:-6px}.vnc .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.vnc .alert{display:flex;align-items:center;gap:9px;padding:12px 16px;border:1px solid;border-radius:6px;font-size:13px;margin-bottom:16px}.vnc .alert.error{background:#fff3f1;border-color:#f3d2ce;color:#a93931}.vnc .alert.success{background:#edf9f3;border-color:#c9e9d8;color:#24694c}.vnc .alert .icon-button{margin-left:auto}.vnc .brand{display:flex;align-items:center;gap:11px;line-height:1.2;font-size:23px;font-weight:800;letter-spacing:.8px}.vnc .brand span:not(.brand-mark){font-weight:400;font-size:16px;letter-spacing:1px}.vnc .brand small{display:block;margin-top:7px;font-size:8px;font-weight:500;letter-spacing:1.3px;color:#99b8bd}.vnc .brand-mark{display:flex;align-items:center;justify-content:center;background:#148d85;color:white;border-radius:11px;width:45px;height:45px;font-size:31px;font-weight:400;box-shadow:inset 0 0 0 1px #ffffff20}
+.vnc *,.vnc *::before,.vnc *::after{box-sizing:inherit}.vnc h1,.vnc h2,.vnc h3,.vnc p{margin:0}.vnc button,.vnc input,.vnc select{font:inherit}.vnc button{cursor:pointer}.vnc button:disabled{cursor:not-allowed;opacity:.45}.vnc button:focus-visible,.vnc input:focus-visible,.vnc select:focus-visible{outline:3px solid #52b9b7;outline-offset:3px}.vnc button{transition:background .15s,color .15s}.vnc svg{flex-shrink:0;vertical-align:middle}.vnc .muted{color:var(--muted)}.vnc .eyebrow{display:block;font-size:10px;font-weight:700;letter-spacing:1.7px;color:var(--teal);margin-bottom:10px}.vnc .eyebrow.light{color:#a2d9d3}.vnc .button{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:11px 18px;min-height:44px;border:1px solid #d9e3e8;border-radius:7px;background:white;color:var(--ink);font-weight:600;white-space:nowrap}.vnc .button:hover{background:#edf3f4}.vnc .button.primary{background:var(--teal);border-color:var(--teal);color:white;box-shadow:0 3px 5px #087f7a12}.vnc .button.primary:hover{background:#096c69}.vnc .icon-button{display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;color:#768994;border-radius:5px;width:34px;height:34px;padding:6px;flex-shrink:0}.vnc .icon-button:hover{background:#e9f4f2;color:var(--teal)}.vnc .text-button{display:inline-flex;align-items:center;gap:7px;border:0;background:transparent;color:var(--teal);padding:0;font-weight:600}.vnc label{display:block;font-size:12px;font-weight:600;margin-bottom:8px}.vnc input,.vnc select{width:100%;border:1px solid #dce4e9;background:white;border-radius:6px;padding:11px 12px;color:var(--ink);min-height:43px;outline-offset:2px}.vnc input::placeholder{color:#8d9aa6}.vnc input:read-only,.vnc select:disabled{background:#f7f9fa;color:#536b7b;opacity:1}.vnc .input-icon{display:flex;align-items:center;gap:10px;border:1px solid #dce4e9;border-radius:6px;padding:0 12px;background:white;color:#8496a2;min-height:44px}.vnc .input-icon:focus-within{border-color:var(--teal);box-shadow:0 0 0 3px #087f7a12}.vnc .input-icon input{border:0;background:transparent;min-width:0;padding:11px 0;outline:none}.vnc .input-icon .icon-button{margin-right:-6px}.vnc .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.vnc .alert{display:flex;align-items:center;gap:9px;padding:12px 16px;border:1px solid;border-radius:6px;font-size:13px;margin-bottom:16px}.vnc .alert.error{background:#fff3f1;border-color:#f3d2ce;color:#a93931}.vnc .alert.success{background:#edf9f3;border-color:#c9e9d8;color:#24694c}.vnc .alert.warning{background:#fffbeb;border-color:#fde68a;color:#92400e}.vnc .alert .icon-button{margin-left:auto}.vnc .brand{display:flex;align-items:center;gap:11px;line-height:1.2;font-size:23px;font-weight:800;letter-spacing:.8px}.vnc .brand span:not(.brand-mark){font-weight:400;font-size:16px;letter-spacing:1px}.vnc .brand small{display:block;margin-top:7px;font-size:8px;font-weight:500;letter-spacing:1.3px;color:#99b8bd}.vnc .brand-mark{display:flex;align-items:center;justify-content:center;background:#148d85;color:white;border-radius:11px;width:45px;height:45px;font-size:31px;font-weight:400;box-shadow:inset 0 0 0 1px #ffffff20}
 /* Login */
 .vnc.login-page{min-height:100vh;display:grid;grid-template-columns:minmax(420px,46%) 1fr;background:white}.vnc .login-story{background:#123e48;position:relative;overflow:hidden;color:white;padding:42px 10% 30px;display:flex;flex-direction:column;min-height:100vh}.vnc .login-story::after{content:'';position:absolute;width:470px;height:470px;border-radius:50%;background:#1a6b6c30;left:-240px;bottom:-220px;pointer-events:none}.vnc .story-content{margin:auto 0;padding-top:55px}.vnc .story-content h1{font-weight:600;font-size:clamp(30px,3vw,46px);line-height:1.3;letter-spacing:-1px;margin:18px 0 20px}.vnc .story-content>p{max-width:360px;color:#b6ced1;font-size:14px;line-height:1.9}.vnc .story-art{height:260px;max-width:390px;position:relative;margin:16px auto 10px}.vnc .orbit{position:absolute;border:1px solid #5ea4a638;border-radius:50%;left:50%;top:50%;transform:translate(-50%,-50%)}.vnc .orbit.one{width:220px;height:220px}.vnc .orbit.two{width:290px;height:290px}.vnc .art-cross{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-8deg);width:112px;height:112px;background:#ffffff0d;border:1px solid #ffffff25;border-radius:28px;display:grid;place-items:center;font-size:75px;color:#a6ded4;box-shadow:0 20px 50px #052c3b55}.vnc .art-tag{position:absolute;display:flex;gap:10px;align-items:center;background:#25545c;border:1px solid #ffffff25;border-radius:9px;padding:12px 15px;font-size:12px;color:#e4f5f2;box-shadow:0 9px 20px #052c3b30;white-space:nowrap}.vnc .tag-one{left:0;top:44px}.vnc .tag-two{right:-2px;bottom:28px}.vnc .art-dot{position:absolute;right:30px;top:32px;width:10px;height:10px;border-radius:50%;background:#70bbaa;box-shadow:0 0 0 8px #70bbaa15}.vnc .story-footer{position:relative;display:flex;justify-content:space-between;gap:12px;font-size:11px;color:#a0bec2;padding-top:25px}.vnc .story-footer span{color:#80a7ae}.vnc .login-main{display:flex;flex-direction:column;justify-content:center;align-items:center;padding:55px 35px 25px;position:relative}.vnc .login-box{width:100%;max-width:405px;margin:auto}.vnc .login-box h2{font-size:30px;letter-spacing:-.7px;font-weight:650;margin-bottom:8px}.vnc .login-form{margin-top:36px}.vnc .login-form>label:not(:first-child){margin-top:22px}.vnc .login-form .alert{margin-top:16px}.vnc .login-submit{width:100%;margin-top:27px;justify-content:space-between;padding-left:20px;padding-right:20px;min-height:47px}.vnc .login-note{display:flex;gap:12px;background:#f2f8f7;border:1px solid #dfece9;border-radius:8px;padding:17px;margin-top:27px;color:#356c67;font-size:12px}.vnc .login-note strong{font-size:12px}.vnc .login-note p{line-height:1.9;margin-top:6px;color:#5d7e7a}.vnc .login-note small{display:block;font-size:10px;margin-top:8px;color:#698b84}.vnc .login-help{font-size:11px;color:#8a98a1;text-align:center;margin-top:23px}.vnc .login-footer{font-size:10px;color:#9aa8b1;padding-top:40px;text-align:center}
 /* Shell */
@@ -12,3 +12,272 @@
 @media(max-width:600px){.vnc.login-page{display:block}.vnc .login-story{min-height:0;padding:20px 24px}.vnc .login-story .brand{font-size:20px}.vnc .story-content,.vnc .story-footer{display:none}.vnc .login-main{padding:45px 24px 25px;min-height:calc(100vh - 85px)}.vnc .login-box h2{font-size:27px}.vnc.workspace{display:block}.vnc .sidebar{width:100%;height:auto;position:static;padding:15px}.vnc .sidebar .brand{font-size:20px}.vnc .sidebar .brand small{font-size:8px}.vnc .workspace-label,.vnc .sidebar-note{display:none}.vnc .sidebar nav{flex-direction:row;margin-top:17px;gap:5px}.vnc .nav-item{width:auto;font-size:11px;padding:10px}.vnc .sidebar-bottom{position:absolute;right:15px;top:20px}.vnc .logout{font-size:0;padding:6px}.vnc .logout svg{width:20px}.vnc .topbar{height:56px;padding:0 18px}.vnc .topbar-user strong{font-size:11px}.vnc .topbar-user small{font-size:9px}.vnc .page-content{padding:24px 15px}.vnc.admin-page:not(.page-content .admin-page){padding:20px 15px}.vnc .page-heading{flex-wrap:wrap;gap:16px}.vnc .page-heading h1{font-size:25px}.vnc .page-heading p{font-size:11px}.vnc .page-heading>.button{padding:9px 13px;min-height:38px}.vnc .stats-grid{gap:10px;margin-bottom:18px}.vnc .list-heading{padding:20px 16px;align-items:flex-start}.vnc .list-heading h2{font-size:14px}.vnc .list-heading p{font-size:10px;max-width:230px}.vnc .filter-bar{padding:0 16px 18px;gap:12px}.vnc .search-field{grid-column:1/-1}.vnc .filter-select:last-child{grid-column:1/-1}.vnc .table-footer{padding:15px 16px;flex-wrap:wrap}.vnc .filter-summary{padding-left:16px}.vnc .page-footnote{align-items:flex-start;line-height:1.8}.vnc .panel-heading{padding:22px 19px 0}.vnc .form-section{padding:20px 19px}.vnc .form-grid,.vnc .metadata{grid-template-columns:1fr;gap:17px}.vnc .form-actions{padding:16px 19px}.vnc .form-guide{padding:20px}.vnc .form-guide ul{margin-bottom:0}.vnc .workspace-footer{font-size:9px;padding:10px 15px 20px}}
 @media(prefers-reduced-motion:reduce){.vnc *{transition:none!important}}
 @media(max-width:600px){.vnc .sidebar nav{flex-wrap:wrap}}
+
+/* Profile Page (FUNC 19-20) */
+.profile-page-container{display:flex;flex-direction:column;gap:24px}
+.profile-banner-card{padding:24px;display:flex;align-items:center;gap:24px}
+.profile-avatar-box{position:relative;width:90px;height:90px;flex-shrink:0}
+.profile-avatar-circle{width:90px;height:90px;border-radius:50%;object-fit:cover}
+.profile-avatar-fallback{width:90px;height:90px;border-radius:50%;background:#edf5f4;color:#398980;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;border:2px solid #cde4e0}
+.profile-camera-btn{position:absolute;bottom:0;right:0;width:30px;height:30px;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;background:#28716f;color:#fff;border:2px solid #fff;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:background .15s ease}
+.profile-camera-btn:hover:not(:disabled){background:#1c5251}
+.profile-camera-btn:disabled{opacity:.6;cursor:not-allowed}
+.profile-banner-info{flex:1;min-width:0}
+.profile-banner-name-row{display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+.profile-banner-name{font-size:22px;font-weight:650;color:#294656;margin:0}
+.profile-banner-meta{display:flex;align-items:center;gap:8px;font-size:13px;color:#748793;flex-wrap:wrap}
+.profile-banner-meta-sep{color:#c4d1d9}
+.profile-grid{display:grid;grid-template-columns:1fr 1fr;align-items:start;gap:24px}
+@media(max-width:1024px){.profile-grid{grid-template-columns:1fr}}
+.profile-card-header{padding:20px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+.profile-card-title{font-size:15px;font-weight:650;display:flex;align-items:center;gap:9px;margin:0;color:#294656}
+.profile-card-body{padding:24px}
+.profile-dl{margin:0;padding:0;display:flex;flex-direction:column}
+.profile-row{display:flex;align-items:center;min-height:48px;padding:8px 0;border-bottom:1px solid #edf1f4}
+.profile-row:last-child{border-bottom:none}
+.profile-dt{width:160px;flex:0 0 160px;font-size:13px;color:#748793;font-weight:400;margin:0}
+.profile-dd{flex:1;min-width:0;font-size:13px;font-weight:500;color:#294656;margin:0;text-align:left}
+@media(max-width:768px){.profile-row{flex-direction:column;align-items:flex-start;gap:4px;padding:10px 0;min-height:auto}.profile-dt{width:100%;flex:none;font-size:12px}.profile-dd{width:100%}.profile-banner-card{flex-direction:column;align-items:flex-start;gap:16px}}
+.profile-empty-val{font-style:italic;color:#94a2ac;font-weight:400}
+.profile-field-item{display:flex;flex-direction:column;gap:4px;padding:10px 0;border-bottom:1px solid #edf1f4}
+.profile-field-item:last-child{border-bottom:none}
+.profile-field-label{font-size:12px;font-weight:500;color:#526a7a}
+.profile-inline-error{font-size:11px;color:#cf7c66;margin-top:2px}
+.profile-note-small{font-size:11px;color:#8b9aa5;font-style:italic;margin-top:16px}
+
+/* Leave Requests Filter Toolbar & Polish */
+.leave-filter-container{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:1.15rem;background:#f8fafb;border:1px solid #e2eaf0;border-radius:8px;padding:14px 16px}
+.leave-filter-item{display:flex;flex-direction:column;gap:5px}
+.leave-filter-item label{font-size:11px;font-weight:600;color:#7a8d99;margin:0}
+.leave-filter-search{flex:1 1 240px;min-width:200px}
+.leave-filter-status{flex:0 1 180px;min-width:150px}
+.leave-filter-date{flex:0 1 155px;min-width:135px}
+@media(max-width:768px){.leave-filter-container{gap:10px;padding:12px}.leave-filter-search{flex:1 1 100%}.leave-filter-status{flex:1 1 100%}.leave-filter-date{flex:1 1 calc(50% - 5px)}}
+
+/* Spinner Animation */
+@keyframes vnc-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.vnc-spinner{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:vnc-spin .75s linear infinite;vertical-align:middle;flex-shrink:0}
+
+/* ==========================================================================
+   VNC Premium Modal System (Perfect Centering, Blurred Backdrop, Smooth Pop)
+   ========================================================================== */
+dialog.vnc-modal-dialog {
+  position: fixed !important;
+  inset: 0 !important;
+  margin: auto !important;
+  width: min(92vw, 580px) !important;
+  max-width: 580px !important;
+  max-height: calc(100vh - 4rem) !important;
+  padding: 0 !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.28), 0 0 0 1px rgba(0, 0, 0, 0.05) !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  animation: vnc-modal-pop 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  color: #1e293b;
+  z-index: 9999;
+}
+
+dialog.vnc-modal-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.6) !important;
+  backdrop-filter: blur(5px) !important;
+  -webkit-backdrop-filter: blur(5px) !important;
+  animation: vnc-backdrop-fade 0.2s ease-out forwards !important;
+}
+
+@keyframes vnc-modal-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(-6px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes vnc-backdrop-fade {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.vnc-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.15rem 1.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  background: #ffffff;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.vnc-modal-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 650;
+  color: #0f172a;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+
+.vnc-modal-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.vnc-modal-close-btn:hover:not(:disabled) {
+  background: #e2e8f0;
+  color: #0f172a;
+  transform: scale(1.06);
+}
+
+.vnc-modal-close-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.vnc-modal-content {
+  overflow-y: auto;
+  max-height: calc(85vh - 100px);
+  flex: 1 1 auto;
+}
+
+/* ==========================================================================
+   Change Password Card & Visual Checklist Styles
+   ========================================================================== */
+.change-password-card {
+  max-width: 520px;
+  margin: 1.5rem auto 2.5rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.06), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+}
+
+.change-password-header {
+  padding: 1.75rem 1.75rem 1.25rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  border-bottom: 1px solid #f1f5f9;
+  background: linear-gradient(to bottom, #fcfefe, #ffffff);
+}
+
+.change-password-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #087f7a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.change-password-header-text h1 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  margin: 0 0 4px;
+}
+
+.change-password-header-text p {
+  font-size: 0.8125rem;
+  color: #64748b;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.change-password-body {
+  padding: 1.5rem 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.password-checklist-box {
+  margin-top: -0.25rem;
+  padding: 0.75rem 0.875rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.password-checklist-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 6px;
+}
+
+.password-checklist-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+}
+
+@media(max-width: 480px) {
+  .password-checklist-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.password-checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #94a3b8;
+  transition: color 0.15s ease;
+}
+
+.password-checklist-item.valid {
+  color: #15803d;
+  font-weight: 500;
+}
+
+.password-checklist-item .checklist-icon {
+  font-size: 13px;
+  font-weight: bold;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+}
+
+.change-password-footer {
+  padding: 1.25rem 1.75rem;
+  background: #f8fafc;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+

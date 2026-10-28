@@ -1,11 +1,69 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 
-export default function Modal({ title, children, onClose, busy = false }: { title: string; children: ReactNode; onClose: () => void; busy?: boolean }) {
+export interface ModalProps {
+  title: string;
+  children: ReactNode;
+  onClose: () => void;
+  busy?: boolean;
+  maxWidth?: string;
+}
+
+export default function Modal({
+  title,
+  children,
+  onClose,
+  busy = false,
+  maxWidth = '580px'
+}: ModalProps) {
   const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => { dialog.current?.showModal(); }, []);
-  return <dialog ref={dialog} className="vnc w-[min(95vw,640px)] rounded-xl border border-slate-200 p-0 shadow-xl backdrop:bg-slate-900/40"
-    onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}>
-    <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4"><h2 className="text-lg font-semibold">{title}</h2>
-      <button type="button" className="icon-button" aria-label="Đóng" disabled={busy} onClick={onClose}>×</button></div>{children}
-  </dialog>;
+
+  useEffect(() => {
+    const el = dialog.current;
+    if (el && !el.open) {
+      el.showModal();
+    }
+  }, []);
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDialogElement>) => {
+    const rect = dialog.current?.getBoundingClientRect();
+    if (rect) {
+      const isOutside =
+        e.clientX < rect.left ||
+        e.clientX > rect.right ||
+        e.clientY < rect.top ||
+        e.clientY > rect.bottom;
+      if (isOutside && !busy) {
+        onClose();
+      }
+    }
+  };
+
+  return (
+    <dialog
+      ref={dialog}
+      className="vnc vnc-modal-dialog"
+      style={{ maxWidth }}
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!busy) onClose();
+      }}
+      onClick={handleBackdropClick}
+    >
+      <div className="vnc-modal-header">
+        <h2 className="vnc-modal-title">{title}</h2>
+        <button
+          type="button"
+          className="vnc-modal-close-btn"
+          aria-label="Đóng"
+          disabled={busy}
+          onClick={onClose}
+        >
+          ✕
+        </button>
+      </div>
+      <div className="vnc-modal-content">
+        {children}
+      </div>
+    </dialog>
+  );
 }

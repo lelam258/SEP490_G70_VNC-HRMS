@@ -1,13 +1,16 @@
 import { useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import Icon from '../components/ui/Icon';
 import { useAuthStore } from '../store/useAuthStore';
 import { useAppStore } from '../store/useAppStore';
 import { authApi } from '../services/authApi';
 import { roleLabels, type Role } from '../types/accounts';
+import { initials } from '../utils/format';
 
 export default function AppLayout() {
   const user = useAuthStore(state => state.session?.user);
+  if (!user) return null;
+
   const sidebarOpen = useAppStore(state => state.sidebarOpen);
   const toggleSidebar = useAppStore(state => state.toggleSidebar);
   const [busy, setBusy] = useState(false);
@@ -25,6 +28,16 @@ export default function AppLayout() {
     ? 'Certificate / Qualification List'
     : location.pathname.startsWith('/cme-records')
     ? 'CME Records'
+    : location.pathname.startsWith('/payroll/parameters')
+    ? 'Tham số tính lương'
+    : location.pathname.startsWith('/payroll/compensation')
+    ? 'Đãi ngộ hợp đồng'
+    : location.pathname.startsWith('/payroll/periods')
+    ? 'Kỳ tính lương'
+    : location.pathname.startsWith('/me/profile')
+    ? 'Hồ sơ của tôi'
+    : location.pathname.startsWith('/me/leave-requests')
+    ? 'Đơn nghỉ phép'
     : location.pathname === '/change-password'
     ? 'Đổi mật khẩu'
     : 'Trang chủ';
@@ -41,8 +54,6 @@ export default function AppLayout() {
       setBusy(false);
     }
   }
-
-  if (!user) return null;
 
   return (
     <div className="vnc workspace">
@@ -87,6 +98,37 @@ export default function AppLayout() {
                 </NavLink>
               </>
             )}
+            {user.role === 'accountant' && (
+              <>
+                <NavLink to="/payroll/parameters" className={navClass}>
+                  <Icon name="sliders" />
+                  Tham số lương
+                </NavLink>
+                <NavLink to="/payroll/compensation" className={navClass}>
+                  <Icon name="file" />
+                  Đãi ngộ hợp đồng
+                </NavLink>
+                <NavLink to="/payroll/periods" className={navClass}>
+                  <Icon name="calendar" />
+                  Kỳ tính lương
+                </NavLink>
+              </>
+            )}
+          </nav>
+          <div className="workspace-label" style={{ marginTop: '24px' }}>CÁ NHÂN</div>
+          <nav aria-label="Điều hướng cá nhân">
+            {user.role !== 'admin' && (
+              <>
+                <NavLink to="/me/profile" className={navClass}>
+                  <Icon name="users" />
+                  Hồ sơ của tôi
+                </NavLink>
+                <NavLink to="/me/leave-requests" className={navClass}>
+                  <Icon name="clock" />
+                  Đơn nghỉ phép
+                </NavLink>
+              </>
+            )}
             <NavLink to="/change-password" className={navClass}>
               <Icon name="lock" />
               Đổi mật khẩu
@@ -118,7 +160,7 @@ export default function AppLayout() {
             </div>
           </div>
           <div className="topbar-user">
-            <span className="avatar small">{user.name.slice(0, 2).toUpperCase()}</span>
+            <span className="avatar small">{initials(user.name).toUpperCase()}</span>
             <div>
               <strong>{user.name}</strong>
               <small>{roleLabels[user.role as Role] || user.role}</small>

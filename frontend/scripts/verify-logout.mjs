@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
-import { StaticRouter } from 'react-router-dom';
+import { StaticRouter } from 'react-router';
 import { createServer } from 'vite';
 
 // Rendering with a cleared session used to throw while React unmounted the protected pages.

@@ -1,10 +1,11 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { useAuthStore } from '../store/useAuthStore';
 import { roleLabels, type Role } from '../types/accounts';
 
 export default function DashboardPage() {
   const user = useAuthStore(state => state.session?.user);
   if (!user) return null;
+
   return (
     <section className="panel p-8">
       <h1 className="text-2xl font-semibold">Xin chào, {user.name}</h1>
@@ -30,6 +31,29 @@ export default function DashboardPage() {
             </Link>
             <Link className="button" to="/cme-records">
               CME Records
+            </Link>
+          </>
+        )}
+        {user.role === 'accountant' && (
+          <>
+            <Link className="button primary" to="/payroll/parameters">
+              Tham số lương
+            </Link>
+            <Link className="button" to="/payroll/compensation">
+              Đãi ngộ hợp đồng
+            </Link>
+            <Link className="button" to="/payroll/periods">
+              Kỳ tính lương
+            </Link>
+          </>
+        )}
+        {user.role !== 'admin' && (
+          <>
+            <Link className="button" to="/me/profile">
+              Hồ sơ của tôi
+            </Link>
+            <Link className="button" to="/me/leave-requests">
+              Đơn nghỉ phép
             </Link>
           </>
         )}
