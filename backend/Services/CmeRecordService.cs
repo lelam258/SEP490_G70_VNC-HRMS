@@ -10,6 +10,9 @@ namespace Vnc.HRMS.Services;
 
 public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : ICmeRecordService
 {
+    private const int DefaultCmeAlertThresholdDays = 180;
+    private const decimal DefaultRequiredCredits = 1m;
+
     public async Task<StaffCmeSummaryDto[]> ListStaffSummariesAsync(CancellationToken ct = default)
     {
         var staffItems = await (
@@ -47,7 +50,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
                 r.CmeId,
                 r.CertificateId,
                 r.Credits,
-                Verified = r.Verified ?? false
+                Verified = r.Verified ?? true
             })
             .ToArrayAsync(ct);
 
@@ -68,9 +71,9 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
                 .SelectMany(c => recordsByCert[c.CertificateId])
                 .ToArray();
 
-            var totalRequired = staffCerts.Sum(c => c.CmeRequiredCredits ?? 0m);
+            var totalRequired = staffCerts.Sum(c =>
+                c.CmeRequiredCredits is > 0 ? c.CmeRequiredCredits.Value : DefaultRequiredCredits);
             var totalEarned = staffRecords.Sum(r => r.Credits);
-            var verifiedCredits = staffRecords.Where(r => r.Verified).Sum(r => r.Credits);
             var pendingCount = staffRecords.Count(r => !r.Verified);
 
             return new StaffCmeSummaryDto(
@@ -88,9 +91,422 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
                 pendingCount,
                 totalRequired,
                 totalEarned,
-                verifiedCredits
+                totalEarned
             );
         }).ToArray();
+    }
+
+    public async Task<CertificateCycleDto[]> ListCertificateCyclesByStaffAsync(Guid staffId, CancellationToken ct = default)
+    {
+        var rawCerts = await db.Certificates.AsNoTracking()
+            .Where(c => c.StaffId == staffId)
+            .OrderByDescending(c => c.Status == "active")
+            .ThenByDescending(c => c.IssueDate)
+            .ToArrayAsync(ct);
+
+        var certs = rawCerts
+            .Where(c => CertificateCategoryHelper.Parse(c.CertificateType).Category == "certificate")
+            .ToArray();
+
+        if (certs.Length == 0)
+            return [];
+
+        var certIds = certs.Select(c => c.CertificateId).ToArray();
+
+        var cycles = await db.CmeCycles.AsNoTracking()
+            .Where(cy => certIds.Contains(cy.CertificateId))
+            .OrderByDescending(cy => cy.CycleNumber)
+            .ToArrayAsync(ct);
+
+        var records = await db.CmeRecords.AsNoTracking()
+            .Where(r => certIds.Contains(r.CertificateId))
+            .ToArrayAsync(ct);
+
+        var cyclesByCert = cycles.ToLookup(c => c.CertificateId);
+        var recordsByCert = records.ToLookup(r => r.CertificateId);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+
+        var result = new List<CertificateCycleDto>();
+
+        foreach (var cert in certs)
+        {
+            var certCycles = cyclesByCert[cert.CertificateId]
+                .OrderByDescending(cy => cy.CycleNumber)
+                .ToArray();
+            var certRecords = recordsByCert[cert.CertificateId].ToArray();
+
+            if (certCycles.Length == 0)
+            {
+                result.Add(BuildCertificateCycleDto(cert, null, certRecords, today, isCurrentCycle: true));
+            }
+            else
+            {
+                var maxCycleNumber = certCycles.Max(cy => cy.CycleNumber);
+                var minCycleId = certCycles.OrderBy(cy => cy.CycleNumber).First().CycleId;
+
+                foreach (var cy in certCycles)
+                {
+                    var isCurrent = cy.CycleNumber == maxCycleNumber;
+                    var cyRecords = certRecords
+                        .Where(r => r.CmeCycleId == cy.CycleId || (r.CmeCycleId == null && cy.CycleId == minCycleId))
+                        .ToArray();
+
+                    result.Add(BuildCertificateCycleDto(cert, cy, cyRecords, today, isCurrent));
+                }
+            }
+        }
+
+        return result.ToArray();
+    }
+
+    public async Task<CertificateCycleDto> UpdateCycleDatesAsync(
+        Guid certificateId,
+        UpdateCmeCycleDatesRequest request,
+        CancellationToken ct = default)
+    {
+        var cert = await db.Certificates.SingleOrDefaultAsync(c => c.CertificateId == certificateId, ct)
+            ?? throw new AppException(404, "Không tìm thấy chứng chỉ.");
+
+        var (cat, _, _) = CertificateCategoryHelper.Parse(cert.CertificateType);
+        if (cat == "degree")
+            throw new AppException(400, "Không áp dụng chu kỳ CME cho bằng cấp.");
+
+        if (request.CycleEnd <= request.CycleStart)
+            throw new AppException(400, "Ngày kết thúc chu kỳ phải lớn hơn ngày bắt đầu (End date must be after start date).");
+
+        CmeCycle? cycle = null;
+        if (request.CycleId.HasValue)
+        {
+            cycle = await db.CmeCycles.SingleOrDefaultAsync(
+                c => c.CycleId == request.CycleId.Value && c.CertificateId == certificateId,
+                ct);
+        }
+
+        cycle ??= await db.CmeCycles
+            .OrderByDescending(c => c.CycleNumber)
+            .FirstOrDefaultAsync(c => c.CertificateId == certificateId, ct);
+
+        if (cycle is { Status: "completed" })
+        {
+            throw new AppException(400, "Bảng tiến độ này đã được xác nhận hoàn thành và khóa, không thể chỉnh sửa.");
+        }
+
+        var requiredCredits = cert.CmeRequiredCredits is > 0
+            ? cert.CmeRequiredCredits.Value
+            : DefaultRequiredCredits;
+
+        if (cycle == null)
+        {
+            var earnedCredits = await db.CmeRecords
+                .Where(r => r.CertificateId == certificateId)
+                .SumAsync(r => (decimal?)r.Credits, ct) ?? 0m;
+
+            cycle = new CmeCycle
+            {
+                CycleId = Guid.NewGuid(),
+                CertificateId = certificateId,
+                CycleNumber = 1,
+                CycleStart = request.CycleStart,
+                CycleEnd = request.CycleEnd,
+                RequiredCredits = requiredCredits,
+                EarnedCredits = earnedCredits,
+                Status = "active"
+            };
+            db.CmeCycles.Add(cycle);
+            await unitOfWork.SaveChangesAsync(ct);
+
+            var unlinkedRecords = await db.CmeRecords
+                .Where(r => r.CertificateId == certificateId && r.CmeCycleId == null)
+                .ToListAsync(ct);
+
+            if (unlinkedRecords.Count > 0)
+            {
+                foreach (var rec in unlinkedRecords)
+                {
+                    rec.CmeCycleId = cycle.CycleId;
+                }
+                await unitOfWork.SaveChangesAsync(ct);
+            }
+        }
+        else
+        {
+            var earnedCredits = await db.CmeRecords
+                .Where(r => r.CmeCycleId == cycle.CycleId)
+                .SumAsync(r => (decimal?)r.Credits, ct) ?? 0m;
+
+            cycle.CycleStart = request.CycleStart;
+            cycle.CycleEnd = request.CycleEnd;
+            cycle.RequiredCredits = requiredCredits;
+            cycle.EarnedCredits = earnedCredits;
+            await unitOfWork.SaveChangesAsync(ct);
+        }
+
+        var cycleRecords = await db.CmeRecords.AsNoTracking()
+            .Where(r => r.CmeCycleId == cycle.CycleId)
+            .ToArrayAsync(ct);
+
+        var maxCycleNumber = await db.CmeCycles.AsNoTracking()
+            .Where(c => c.CertificateId == certificateId)
+            .MaxAsync(c => (int?)c.CycleNumber, ct) ?? cycle.CycleNumber;
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        return BuildCertificateCycleDto(cert, cycle, cycleRecords, today, cycle.CycleNumber == maxCycleNumber);
+    }
+
+    public async Task<CertificateCycleDto> CompleteCycleAsync(
+        Guid certificateId,
+        Guid? cycleId,
+        CancellationToken ct = default)
+    {
+        var cert = await db.Certificates.SingleOrDefaultAsync(c => c.CertificateId == certificateId, ct)
+            ?? throw new AppException(404, "Không tìm thấy chứng chỉ.");
+
+        var (cat, _, _) = CertificateCategoryHelper.Parse(cert.CertificateType);
+        if (cat == "degree")
+            throw new AppException(400, "Không áp dụng chu kỳ CME cho bằng cấp.");
+
+        var requiredCredits = cert.CmeRequiredCredits is > 0
+            ? cert.CmeRequiredCredits.Value
+            : DefaultRequiredCredits;
+
+        CmeCycle? cycle = null;
+        if (cycleId.HasValue)
+        {
+            cycle = await db.CmeCycles.SingleOrDefaultAsync(
+                c => c.CycleId == cycleId.Value && c.CertificateId == certificateId,
+                ct);
+        }
+
+        cycle ??= await db.CmeCycles
+            .OrderByDescending(c => c.CycleNumber)
+            .FirstOrDefaultAsync(c => c.CertificateId == certificateId, ct);
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+
+        if (cycle == null)
+        {
+            var unlinkedRecords = await db.CmeRecords
+                .Where(r => r.CertificateId == certificateId && r.CmeCycleId == null)
+                .ToListAsync(ct);
+
+            var earned = unlinkedRecords.Sum(r => r.Credits);
+            if (earned < requiredCredits)
+            {
+                throw new AppException(
+                    400,
+                    $"Chưa đạt đủ chỉ tiêu tín chỉ ({earned}/{requiredCredits} tín chỉ) nên chưa thể chốt hoàn thành.");
+            }
+
+            var startDate = unlinkedRecords.Count > 0 ? unlinkedRecords.Min(r => r.CompletedDate) : today;
+            var endDate = unlinkedRecords.Count > 0 ? unlinkedRecords.Max(r => r.CompletedDate) : today;
+            if (endDate < startDate) endDate = startDate;
+
+            cycle = new CmeCycle
+            {
+                CycleId = Guid.NewGuid(),
+                CertificateId = certificateId,
+                CycleNumber = 1,
+                CycleStart = startDate,
+                CycleEnd = endDate,
+                RequiredCredits = requiredCredits,
+                EarnedCredits = earned,
+                Status = "completed"
+            };
+            db.CmeCycles.Add(cycle);
+            await unitOfWork.SaveChangesAsync(ct);
+
+            foreach (var rec in unlinkedRecords)
+            {
+                rec.CmeCycleId = cycle.CycleId;
+            }
+            await unitOfWork.SaveChangesAsync(ct);
+        }
+        else
+        {
+            var earned = await db.CmeRecords
+                .Where(r => r.CmeCycleId == cycle.CycleId)
+                .SumAsync(r => (decimal?)r.Credits, ct) ?? 0m;
+
+            if (earned < requiredCredits)
+            {
+                throw new AppException(
+                    400,
+                    $"Chưa đạt đủ chỉ tiêu tín chỉ ({earned}/{requiredCredits} tín chỉ) nên chưa thể chốt hoàn thành.");
+            }
+
+            cycle.EarnedCredits = earned;
+            cycle.RequiredCredits = requiredCredits;
+            cycle.Status = "completed";
+            await unitOfWork.SaveChangesAsync(ct);
+        }
+
+        var cycleRecords = await db.CmeRecords.AsNoTracking()
+            .Where(r => r.CmeCycleId == cycle.CycleId)
+            .ToArrayAsync(ct);
+
+        var maxCycleNumber = await db.CmeCycles.AsNoTracking()
+            .Where(c => c.CertificateId == certificateId)
+            .MaxAsync(c => (int?)c.CycleNumber, ct) ?? cycle.CycleNumber;
+
+        return BuildCertificateCycleDto(cert, cycle, cycleRecords, today, cycle.CycleNumber == maxCycleNumber);
+    }
+
+    public async Task<CertificateCycleDto> CreateNewCycleAsync(
+        Guid certificateId,
+        CreateNewCmeCycleRequest? request,
+        CancellationToken ct = default)
+    {
+        var cert = await db.Certificates.SingleOrDefaultAsync(c => c.CertificateId == certificateId, ct)
+            ?? throw new AppException(404, "Không tìm thấy chứng chỉ.");
+
+        var (cat, _, _) = CertificateCategoryHelper.Parse(cert.CertificateType);
+        if (cat == "degree")
+            throw new AppException(400, "Không áp dụng chu kỳ CME cho bằng cấp.");
+
+        if (request?.CycleStart is not null && request.CycleEnd is not null && request.CycleEnd <= request.CycleStart)
+            throw new AppException(400, "Ngày kết thúc chu kỳ phải lớn hơn ngày bắt đầu.");
+
+        var requiredCredits = cert.CmeRequiredCredits is > 0
+            ? cert.CmeRequiredCredits.Value
+            : DefaultRequiredCredits;
+
+        var existingCycles = await db.CmeCycles
+            .Where(c => c.CertificateId == certificateId)
+            .OrderBy(c => c.CycleNumber)
+            .ToListAsync(ct);
+
+        var unlinkedRecords = await db.CmeRecords
+            .Where(r => r.CertificateId == certificateId && r.CmeCycleId == null)
+            .ToListAsync(ct);
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+
+        if (existingCycles.Count == 0 && unlinkedRecords.Count > 0)
+        {
+            var firstStart = unlinkedRecords.Min(r => r.CompletedDate);
+            var firstEnd = unlinkedRecords.Max(r => r.CompletedDate);
+            if (firstEnd < firstStart) firstEnd = firstStart;
+
+            var archivedEarned = unlinkedRecords.Sum(r => r.Credits);
+            var cycle1 = new CmeCycle
+            {
+                CycleId = Guid.NewGuid(),
+                CertificateId = certificateId,
+                CycleNumber = 1,
+                CycleStart = firstStart,
+                CycleEnd = firstEnd,
+                RequiredCredits = requiredCredits,
+                EarnedCredits = archivedEarned,
+                Status = "completed"
+            };
+            db.CmeCycles.Add(cycle1);
+            await unitOfWork.SaveChangesAsync(ct);
+
+            foreach (var rec in unlinkedRecords)
+            {
+                rec.CmeCycleId = cycle1.CycleId;
+            }
+            await unitOfWork.SaveChangesAsync(ct);
+            existingCycles.Add(cycle1);
+        }
+        else if (existingCycles.Count > 0 && unlinkedRecords.Count > 0)
+        {
+            var firstCycle = existingCycles[0];
+            foreach (var rec in unlinkedRecords)
+            {
+                rec.CmeCycleId = firstCycle.CycleId;
+            }
+            await unitOfWork.SaveChangesAsync(ct);
+            await RecalculateCycleCreditsAsync(firstCycle.CycleId, ct);
+        }
+
+        // Lock/complete previous cycles when starting a new table
+        foreach (var prev in existingCycles)
+        {
+            if (prev.Status == "active")
+            {
+                prev.Status = "completed";
+            }
+        }
+
+        var nextCycleNumber = existingCycles.Count > 0
+            ? existingCycles.Max(c => c.CycleNumber) + 1
+            : 1;
+
+        var startDate = request?.CycleStart ?? today;
+        var months = cert.CmeCycleMonths is > 0 ? cert.CmeCycleMonths.Value : 24;
+        var endDate = request?.CycleEnd ?? startDate.AddMonths(months);
+        if (endDate <= startDate)
+            endDate = startDate.AddMonths(months);
+
+        var newCycle = new CmeCycle
+        {
+            CycleId = Guid.NewGuid(),
+            CertificateId = certificateId,
+            CycleNumber = nextCycleNumber,
+            CycleStart = startDate,
+            CycleEnd = endDate,
+            RequiredCredits = requiredCredits,
+            EarnedCredits = 0m,
+            Status = "active"
+        };
+
+        db.CmeCycles.Add(newCycle);
+        await unitOfWork.SaveChangesAsync(ct);
+
+        return BuildCertificateCycleDto(cert, newCycle, [], today, isCurrentCycle: true);
+    }
+
+    private static CertificateCycleDto BuildCertificateCycleDto(
+        Certificate cert,
+        CmeCycle? cycle,
+        IEnumerable<CmeRecord> cycleRecords,
+        DateOnly today,
+        bool isCurrentCycle)
+    {
+        var (_, _, cleanName) = CertificateCategoryHelper.Parse(cert.CertificateType);
+        var hasExpiry = cert.ExpiryDate.HasValue;
+
+        DateOnly? cycleStart = cycle?.CycleStart;
+        DateOnly? cycleEnd = cycle?.CycleEnd;
+
+        var required = cert.CmeRequiredCredits is > 0
+            ? cert.CmeRequiredCredits.Value
+            : DefaultRequiredCredits;
+
+        var earned = cycleRecords.Sum(r => r.Credits);
+        var remaining = Math.Max(0m, required - earned);
+
+        int? daysLeft = null;
+        if (cycleEnd.HasValue)
+        {
+            daysLeft = cycleEnd.Value.DayNumber - today.DayNumber;
+        }
+
+        var isAtRisk = remaining > 0 && daysLeft.HasValue && daysLeft.Value <= DefaultCmeAlertThresholdDays;
+        var statusBadge = isAtRisk ? "At risk" : "On track";
+
+        return new CertificateCycleDto(
+            cert.CertificateId,
+            cert.CertificateNumber,
+            string.IsNullOrWhiteSpace(cleanName) ? cert.CertificateType : cleanName,
+            cert.IssueDate,
+            cert.ExpiryDate,
+            hasExpiry,
+            cycle?.CycleId,
+            cycle?.CycleNumber ?? 1,
+            cycleStart,
+            cycleEnd,
+            required,
+            earned,
+            remaining,
+            daysLeft,
+            statusBadge,
+            DefaultCmeAlertThresholdDays,
+            cert.Status ?? "active",
+            cycle?.Status ?? "active",
+            isCurrentCycle
+        );
     }
 
     public async Task<CmeRecordDto[]> ListByStaffIdAsync(Guid staffId, CancellationToken ct = default)
@@ -127,7 +543,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
                 rec.CompletedDate,
                 rec.Credits,
                 rec.FileUrl,
-                Verified = rec.Verified ?? false,
+                Verified = rec.Verified ?? true,
                 rec.VerifiedBy,
                 VerifiedByName = verifier != null ? verifier.FullName : null,
                 rec.VerifiedAt,
@@ -200,7 +616,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
                 rec.CompletedDate,
                 rec.Credits,
                 rec.FileUrl,
-                Verified = rec.Verified ?? false,
+                Verified = rec.Verified ?? true,
                 rec.VerifiedBy,
                 VerifiedByName = verifier != null ? verifier.FullName : null,
                 rec.VerifiedAt,
@@ -272,7 +688,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
                 rec.CompletedDate,
                 rec.Credits,
                 rec.FileUrl,
-                Verified = rec.Verified ?? false,
+                Verified = rec.Verified ?? true,
                 rec.VerifiedBy,
                 VerifiedByName = verifier != null ? verifier.FullName : null,
                 rec.VerifiedAt,
@@ -308,6 +724,25 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         );
     }
 
+    private static void ValidateCmeFields(string courseName, string? provider, DateOnly completedDate, decimal credits)
+    {
+        if (string.IsNullOrWhiteSpace(courseName))
+            throw new AppException(400, "Tên khóa học (Course name) là bắt buộc.");
+
+        if (courseName.Trim().Length > 150)
+            throw new AppException(400, "Tên khóa học tối đa 150 ký tự.");
+
+        if (!string.IsNullOrWhiteSpace(provider) && provider.Trim().Length > 100)
+            throw new AppException(400, "Đơn vị tổ chức (Organizer) tối đa 100 ký tự.");
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        if (completedDate > today)
+            throw new AppException(400, "MSG-C07: Ngày hoàn thành không được lớn hơn ngày hiện tại (Completed date cannot be in the future).");
+
+        if (credits <= 0 || credits > 999.5m || (credits * 2m) != Math.Floor(credits * 2m))
+            throw new AppException(400, "MSG-C08: Số tín chỉ (Credits) phải lớn hơn 0 và có bước nhảy 0.5.");
+    }
+
     public async Task<CmeRecordDto> CreateAsync(SaveCmeRecordRequest request, Guid? currentUserId, CancellationToken ct = default)
     {
         var cert = await db.Certificates.AsNoTracking()
@@ -318,24 +753,25 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         if (cat == "degree")
             throw new AppException(400, "Không thể gắn bản ghi CME vào Bằng cấp. Vui lòng chọn Chứng chỉ chuyên môn.");
 
-        if (string.IsNullOrWhiteSpace(request.CourseName))
-            throw new AppException(400, "Tên khóa đào tạo CME là bắt buộc.");
+        ValidateCmeFields(request.CourseName, request.Provider, request.CompletedDate, request.Credits);
 
-        if (request.Credits <= 0 || request.Credits > 999.99m)
-            throw new AppException(400, "Số tín chỉ CME phải lớn hơn 0 và nhỏ hơn 1000.");
+        var cycle = await ResolveCycleAsync(cert, request.CmeCycleId, request.CompletedDate, ct);
+        if (cycle is { Status: "completed" })
+        {
+            throw new AppException(400, "Bảng tiến độ này đã được chốt hoàn thành và khóa, không thể thêm mới. Hãy bấm '+ New record' để tạo bảng tiến độ mới.");
+        }
+
+        await EnsureCreditsNotExceedRequiredAsync(cert, cycle, request.Credits, null, ct);
 
         var now = DateTime.UtcNow;
-        var cycle = await EnsureOrGetActiveCycleAsync(cert, request.CompletedDate, ct);
 
         var entity = new CmeRecord
         {
             CmeId = Guid.NewGuid(),
             CertificateId = request.CertificateId,
             CmeCycleId = cycle?.CycleId,
-            CourseName = request.CourseName.Trim().Length > 200 ? request.CourseName.Trim()[..200] : request.CourseName.Trim(),
-            Provider = string.IsNullOrWhiteSpace(request.Provider)
-                ? null
-                : (request.Provider.Trim().Length > 200 ? request.Provider.Trim()[..200] : request.Provider.Trim()),
+            CourseName = request.CourseName.Trim(),
+            Provider = string.IsNullOrWhiteSpace(request.Provider) ? null : request.Provider.Trim(),
             CompletedDate = request.CompletedDate,
             Credits = Math.Round(request.Credits, 2),
             FileUrl = string.IsNullOrWhiteSpace(request.FileUrl) ? null : request.FileUrl.Trim(),
@@ -369,33 +805,29 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         if (cat == "degree")
             throw new AppException(400, "Không thể gắn bản ghi CME vào Bằng cấp. Vui lòng chọn Chứng chỉ chuyên môn.");
 
-        if (string.IsNullOrWhiteSpace(request.CourseName))
-            throw new AppException(400, "Tên khóa đào tạo CME là bắt buộc.");
-
-        if (request.Credits <= 0 || request.Credits > 999.99m)
-            throw new AppException(400, "Số tín chỉ CME phải lớn hơn 0 và nhỏ hơn 1000.");
+        ValidateCmeFields(request.CourseName, request.Provider, request.CompletedDate, request.Credits);
 
         var oldCycleId = entity.CmeCycleId;
-        var certChanged = entity.CertificateId != request.CertificateId;
+        var targetCycleId = request.CmeCycleId ?? entity.CmeCycleId;
+        var newCycle = await ResolveCycleAsync(cert, targetCycleId, request.CompletedDate, ct);
+        if (newCycle is { Status: "completed" })
+        {
+            throw new AppException(400, "Bảng tiến độ này đã được chốt hoàn thành và khóa, không thể chỉnh sửa.");
+        }
+
+        await EnsureCreditsNotExceedRequiredAsync(cert, newCycle, request.Credits, id, ct);
 
         entity.CertificateId = request.CertificateId;
-        entity.CourseName = request.CourseName.Trim().Length > 200 ? request.CourseName.Trim()[..200] : request.CourseName.Trim();
-        entity.Provider = string.IsNullOrWhiteSpace(request.Provider)
-            ? null
-            : (request.Provider.Trim().Length > 200 ? request.Provider.Trim()[..200] : request.Provider.Trim());
+        entity.CmeCycleId = newCycle?.CycleId;
+        entity.CourseName = request.CourseName.Trim();
+        entity.Provider = string.IsNullOrWhiteSpace(request.Provider) ? null : request.Provider.Trim();
         entity.CompletedDate = request.CompletedDate;
         entity.Credits = Math.Round(request.Credits, 2);
         entity.FileUrl = string.IsNullOrWhiteSpace(request.FileUrl) ? null : request.FileUrl.Trim();
 
-        if (certChanged)
-        {
-            var newCycle = await EnsureOrGetActiveCycleAsync(cert, request.CompletedDate, ct);
-            entity.CmeCycleId = newCycle?.CycleId;
-        }
-
         if (request.Verified.HasValue)
         {
-            var wasVerified = entity.Verified ?? false;
+            var wasVerified = entity.Verified ?? true;
             entity.Verified = request.Verified.Value;
             if (request.Verified.Value && !wasVerified)
             {
@@ -449,6 +881,15 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         var entity = await db.CmeRecords.SingleOrDefaultAsync(r => r.CmeId == id, ct)
             ?? throw new AppException(404, "Không tìm thấy bản ghi CME.");
 
+        if (entity.CmeCycleId.HasValue)
+        {
+            var cycle = await db.CmeCycles.AsNoTracking().SingleOrDefaultAsync(c => c.CycleId == entity.CmeCycleId.Value, ct);
+            if (cycle is { Status: "completed" })
+            {
+                throw new AppException(400, "Bảng tiến độ này đã được chốt hoàn thành và khóa, không thể xóa bản ghi.");
+            }
+        }
+
         var cycleId = entity.CmeCycleId;
         db.CmeRecords.Remove(entity);
         await unitOfWork.SaveChangesAsync(ct);
@@ -457,37 +898,73 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
             await RecalculateCycleCreditsAsync(cycleId.Value, ct);
     }
 
-    private async Task<CmeCycle?> EnsureOrGetActiveCycleAsync(Certificate cert, DateOnly completedDate, CancellationToken ct)
+    private async Task<CmeCycle?> ResolveCycleAsync(
+        Certificate cert,
+        Guid? explicitCycleId,
+        DateOnly completedDate,
+        CancellationToken ct)
     {
-        var existingCycle = await db.CmeCycles
-            .OrderByDescending(c => c.CycleNumber)
-            .FirstOrDefaultAsync(c => c.CertificateId == cert.CertificateId, ct);
-
-        if (existingCycle != null)
-            return existingCycle;
-
-        if ((cert.CmeRequiredCredits ?? 0) <= 0 && (cert.CmeCycleMonths ?? 0) <= 0)
-            return null;
-
-        var startDate = cert.IssueDate ?? completedDate;
-        var months = cert.CmeCycleMonths is > 0 ? cert.CmeCycleMonths.Value : 24;
-        var endDate = startDate.AddMonths(months);
-
-        var newCycle = new CmeCycle
+        if (explicitCycleId.HasValue)
         {
-            CycleId = Guid.NewGuid(),
-            CertificateId = cert.CertificateId,
-            CycleNumber = 1,
-            CycleStart = startDate,
-            CycleEnd = endDate,
-            RequiredCredits = Math.Max(0, cert.CmeRequiredCredits ?? 0m),
-            EarnedCredits = 0m,
-            Status = "active"
-        };
+            var explicitCycle = await db.CmeCycles
+                .SingleOrDefaultAsync(c => c.CycleId == explicitCycleId.Value && c.CertificateId == cert.CertificateId, ct);
+            if (explicitCycle != null)
+                return explicitCycle;
+        }
 
-        db.CmeCycles.Add(newCycle);
-        await unitOfWork.SaveChangesAsync(ct);
-        return newCycle;
+        var cycles = await db.CmeCycles
+            .Where(c => c.CertificateId == cert.CertificateId)
+            .OrderByDescending(c => c.CycleNumber)
+            .ToListAsync(ct);
+
+        if (cycles.Count > 0)
+            return cycles[0];
+
+        return null;
+    }
+
+    private async Task EnsureCreditsNotExceedRequiredAsync(
+        Certificate cert,
+        CmeCycle? cycle,
+        decimal newCredits,
+        Guid? excludeCmeId,
+        CancellationToken ct)
+    {
+        var required = cert.CmeRequiredCredits is > 0
+            ? cert.CmeRequiredCredits.Value
+            : DefaultRequiredCredits;
+
+        var query = db.CmeRecords.AsNoTracking().Where(r => r.CertificateId == cert.CertificateId);
+        if (cycle != null)
+        {
+            query = query.Where(r => r.CmeCycleId == cycle.CycleId);
+        }
+        else
+        {
+            query = query.Where(r => r.CmeCycleId == null);
+        }
+
+        if (excludeCmeId.HasValue)
+        {
+            query = query.Where(r => r.CmeId != excludeCmeId.Value);
+        }
+
+        var completedCredits = await query.SumAsync(r => (decimal?)r.Credits, ct) ?? 0m;
+        var remainingCredits = Math.Max(0m, required - completedCredits);
+
+        if (completedCredits + newCredits > required)
+        {
+            if (remainingCredits <= 0)
+            {
+                throw new AppException(
+                    400,
+                    $"Bảng tiến độ hiện tại đã hoàn thành đủ {completedCredits}/{required} tín chỉ yêu cầu. Hãy bấm 'Xác nhận hoàn thành' hoặc '+ New record' để tạo bảng tiến độ mới.");
+            }
+
+            throw new AppException(
+                400,
+                $"Số tín chỉ nhập vào ({newCredits}) vượt quá số tín chỉ còn lại của bảng tiến độ hiện tại. Đã hoàn thành: {completedCredits}/{required} tín chỉ, chỉ được nhập tối đa {remainingCredits} tín chỉ.");
+        }
     }
 
     private async Task RecalculateCycleCreditsAsync(Guid cycleId, CancellationToken ct)
@@ -500,15 +977,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
             .SumAsync(r => (decimal?)r.Credits, ct) ?? 0m;
 
         cycle.EarnedCredits = Math.Max(0m, totalCredits);
-        if (cycle.RequiredCredits > 0 && cycle.EarnedCredits >= cycle.RequiredCredits)
-        {
-            cycle.Status = "completed";
-        }
-        else
-        {
-            cycle.Status = "active";
-        }
-
+        // Do NOT auto-set Status = "completed" here; HR Manager explicitly clicks "Complete / Lock" to finalize the table.
         await unitOfWork.SaveChangesAsync(ct);
     }
 }

@@ -5,7 +5,7 @@ using Vnc.HRMS.Services.Interfaces;
 
 namespace Vnc.HRMS.Services;
 
-public sealed class FileService(ICloudinaryService cloudinary) : IFileService
+public sealed class FileService(ICloudinaryService cloudinary, IWebHostEnvironment env) : IFileService
 {
     public async Task<UploadFileResponse> UploadAsync(Stream stream, string fileName, string contentType, long length, CancellationToken ct)
     {
@@ -28,6 +28,33 @@ public sealed class FileService(ICloudinaryService cloudinary) : IFileService
         // IFormFile streams are seekable; do not send a file with its header removed.
         if (!stream.CanSeek) throw new AppException(400, "Không đọc được tệp tải lên.");
         stream.Position = 0;
-        return await cloudinary.UploadAsync(stream, fileName, contentType, ct);
+
+        try
+        {
+            return await cloudinary.UploadAsync(stream, fileName, contentType, ct);
+        }
+        catch (AppException ex) when (ex.StatusCode == 503)
+        {
+            // Local storage fallback when Cloudinary credentials are not configured
+            stream.Position = 0;
+            var uploadsDir = Path.Combine(env.ContentRootPath, ".local", "uploads");
+            Directory.CreateDirectory(uploadsDir);
+
+            var safeBaseName = Path.GetFileNameWithoutExtension(fileName);
+            safeBaseName = string.Concat(safeBaseName.Where(ch => char.IsLetterOrDigit(ch) || ch is '-' or '_'));
+            if (string.IsNullOrWhiteSpace(safeBaseName)) safeBaseName = "proof";
+            if (safeBaseName.Length > 40) safeBaseName = safeBaseName[..40];
+
+            var storedFileName = $"{DateTime.UtcNow:yyyyMMddHHmmss}_{Guid.NewGuid():N}_{safeBaseName}{extension}";
+            var fullPath = Path.Combine(uploadsDir, storedFileName);
+
+            await using (var fileStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                await stream.CopyToAsync(fileStream, ct);
+            }
+
+            var resourceType = extension == ".pdf" ? "raw" : "image";
+            return new UploadFileResponse(storedFileName, $"/api/files/{storedFileName}", resourceType, length);
+        }
     }
 }

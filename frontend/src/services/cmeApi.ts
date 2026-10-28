@@ -1,14 +1,55 @@
 import { axiosClient } from './axiosClient';
 import type {
+  CertificateCycle,
   CmeRecord,
+  CreateNewCmeCycleInput,
   SaveCmeRecordInput,
   StaffCmeSummary,
+  UpdateCmeCycleDatesInput,
   UpdateCmeRecordInput,
 } from '../types/cme';
 
 export const cmeApi = {
   async listStaffSummaries(): Promise<StaffCmeSummary[]> {
     return (await axiosClient.get<StaffCmeSummary[]>('/cme-records/employees')).data;
+  },
+
+  async listCertificateCyclesByStaff(staffId: string): Promise<CertificateCycle[]> {
+    return (await axiosClient.get<CertificateCycle[]>(`/cme-records/employee/${staffId}/cycles`)).data;
+  },
+
+  async updateCycleDates(
+    certificateId: string,
+    input: UpdateCmeCycleDatesInput
+  ): Promise<CertificateCycle> {
+    return (
+      await axiosClient.put<CertificateCycle>(
+        `/cme-records/certificate/${certificateId}/cycle-dates`,
+        input
+      )
+    ).data;
+  },
+
+  async createNewCycle(
+    certificateId: string,
+    input?: CreateNewCmeCycleInput
+  ): Promise<CertificateCycle> {
+    return (
+      await axiosClient.post<CertificateCycle>(
+        `/cme-records/certificate/${certificateId}/new-cycle`,
+        input || {}
+      )
+    ).data;
+  },
+
+  async completeCycle(certificateId: string, cycleId?: string | null): Promise<CertificateCycle> {
+    const query = cycleId ? `?cycleId=${encodeURIComponent(cycleId)}` : '';
+    return (
+      await axiosClient.post<CertificateCycle>(
+        `/cme-records/certificate/${certificateId}/complete-cycle${query}`,
+        {}
+      )
+    ).data;
   },
 
   async listByStaff(staffId: string): Promise<CmeRecord[]> {

@@ -5,6 +5,10 @@ namespace Vnc.HRMS.Services.Interfaces;
 public interface ICmeRecordService
 {
     Task<StaffCmeSummaryDto[]> ListStaffSummariesAsync(CancellationToken ct = default);
+    Task<CertificateCycleDto[]> ListCertificateCyclesByStaffAsync(Guid staffId, CancellationToken ct = default);
+    Task<CertificateCycleDto> UpdateCycleDatesAsync(Guid certificateId, UpdateCmeCycleDatesRequest request, CancellationToken ct = default);
+    Task<CertificateCycleDto> CreateNewCycleAsync(Guid certificateId, CreateNewCmeCycleRequest? request, CancellationToken ct = default);
+    Task<CertificateCycleDto> CompleteCycleAsync(Guid certificateId, Guid? cycleId, CancellationToken ct = default);
     Task<CmeRecordDto[]> ListByStaffIdAsync(Guid staffId, CancellationToken ct = default);
     Task<CmeRecordDto[]> ListByCertificateIdAsync(Guid certificateId, CancellationToken ct = default);
     Task<CmeRecordDto> GetAsync(Guid id, CancellationToken ct = default);

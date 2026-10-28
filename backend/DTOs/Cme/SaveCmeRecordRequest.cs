@@ -4,10 +4,11 @@ namespace Vnc.HRMS.DTOs.Cme;
 
 public sealed record SaveCmeRecordRequest(
     [Required] Guid CertificateId,
-    [Required] string CourseName,
-    string? Provider,
+    [Required, MaxLength(150)] string CourseName,
+    [MaxLength(100)] string? Provider,
     [Required] DateOnly CompletedDate,
-    [Range(0.01, 999.99)] decimal Credits,
+    [Range(0.5, 999.5)] decimal Credits,
     string? FileUrl,
-    bool Verified = false
+    bool Verified = true,
+    Guid? CmeCycleId = null
 );
