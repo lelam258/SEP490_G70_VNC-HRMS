@@ -14,6 +14,31 @@ public sealed class CmeRecordsController(ICmeRecordService cmeRecords) : Control
     public Task<StaffCmeSummaryDto[]> ListStaffSummaries(CancellationToken ct) =>
         cmeRecords.ListStaffSummariesAsync(ct);
 
+    [HttpGet("employee/{staffId:guid}/cycles")]
+    public Task<CertificateCycleDto[]> ListCertificateCyclesByStaff(Guid staffId, CancellationToken ct) =>
+        cmeRecords.ListCertificateCyclesByStaffAsync(staffId, ct);
+
+    [HttpPut("certificate/{certificateId:guid}/cycle-dates")]
+    public Task<CertificateCycleDto> UpdateCycleDates(
+        Guid certificateId,
+        [FromBody] UpdateCmeCycleDatesRequest request,
+        CancellationToken ct) =>
+        cmeRecords.UpdateCycleDatesAsync(certificateId, request, ct);
+
+    [HttpPost("certificate/{certificateId:guid}/new-cycle")]
+    public Task<CertificateCycleDto> CreateNewCycle(
+        Guid certificateId,
+        [FromBody] CreateNewCmeCycleRequest? request,
+        CancellationToken ct) =>
+        cmeRecords.CreateNewCycleAsync(certificateId, request, ct);
+
+    [HttpPost("certificate/{certificateId:guid}/complete-cycle")]
+    public Task<CertificateCycleDto> CompleteCycle(
+        Guid certificateId,
+        [FromQuery] Guid? cycleId,
+        CancellationToken ct) =>
+        cmeRecords.CompleteCycleAsync(certificateId, cycleId, ct);
+
     [HttpGet("employee/{staffId:guid}")]
     public Task<CmeRecordDto[]> ListByStaff(Guid staffId, CancellationToken ct) =>
         cmeRecords.ListByStaffIdAsync(staffId, ct);

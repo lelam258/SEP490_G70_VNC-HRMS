@@ -16,6 +16,39 @@ export interface StaffCmeSummary {
   verifiedCredits: number;
 }
 
+export interface CertificateCycle {
+  certificateId: string;
+  certificateNumber: string | null;
+  certificateType: string;
+  issueDate: string | null;
+  expiryDate: string | null;
+  hasExpiryDate: boolean;
+  cycleId: string | null;
+  cycleNumber: number;
+  cycleStart: string | null;
+  cycleEnd: string | null;
+  requiredCredits: number;
+  earnedCredits: number;
+  remainingCredits: number;
+  daysLeft: number | null;
+  statusBadge: 'On track' | 'At risk' | string;
+  alertThresholdDays: number;
+  certificateStatus: string;
+  cycleStatus?: string;
+  isCurrentCycle?: boolean;
+}
+
+export interface UpdateCmeCycleDatesInput {
+  cycleStart: string;
+  cycleEnd: string;
+  cycleId?: string | null;
+}
+
+export interface CreateNewCmeCycleInput {
+  cycleStart?: string | null;
+  cycleEnd?: string | null;
+}
+
 export interface CmeRecord {
   cmeId: string;
   certificateId: string;
@@ -50,6 +83,7 @@ export interface SaveCmeRecordInput {
   credits: number;
   fileUrl?: string | null;
   verified?: boolean;
+  cmeCycleId?: string | null;
 }
 
 export interface UpdateCmeRecordInput {
@@ -60,4 +94,5 @@ export interface UpdateCmeRecordInput {
   credits: number;
   fileUrl?: string | null;
   verified?: boolean | null;
+  cmeCycleId?: string | null;
 }
