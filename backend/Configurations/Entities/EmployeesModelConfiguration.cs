@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Vnc.HRMS.Models;
 using Vnc.HRMS.Models.Employees;
 namespace Vnc.HRMS.Configurations.Entities;
 public static class EmployeesModelConfiguration
@@ -25,6 +26,8 @@ public static class EmployeesModelConfiguration
         staff.Property(x => x.DateJoined).HasColumnName("date_joined");
         staff.Property(x => x.DateLeft).HasColumnName("date_left");
         staff.Property(x => x.DependentCount).HasColumnName("dependent_count");
+        staff.Property(x => x.SiteId).HasColumnName("site_id");
+        staff.Property(x => x.IsUnionMember).HasColumnName("is_union_member").HasDefaultValue(true).HasSentinel(true);
         staff.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue("active");
         staff.Property(x => x.CreatedBy).HasColumnName("created_by");
         staff.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
@@ -37,17 +40,22 @@ public static class EmployeesModelConfiguration
         staff.HasIndex(x => x.IdCardNumber).IsUnique();
         staff.HasOne<Vnc.HRMS.Models.Organization.Department>().WithMany().HasForeignKey(x => x.DepartmentId).OnDelete(DeleteBehavior.Restrict);
         staff.HasOne<Vnc.HRMS.Models.Organization.Position>().WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict);
+        staff.HasOne<Site>().WithMany().HasForeignKey(x => x.SiteId).OnDelete(DeleteBehavior.Restrict);
         var contract = modelBuilder.Entity<Contract>();
-        contract.ToTable("contracts", "dbo", table => { table.HasCheckConstraint("CK_contracts_1", "[effective_to] IS NULL OR [effective_to] >= [effective_from]"); table.HasCheckConstraint("CK_contracts_2", "[daily_rate] >= 0 AND ([insurance_salary_basis] IS NULL OR [insurance_salary_basis] >= 0)"); });
+        contract.ToTable("contracts", "dbo", table => { table.HasCheckConstraint("CK_contracts_1", "[effective_to] IS NULL OR [effective_to] >= [effective_from]"); table.HasCheckConstraint("CK_contracts_2", "[daily_rate] >= 0 AND ([monthly_salary] IS NULL OR [monthly_salary] >= 0) AND ([insurance_salary_basis] IS NULL OR [insurance_salary_basis] >= 0)"); });
         contract.HasKey(x => x.ContractId);
         contract.Property(x => x.ContractId).HasColumnName("contract_id").HasDefaultValueSql("NEWID()");
         contract.Property(x => x.StaffId).HasColumnName("staff_id");
         contract.Property(x => x.ContractCode).HasColumnName("contract_code").HasMaxLength(30);
         contract.Property(x => x.ContractType).HasColumnName("contract_type").HasMaxLength(50);
+        contract.Property(x => x.SalaryType).HasColumnName("salary_type").HasMaxLength(20).HasDefaultValue("daily");
         contract.Property(x => x.DailyRate).HasColumnName("daily_rate").HasPrecision(15, 2);
+        contract.Property(x => x.MonthlySalary).HasColumnName("monthly_salary").HasPrecision(15, 2);
+        contract.Property(x => x.StandardWorkingDays).HasColumnName("standard_working_days").HasPrecision(5, 2);
+        contract.Property(x => x.TaxMethod).HasColumnName("tax_method").HasMaxLength(20).HasDefaultValue("progressive");
         contract.Property(x => x.EffectiveFrom).HasColumnName("effective_from");
         contract.Property(x => x.EffectiveTo).HasColumnName("effective_to");
-        contract.Property(x => x.IsInsuranceEligible).HasColumnName("is_insurance_eligible").HasDefaultValue(true);
+        contract.Property(x => x.IsInsuranceEligible).HasColumnName("is_insurance_eligible").HasDefaultValue(true).HasSentinel(true);
         contract.Property(x => x.InsuranceSalaryBasis).HasColumnName("insurance_salary_basis").HasPrecision(15, 2);
         contract.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue("active");
         contract.Property(x => x.FileUrl).HasColumnName("file_url").HasMaxLength(500);
@@ -67,5 +75,25 @@ public static class EmployeesModelConfiguration
         degree.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
         modelBuilder.Entity<Contract>().HasOne<Staff>().WithMany().HasForeignKey(x => x.StaffId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Degree>().HasOne<Staff>().WithMany().HasForeignKey(x => x.StaffId).OnDelete(DeleteBehavior.Restrict);
+
+        var contractSalaryHistory = modelBuilder.Entity<ContractSalaryHistory>();
+        contractSalaryHistory.ToTable("contract_salary_histories", "dbo", table => { table.HasCheckConstraint("CK_contract_salary_histories_1", "[effective_to] IS NULL OR [effective_to] >= [effective_from]"); });
+        contractSalaryHistory.HasKey(x => x.HistoryId);
+        contractSalaryHistory.Property(x => x.HistoryId).HasColumnName("history_id").HasDefaultValueSql("NEWID()");
+        contractSalaryHistory.Property(x => x.ContractId).HasColumnName("contract_id");
+        contractSalaryHistory.Property(x => x.SalaryType).HasColumnName("salary_type").HasMaxLength(20);
+        contractSalaryHistory.Property(x => x.DailyRate).HasColumnName("daily_rate").HasPrecision(15, 2);
+        contractSalaryHistory.Property(x => x.MonthlySalary).HasColumnName("monthly_salary").HasPrecision(15, 2);
+        contractSalaryHistory.Property(x => x.StandardWorkingDays).HasColumnName("standard_working_days").HasPrecision(5, 2);
+        contractSalaryHistory.Property(x => x.IsInsuranceEligible).HasColumnName("is_insurance_eligible");
+        contractSalaryHistory.Property(x => x.InsuranceSalaryBasis).HasColumnName("insurance_salary_basis").HasPrecision(15, 2);
+        contractSalaryHistory.Property(x => x.TaxMethod).HasColumnName("tax_method").HasMaxLength(20);
+        contractSalaryHistory.Property(x => x.EffectiveFrom).HasColumnName("effective_from");
+        contractSalaryHistory.Property(x => x.EffectiveTo).HasColumnName("effective_to");
+        contractSalaryHistory.Property(x => x.Note).HasColumnName("note").HasMaxLength(500);
+        contractSalaryHistory.Property(x => x.CreatedBy).HasColumnName("created_by");
+        contractSalaryHistory.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
+        contractSalaryHistory.HasIndex(x => new { x.ContractId, x.EffectiveFrom });
+        contractSalaryHistory.HasOne<Contract>().WithMany().HasForeignKey(x => x.ContractId).OnDelete(DeleteBehavior.Restrict);
     }
 }

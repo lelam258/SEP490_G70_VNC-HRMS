@@ -29,7 +29,7 @@ export default function AppLayout() {
     : location.pathname.startsWith('/cme-records')
     ? 'CME Records'
     : location.pathname.startsWith('/payroll/parameters')
-    ? 'Tham số tính lương'
+    ? 'Tham số lương'
     : location.pathname.startsWith('/payroll/compensation')
     ? 'Đãi ngộ hợp đồng'
     : location.pathname.startsWith('/payroll/periods')
