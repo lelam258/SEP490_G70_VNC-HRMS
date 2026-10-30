@@ -27,7 +27,7 @@ public sealed class BootstrapService(IConfiguration configuration, IUserReposito
         var email = string.IsNullOrWhiteSpace(configuration["Bootstrap:Email"]) ? null : configuration["Bootstrap:Email"]!.Trim().ToLowerInvariant();
         if (!Regex.IsMatch(username, @"^[a-zA-Z0-9._-]{3,50}$") || !PasswordHelper.IsStrong(password)
             || email is not null && (email.Length > 100 || !new EmailAddressAttribute().IsValid(email)))
-            throw new InvalidOperationException("Invalid initial administrator settings. Use a valid username/email and a 6-128 character password.");
+            throw new InvalidOperationException("Invalid initial administrator settings. Use a valid username/email and a 6-128 character password containing an uppercase letter, a digit and a special character.");
         var user = new User
         {
             UserId = Guid.NewGuid(), Username = username, NormalizedUsername = username.ToUpperInvariant(),

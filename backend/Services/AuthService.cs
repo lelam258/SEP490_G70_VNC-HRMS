@@ -62,7 +62,7 @@ public sealed class AuthService(IAuthRepository auth, IUserRepository users, IUn
 
     public async Task ChangePasswordAsync(Guid id, ChangePasswordRequest request, CancellationToken ct)
     {
-        if (!PasswordHelper.IsStrong(request.NewPassword)) throw new AppException(400, "Mật khẩu mới cần từ 6 đến 128 ký tự.");
+        if (!PasswordHelper.IsStrong(request.NewPassword)) throw new AppException(400, PasswordHelper.Requirements);
         var credential = await auth.FindAuthenticationUserAsync(id, ct) ?? throw new AppException(401, "Tài khoản không khả dụng.");
         if (hasher.VerifyHashedPassword(credential, credential.PasswordHash, request.CurrentPassword) == PasswordVerificationResult.Failed)
             throw new AppException(400, "Mật khẩu hiện tại không đúng.");
