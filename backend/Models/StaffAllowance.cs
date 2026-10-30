@@ -1,4 +1,5 @@
 namespace Vnc.HRMS.Models;
+
 public sealed class StaffAllowance
 {
     public Guid StaffAllowanceId { get; set; }
@@ -6,6 +7,7 @@ public sealed class StaffAllowance
     public Guid AllowanceId { get; set; }
     public string ValueType { get; set; } = string.Empty;
     public decimal AmountValue { get; set; }
+    public string? CalcMethod { get; set; }
     public DateOnly EffectiveFrom { get; set; }
     public DateOnly? EffectiveTo { get; set; }
     public string Status { get; set; } = string.Empty;

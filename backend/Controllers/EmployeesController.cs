@@ -10,6 +10,8 @@ public sealed class EmployeesController(IEmployeeService employees) : Controller
 {
     [HttpGet] public Task<EmployeeDto[]> List(CancellationToken ct) => employees.ListAsync(ct);
     [HttpGet("{id:guid}")] public Task<EmployeeDto> Get(Guid id, CancellationToken ct) => employees.GetAsync(id, ct);
+    [HttpPut("{id:guid}")]
+    public Task<EmployeeDto> Update(Guid id, UpdateEmployeeRequest request, CancellationToken ct) => employees.UpdateAsync(id, request, ct);
     [HttpPost]
     public async Task<ActionResult<EmployeeDto>> Create(CreateEmployeeRequest request, CancellationToken ct)
     {

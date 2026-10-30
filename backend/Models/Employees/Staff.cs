@@ -15,6 +15,8 @@ public sealed class Staff
     public string? AvatarUrl { get; set; }
     public Guid? DepartmentId { get; set; }
     public Guid? PositionId { get; set; }
+    public Guid? SiteId { get; set; }
+    public bool IsUnionMember { get; set; } = true;
     public string? ScopeOfPractice { get; set; }
     public DateOnly DateJoined { get; set; }
     public DateOnly? DateLeft { get; set; }

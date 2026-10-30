@@ -32,6 +32,8 @@ public static class AuthenticationConfiguration
         services.AddAuthorization(options => {
             options.AddPolicy("Admin", policy => policy.RequireAuthenticatedUser().RequireRole(Vnc.HRMS.Security.AccountRoles.Administrator));
             options.AddPolicy("HRManager", policy => policy.RequireAuthenticatedUser().RequireRole(Vnc.HRMS.Security.AccountRoles.HrManager));
+            options.AddPolicy("Accountant", policy => policy.RequireAuthenticatedUser().RequireRole(Vnc.HRMS.Security.AccountRoles.Accountant));
+            options.AddPolicy("SelfService", policy => policy.RequireAuthenticatedUser());
         });
         return services;
     }
