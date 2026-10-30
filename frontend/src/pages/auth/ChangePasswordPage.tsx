@@ -64,9 +64,7 @@ export default function ChangePasswordPage() {
           </div>
           <div className="change-password-header-text">
             <h1>Đổi mật khẩu</h1>
-            <p>
-              Cập nhật mật khẩu mới để bảo vệ an toàn cho tài khoản. Đổi mật khẩu thành công sẽ kết thúc các phiên đăng nhập khác.
-            </p>
+            
           </div>
         </div>
 

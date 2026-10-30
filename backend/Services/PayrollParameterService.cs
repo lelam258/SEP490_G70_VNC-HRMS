@@ -15,7 +15,9 @@ public sealed class PayrollParameterService(
     IUnitOfWork unitOfWork,
     IAuditLogHelper auditHelper) : IPayrollParameterService
 {
-    // ---------- Allowances ----------
+    // =========================================================================
+    // Allowances
+    // =========================================================================
 
     public Task<AllowanceTypeDto[]> ListAllowancesAsync(PayrollParameterFilter filter, CancellationToken ct)
         => repository.ListAllowancesAsync(filter, ct);
@@ -32,6 +34,8 @@ public sealed class PayrollParameterService(
             item.ValueType,
             item.DefaultValue,
             item.AppliesTo ?? "all",
+            item.DefaultCalcMethod ?? "fixed",
+            item.MinServiceYears,
             item.IsTaxable ?? false,
             item.IsInsuranceBasis ?? false,
             item.Status ?? "active",
@@ -43,12 +47,18 @@ public sealed class PayrollParameterService(
         var code = PayrollParameterRules.NormalizeCode(request.Code);
         var name = PayrollParameterRules.RequireText(request.Name, "Tên loại phụ cấp", 100);
         var valueType = PayrollParameterRules.RequireOption(request.ValueType, PayrollParameterRules.AllowanceValueTypes, "Loại giá trị");
+        var calcMethod = PayrollParameterRules.RequireOption(request.DefaultCalcMethod ?? "fixed", PayrollParameterRules.AllowanceCalcMethods, "Phương thức tính");
         var status = PayrollParameterRules.NormalizeStatus(request.Status);
         var appliesTo = PayrollParameterRules.OptionalText(request.AppliesTo, "Đối tượng áp dụng", 50, "all");
 
         if (request.DefaultValue.HasValue)
         {
             PayrollParameterRules.EnsureTypedValue(valueType, request.DefaultValue.Value, "Giá trị mặc định");
+        }
+
+        if (calcMethod == "per_service_year" && request.MinServiceYears.HasValue && request.MinServiceYears.Value < 0)
+        {
+            throw new AppException(400, "Số năm thâm niên tối thiểu không được âm.");
         }
 
         await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
@@ -66,6 +76,8 @@ public sealed class PayrollParameterService(
             ValueType = valueType,
             DefaultValue = request.DefaultValue,
             AppliesTo = appliesTo,
+            DefaultCalcMethod = calcMethod,
+            MinServiceYears = request.MinServiceYears,
             IsTaxable = request.IsTaxable,
             IsInsuranceBasis = request.IsInsuranceBasis,
             Status = status,
@@ -81,6 +93,8 @@ public sealed class PayrollParameterService(
             entity.ValueType,
             entity.DefaultValue,
             entity.AppliesTo,
+            entity.DefaultCalcMethod,
+            entity.MinServiceYears,
             entity.IsTaxable,
             entity.IsInsuranceBasis,
             entity.Status
@@ -90,11 +104,7 @@ public sealed class PayrollParameterService(
         await SaveChangesWithDeadlockHandlingAsync(ct);
         await tx.CommitAsync(ct);
 
-        var openMonths = await repository.GetOpenMonthsAsync(ct);
-        var affectedPeriods = PayrollParameterRules.AffectedOpenPeriods(openMonths, null, null);
-
-        var dto = await GetAllowanceAsync(entity.AllowanceId, ct);
-        return dto with { AffectedOpenPeriods = affectedPeriods };
+        return await GetAllowanceAsync(entity.AllowanceId, ct);
     }
 
     public async Task<AllowanceTypeDto> UpdateAllowanceAsync(Guid id, SaveAllowanceTypeRequest request, CancellationToken ct)
@@ -107,6 +117,7 @@ public sealed class PayrollParameterService(
         var code = PayrollParameterRules.NormalizeCode(request.Code);
         var name = PayrollParameterRules.RequireText(request.Name, "Tên loại phụ cấp", 100);
         var valueType = PayrollParameterRules.RequireOption(request.ValueType, PayrollParameterRules.AllowanceValueTypes, "Loại giá trị");
+        var calcMethod = PayrollParameterRules.RequireOption(request.DefaultCalcMethod ?? "fixed", PayrollParameterRules.AllowanceCalcMethods, "Phương thức tính");
         var status = PayrollParameterRules.NormalizeStatus(request.Status);
         var appliesTo = PayrollParameterRules.OptionalText(request.AppliesTo, "Đối tượng áp dụng", 50, "all");
 
@@ -115,9 +126,14 @@ public sealed class PayrollParameterService(
             PayrollParameterRules.EnsureTypedValue(valueType, request.DefaultValue.Value, "Giá trị mặc định");
         }
 
+        if (calcMethod == "per_service_year" && request.MinServiceYears.HasValue && request.MinServiceYears.Value < 0)
+        {
+            throw new AppException(400, "Số năm thâm niên tối thiểu không được âm.");
+        }
+
         if (await repository.AllowanceCodeExistsAsync(code, id, ct))
         {
-            throw new AppException(409, $"Mã phụ cấp '{code}' đã tồn tại.");
+            throw new AppException(409, $"Mã phụ cấp '{code}' đã được sử dụng bởi loại phụ cấp khác.");
         }
 
         var oldSnapshot = new
@@ -127,6 +143,8 @@ public sealed class PayrollParameterService(
             entity.ValueType,
             entity.DefaultValue,
             entity.AppliesTo,
+            entity.DefaultCalcMethod,
+            entity.MinServiceYears,
             entity.IsTaxable,
             entity.IsInsuranceBasis,
             entity.Status
@@ -137,6 +155,8 @@ public sealed class PayrollParameterService(
         entity.ValueType = valueType;
         entity.DefaultValue = request.DefaultValue;
         entity.AppliesTo = appliesTo;
+        entity.DefaultCalcMethod = calcMethod;
+        entity.MinServiceYears = request.MinServiceYears;
         entity.IsTaxable = request.IsTaxable;
         entity.IsInsuranceBasis = request.IsInsuranceBasis;
         entity.Status = status;
@@ -148,6 +168,8 @@ public sealed class PayrollParameterService(
             entity.ValueType,
             entity.DefaultValue,
             entity.AppliesTo,
+            entity.DefaultCalcMethod,
+            entity.MinServiceYears,
             entity.IsTaxable,
             entity.IsInsuranceBasis,
             entity.Status
@@ -157,14 +179,30 @@ public sealed class PayrollParameterService(
         await SaveChangesWithDeadlockHandlingAsync(ct);
         await tx.CommitAsync(ct);
 
-        var openMonths = await repository.GetOpenMonthsAsync(ct);
-        var affectedPeriods = PayrollParameterRules.AffectedOpenPeriods(openMonths, null, null);
-
-        var dto = await GetAllowanceAsync(id, ct);
-        return dto with { AffectedOpenPeriods = affectedPeriods };
+        return await GetAllowanceAsync(id, ct);
     }
 
-    // ---------- Insurances ----------
+    public async Task<AllowanceTypeDto> DeactivateAllowanceAsync(Guid id, DeactivateParameterRequest request, CancellationToken ct)
+    {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+
+        var entity = await repository.FindAllowanceAsync(id, ct)
+            ?? throw new AppException(404, "Không tìm thấy loại phụ cấp.");
+
+        var oldSnapshot = new { entity.Status };
+        entity.Status = PayrollParameterRules.Inactive;
+        var newSnapshot = new { entity.Status };
+        auditHelper.Log("deactivate", "AllowanceType", id, oldSnapshot, newSnapshot);
+
+        await SaveChangesWithDeadlockHandlingAsync(ct);
+        await tx.CommitAsync(ct);
+
+        return await GetAllowanceAsync(id, ct);
+    }
+
+    // =========================================================================
+    // Insurances
+    // =========================================================================
 
     public Task<InsuranceConfigDto[]> ListInsurancesAsync(PayrollParameterFilter filter, CancellationToken ct)
         => repository.ListInsurancesAsync(filter, ct);
@@ -187,9 +225,9 @@ public sealed class PayrollParameterService(
 
     public async Task<InsuranceConfigDto> CreateInsuranceAsync(SaveInsuranceConfigRequest request, CancellationToken ct)
     {
-        var type = PayrollParameterRules.RequireOption(request.InsuranceType, PayrollParameterRules.InsuranceTypes, "Loại bảo hiểm");
-        var payer = PayrollParameterRules.RequireOption(request.Payer, PayrollParameterRules.InsurancePayers, "Người đóng bảo hiểm");
-        PayrollParameterRules.EnsurePercent(request.RatePercent, "Tỷ lệ đóng bảo hiểm");
+        var insType = PayrollParameterRules.RequireOption(request.InsuranceType, PayrollParameterRules.InsuranceTypes, "Loại bảo hiểm");
+        var payer = PayrollParameterRules.RequireOption(request.Payer, PayrollParameterRules.InsurancePayers, "Bên đóng bảo hiểm");
+        PayrollParameterRules.EnsurePercent(request.RatePercent, "Tỷ lệ đóng");
         PayrollParameterRules.EnsureEffectiveRange(request.EffectiveFrom, request.EffectiveTo);
         var status = PayrollParameterRules.NormalizeStatus(request.Status);
         var appliesTo = PayrollParameterRules.OptionalText(request.AppliesTo, "Đối tượng áp dụng", 50, "all");
@@ -202,12 +240,12 @@ public sealed class PayrollParameterService(
 
         if (status == PayrollParameterRules.Active)
         {
-            var existing = await repository.GetOverlappingInsurancesAsync(type, payer, appliesTo, request.EffectiveFrom, request.EffectiveTo, null, ct);
+            var existing = await repository.GetOverlappingInsurancesAsync(insType, payer, appliesTo, request.EffectiveFrom, request.EffectiveTo, null, ct);
             foreach (var ex in existing)
             {
                 if (PayrollParameterRules.PeriodsOverlap(request.EffectiveFrom, request.EffectiveTo, ex.EffectiveFrom, ex.EffectiveTo))
                 {
-                    throw new AppException(409, $"Đã có cấu hình bảo hiểm '{type}' ({payer}) trùng lặp khoảng thời gian hiệu lực ({ex.EffectiveFrom:dd/MM/yyyy} - {ex.EffectiveTo:dd/MM/yyyy}).");
+                    throw new AppException(409, $"Đã có cấu hình bảo hiểm '{insType}' cho '{payer}' trùng lặp thời gian hiệu lực ({ex.EffectiveFrom:dd/MM/yyyy} - {ex.EffectiveTo:dd/MM/yyyy}).");
                 }
             }
         }
@@ -215,7 +253,7 @@ public sealed class PayrollParameterService(
         var entity = new PayrollInsuranceConfig
         {
             ConfigId = Guid.NewGuid(),
-            InsuranceType = type,
+            InsuranceType = insType,
             Payer = payer,
             RatePercent = request.RatePercent,
             AppliesTo = appliesTo,
@@ -236,7 +274,7 @@ public sealed class PayrollParameterService(
             entity.EffectiveTo,
             entity.Status
         };
-        auditHelper.Log("create", "InsuranceConfig", entity.ConfigId, null, newSnapshot);
+        auditHelper.Log("create", "PayrollInsuranceConfig", entity.ConfigId, null, newSnapshot);
 
         await SaveChangesWithDeadlockHandlingAsync(ct);
         await tx.CommitAsync(ct);
@@ -255,14 +293,14 @@ public sealed class PayrollParameterService(
         var entity = await repository.FindInsuranceAsync(id, ct)
             ?? throw new AppException(404, "Không tìm thấy cấu hình bảo hiểm.");
 
-        var type = PayrollParameterRules.RequireOption(request.InsuranceType, PayrollParameterRules.InsuranceTypes, "Loại bảo hiểm");
-        var payer = PayrollParameterRules.RequireOption(request.Payer, PayrollParameterRules.InsurancePayers, "Người đóng bảo hiểm");
-        PayrollParameterRules.EnsurePercent(request.RatePercent, "Tỷ lệ đóng bảo hiểm");
+        var insType = PayrollParameterRules.RequireOption(request.InsuranceType, PayrollParameterRules.InsuranceTypes, "Loại bảo hiểm");
+        var payer = PayrollParameterRules.RequireOption(request.Payer, PayrollParameterRules.InsurancePayers, "Bên đóng bảo hiểm");
+        PayrollParameterRules.EnsurePercent(request.RatePercent, "Tỷ lệ đóng");
         PayrollParameterRules.EnsureEffectiveRange(request.EffectiveFrom, request.EffectiveTo);
         var status = PayrollParameterRules.NormalizeStatus(request.Status);
         var appliesTo = PayrollParameterRules.OptionalText(request.AppliesTo, "Đối tượng áp dụng", 50, "all");
 
-        bool valuesChanged = entity.InsuranceType != type
+        bool valuesChanged = entity.InsuranceType != insType
             || entity.Payer != payer
             || entity.RatePercent != request.RatePercent
             || (entity.AppliesTo ?? "all") != appliesTo;
@@ -276,12 +314,12 @@ public sealed class PayrollParameterService(
 
         if (status == PayrollParameterRules.Active)
         {
-            var existing = await repository.GetOverlappingInsurancesAsync(type, payer, appliesTo, request.EffectiveFrom, request.EffectiveTo, id, ct);
+            var existing = await repository.GetOverlappingInsurancesAsync(insType, payer, appliesTo, request.EffectiveFrom, request.EffectiveTo, id, ct);
             foreach (var ex in existing)
             {
                 if (PayrollParameterRules.PeriodsOverlap(request.EffectiveFrom, request.EffectiveTo, ex.EffectiveFrom, ex.EffectiveTo))
                 {
-                    throw new AppException(409, $"Đã có cấu hình bảo hiểm '{type}' ({payer}) trùng lặp khoảng thời gian hiệu lực ({ex.EffectiveFrom:dd/MM/yyyy} - {ex.EffectiveTo:dd/MM/yyyy}).");
+                    throw new AppException(409, $"Đã có cấu hình bảo hiểm '{insType}' cho '{payer}' trùng lặp thời gian hiệu lực ({ex.EffectiveFrom:dd/MM/yyyy} - {ex.EffectiveTo:dd/MM/yyyy}).");
                 }
             }
         }
@@ -297,7 +335,7 @@ public sealed class PayrollParameterService(
             entity.Status
         };
 
-        entity.InsuranceType = type;
+        entity.InsuranceType = insType;
         entity.Payer = payer;
         entity.RatePercent = request.RatePercent;
         entity.AppliesTo = appliesTo;
@@ -315,7 +353,7 @@ public sealed class PayrollParameterService(
             entity.EffectiveTo,
             entity.Status
         };
-        auditHelper.Log("update", "InsuranceConfig", id, oldSnapshot, newSnapshot);
+        auditHelper.Log("update", "PayrollInsuranceConfig", id, oldSnapshot, newSnapshot);
 
         await SaveChangesWithDeadlockHandlingAsync(ct);
         await tx.CommitAsync(ct);
@@ -327,7 +365,37 @@ public sealed class PayrollParameterService(
         return dto with { AffectedOpenPeriods = affectedPeriods };
     }
 
-    // ---------- Tax Brackets ----------
+    public async Task<InsuranceConfigDto> DeactivateInsuranceAsync(Guid id, DeactivateParameterRequest request, CancellationToken ct)
+    {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+
+        var entity = await repository.FindInsuranceAsync(id, ct)
+            ?? throw new AppException(404, "Không tìm thấy cấu hình bảo hiểm.");
+
+        var lockedMonths = await repository.GetLockedMonthsAsync(ct);
+        var (effFrom, effTo, newStatus) = PayrollParameterRules.ComputeDeactivation(
+            entity.EffectiveFrom, entity.EffectiveTo, request.EffectiveTo, lockedMonths);
+
+        var oldSnapshot = new { entity.EffectiveFrom, entity.EffectiveTo, entity.Status };
+        entity.EffectiveFrom = effFrom;
+        entity.EffectiveTo = effTo;
+        entity.Status = newStatus;
+        var newSnapshot = new { entity.EffectiveFrom, entity.EffectiveTo, entity.Status };
+        auditHelper.Log("deactivate", "PayrollInsuranceConfig", id, oldSnapshot, newSnapshot);
+
+        await SaveChangesWithDeadlockHandlingAsync(ct);
+        await tx.CommitAsync(ct);
+
+        var openMonths = await repository.GetOpenMonthsAsync(ct);
+        var affectedPeriods = PayrollParameterRules.AffectedOpenPeriods(openMonths, effFrom, effTo);
+
+        var dto = await GetInsuranceAsync(id, ct);
+        return dto with { AffectedOpenPeriods = affectedPeriods };
+    }
+
+    // =========================================================================
+    // Tax Brackets & Policy
+    // =========================================================================
 
     public Task<TaxBracketDto[]> ListTaxBracketsAsync(PayrollParameterFilter filter, CancellationToken ct)
         => repository.ListTaxBracketsAsync(filter, ct);
@@ -335,7 +403,7 @@ public sealed class PayrollParameterService(
     public async Task<TaxBracketDto> GetTaxBracketAsync(Guid id, CancellationToken ct)
     {
         var item = await repository.FindTaxBracketAsync(id, ct)
-            ?? throw new AppException(404, "Không tìm thấy bậc thuế TNCN.");
+            ?? throw new AppException(404, "Không tìm thấy bậc thuế.");
 
         return new TaxBracketDto(
             item.BracketId,
@@ -361,15 +429,13 @@ public sealed class PayrollParameterService(
 
         if (status == PayrollParameterRules.Active)
         {
-            var existing = await repository.GetActiveTaxBracketsAsync(request.EffectiveFrom, request.EffectiveTo, null, ct);
-            foreach (var ex in existing)
+            var active = await repository.GetActiveTaxBracketsAsync(request.EffectiveFrom, request.EffectiveTo, null, ct);
+            foreach (var ex in active)
             {
-                if (PayrollParameterRules.PeriodsOverlap(request.EffectiveFrom, request.EffectiveTo, ex.EffectiveFrom, ex.EffectiveTo))
+                if (PayrollParameterRules.PeriodsOverlap(request.EffectiveFrom, request.EffectiveTo, ex.EffectiveFrom, ex.EffectiveTo)
+                    && PayrollParameterRules.IncomeRangesOverlap(request.IncomeFrom, request.IncomeTo, ex.IncomeFrom, ex.IncomeTo))
                 {
-                    if (PayrollParameterRules.IncomeRangesOverlap(request.IncomeFrom, request.IncomeTo, ex.IncomeFrom, ex.IncomeTo))
-                    {
-                        throw new AppException(409, $"Khoảng thu nhập ({request.IncomeFrom:N0} - {request.IncomeTo:N0}) bị chồng lấn với bậc thuế hiện có ({ex.IncomeFrom:N0} - {ex.IncomeTo:N0}).");
-                    }
+                    throw new AppException(409, $"Khoảng thu nhập ({request.IncomeFrom:N0} - {(request.IncomeTo.HasValue ? request.IncomeTo.Value.ToString("N0") : "vô cùng")}) trùng lặp với bậc thuế hiện có ({ex.IncomeFrom:N0} - {(ex.IncomeTo.HasValue ? ex.IncomeTo.Value.ToString("N0") : "vô cùng")}).");
                 }
             }
         }
@@ -396,7 +462,7 @@ public sealed class PayrollParameterService(
             entity.EffectiveTo,
             entity.Status
         };
-        auditHelper.Log("create", "TaxBracket", entity.BracketId, null, newSnapshot);
+        auditHelper.Log("create", "PayrollTaxBracket", entity.BracketId, null, newSnapshot);
 
         await SaveChangesWithDeadlockHandlingAsync(ct);
         await tx.CommitAsync(ct);
@@ -413,7 +479,7 @@ public sealed class PayrollParameterService(
         await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
 
         var entity = await repository.FindTaxBracketAsync(id, ct)
-            ?? throw new AppException(404, "Không tìm thấy bậc thuế TNCN.");
+            ?? throw new AppException(404, "Không tìm thấy bậc thuế.");
 
         PayrollParameterRules.EnsureTaxBracket(request.IncomeFrom, request.IncomeTo, request.TaxRatePercent);
         PayrollParameterRules.EnsureEffectiveRange(request.EffectiveFrom, request.EffectiveTo);
@@ -432,15 +498,13 @@ public sealed class PayrollParameterService(
 
         if (status == PayrollParameterRules.Active)
         {
-            var existing = await repository.GetActiveTaxBracketsAsync(request.EffectiveFrom, request.EffectiveTo, id, ct);
-            foreach (var ex in existing)
+            var active = await repository.GetActiveTaxBracketsAsync(request.EffectiveFrom, request.EffectiveTo, id, ct);
+            foreach (var ex in active)
             {
-                if (PayrollParameterRules.PeriodsOverlap(request.EffectiveFrom, request.EffectiveTo, ex.EffectiveFrom, ex.EffectiveTo))
+                if (PayrollParameterRules.PeriodsOverlap(request.EffectiveFrom, request.EffectiveTo, ex.EffectiveFrom, ex.EffectiveTo)
+                    && PayrollParameterRules.IncomeRangesOverlap(request.IncomeFrom, request.IncomeTo, ex.IncomeFrom, ex.IncomeTo))
                 {
-                    if (PayrollParameterRules.IncomeRangesOverlap(request.IncomeFrom, request.IncomeTo, ex.IncomeFrom, ex.IncomeTo))
-                    {
-                        throw new AppException(409, $"Khoảng thu nhập ({request.IncomeFrom:N0} - {request.IncomeTo:N0}) bị chồng lấn với bậc thuế hiện có ({ex.IncomeFrom:N0} - {ex.IncomeTo:N0}).");
-                    }
+                    throw new AppException(409, $"Khoảng thu nhập ({request.IncomeFrom:N0} - {(request.IncomeTo.HasValue ? request.IncomeTo.Value.ToString("N0") : "vô cùng")}) trùng lặp với bậc thuế hiện có ({ex.IncomeFrom:N0} - {(ex.IncomeTo.HasValue ? ex.IncomeTo.Value.ToString("N0") : "vô cùng")}).");
                 }
             }
         }
@@ -471,7 +535,7 @@ public sealed class PayrollParameterService(
             entity.EffectiveTo,
             entity.Status
         };
-        auditHelper.Log("update", "TaxBracket", id, oldSnapshot, newSnapshot);
+        auditHelper.Log("update", "PayrollTaxBracket", id, oldSnapshot, newSnapshot);
 
         await SaveChangesWithDeadlockHandlingAsync(ct);
         await tx.CommitAsync(ct);
@@ -483,35 +547,169 @@ public sealed class PayrollParameterService(
         return dto with { AffectedOpenPeriods = affectedPeriods };
     }
 
+    public async Task<TaxBracketDto> DeactivateTaxBracketAsync(Guid id, DeactivateParameterRequest request, CancellationToken ct)
+    {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+
+        var entity = await repository.FindTaxBracketAsync(id, ct)
+            ?? throw new AppException(404, "Không tìm thấy bậc thuế.");
+
+        var lockedMonths = await repository.GetLockedMonthsAsync(ct);
+        var (effFrom, effTo, newStatus) = PayrollParameterRules.ComputeDeactivation(
+            entity.EffectiveFrom, entity.EffectiveTo, request.EffectiveTo, lockedMonths);
+
+        var oldSnapshot = new { entity.EffectiveFrom, entity.EffectiveTo, entity.Status };
+        entity.EffectiveFrom = effFrom;
+        entity.EffectiveTo = effTo;
+        entity.Status = newStatus;
+        var newSnapshot = new { entity.EffectiveFrom, entity.EffectiveTo, entity.Status };
+        auditHelper.Log("deactivate", "PayrollTaxBracket", id, oldSnapshot, newSnapshot);
+
+        await SaveChangesWithDeadlockHandlingAsync(ct);
+        await tx.CommitAsync(ct);
+
+        var openMonths = await repository.GetOpenMonthsAsync(ct);
+        var affectedPeriods = PayrollParameterRules.AffectedOpenPeriods(openMonths, effFrom, effTo);
+
+        var dto = await GetTaxBracketAsync(id, ct);
+        return dto with { AffectedOpenPeriods = affectedPeriods };
+    }
+
     public Task<TaxDeductionPolicyDto> GetTaxDeductionPolicyAsync(CancellationToken ct)
         => repository.GetTaxDeductionPolicyAsync(ct);
 
-    // ---------- Commission Rules ----------
+    public Task<TaxPolicySummaryDto> GetTaxPolicySummaryAsync(CancellationToken ct)
+        => repository.GetTaxPolicySummaryAsync(ct);
 
-    public Task<CommissionRuleDto[]> ListCommissionRulesAsync(PayrollParameterFilter filter, CancellationToken ct)
-        => repository.ListCommissionRulesAsync(filter, ct);
-
-    public async Task<CommissionRuleDto> GetCommissionRuleAsync(Guid id, CancellationToken ct)
+    public async Task<TaxPolicySummaryDto> UpdateTaxPolicyFlagsAsync(UpdateTaxPolicyFlagsRequest request, CancellationToken ct)
     {
-        var filter = new PayrollParameterFilter(null, null, null);
-        var list = await repository.ListCommissionRulesAsync(filter, ct);
-        var item = list.FirstOrDefault(x => x.Id == id)
-            ?? throw new AppException(404, "Không tìm thấy quy tắc hoa hồng.");
-        return item;
+        var oldSummary = await repository.GetTaxPolicySummaryAsync(ct);
+        var oldSnapshot = new
+        {
+            oldSummary.DeductInsuranceBeforeTax,
+            oldSummary.DeductUnionFeeBeforeTax,
+            oldSummary.DeductOtherBeforeTax,
+            oldSummary.FlatTaxBase
+        };
+
+        var newSummary = await repository.UpdateTaxPolicyFlagsAsync(request, Guid.Empty, ct);
+        var newSnapshot = new
+        {
+            newSummary.DeductInsuranceBeforeTax,
+            newSummary.DeductUnionFeeBeforeTax,
+            newSummary.DeductOtherBeforeTax,
+            newSummary.FlatTaxBase
+        };
+
+        auditHelper.Log("update", "TaxPolicyFlags", Guid.Empty, oldSnapshot, newSnapshot);
+        await unitOfWork.SaveChangesAsync(ct);
+
+        return newSummary;
     }
 
-    public async Task<CommissionRuleDto> CreateCommissionRuleAsync(SaveCommissionRuleRequest request, Guid? creatorId, CancellationToken ct)
+    public async Task<TaxCalculationResultDto> PreviewTaxCalculationAsync(TaxCalculationPreviewRequest request, CancellationToken ct)
     {
-        if (request.ServiceId == Guid.Empty) throw new AppException(400, "Dịch vụ thủ thuật là bắt buộc.");
-        var role = PayrollParameterRules.RequireOption(request.Role, PayrollParameterRules.CommissionRoles, "Vai trò thực hiện");
-        var valueType = PayrollParameterRules.RequireOption(request.ValueType, PayrollParameterRules.CommissionValueTypes, "Loại hoa hồng");
-        PayrollParameterRules.EnsureTypedValue(valueType == "fixed" ? "fixed" : "percentage", request.CommissionValue, "Mức hoa hồng");
+        var summary = await repository.GetTaxPolicySummaryAsync(ct);
+        var today = PayrollParameterRules.TodayVn();
+
+        // 1. Get active employee insurance rate
+        var insurances = await repository.ListInsurancesAsync(new PayrollParameterFilter("active", today, null), ct);
+        decimal employeeInsRate = insurances
+            .Where(i => string.Equals(i.Payer, "employee", StringComparison.OrdinalIgnoreCase))
+            .Sum(i => i.RatePercent);
+        if (employeeInsRate <= 0m)
+        {
+            employeeInsRate = PayrollDefaults.EmployeeInsuranceRatePercent;
+        }
+
+        // 2. Get active union fee
+        var rateConfigs = await repository.ListRateConfigsAsync(
+            new PayrollRateConfigFilter("union_fee", null, null, "active", today, null), ct);
+        // Only the clinic-wide union fee applies here; position/staff-specific configs are excluded.
+        decimal unionFee = rateConfigs.FirstOrDefault(x => x.PositionId == null && x.StaffId == null)?.Value ?? PayrollDefaults.UnionFee;
+
+        // 3. Map brackets
+        var bracketItems = summary.Brackets
+            .OrderBy(b => b.IncomeFrom)
+            .Select((b, idx) => new TaxBracketItem(idx + 1, b.IncomeFrom, b.IncomeTo, b.TaxRatePercent))
+            .ToList();
+
+        var formulaInput = new PayrollFormulaInput(
+            TotalIncome: request.TotalIncome,
+            InsuranceSalary: request.InsuranceSalary,
+            IsUnionMember: request.IsUnionMember,
+            DependentCount: request.DependentCount,
+            TaxMethod: request.TaxMethod ?? "progressive",
+            OtherDeductions: request.OtherDeductions,
+            InsuranceEmployeeRatePercent: employeeInsRate,
+            UnionFeeFixed: unionFee,
+            PersonalDeduction: summary.PersonalDeduction,
+            DependentDeduction: summary.DependentDeduction,
+            FlatThreshold: summary.TaxFlatThreshold,
+            FlatRatePercent: summary.TaxFlatRate,
+            RoundingUnit: summary.RoundingUnit,
+            DeductInsuranceBeforeTax: summary.DeductInsuranceBeforeTax,
+            DeductUnionFeeBeforeTax: summary.DeductUnionFeeBeforeTax,
+            DeductOtherBeforeTax: summary.DeductOtherBeforeTax,
+            FlatTaxBase: summary.FlatTaxBase,
+            Brackets: bracketItems);
+
+        var res = PayrollFormula.Calculate(formulaInput);
+
+        return new TaxCalculationResultDto(
+            TotalIncome: res.Step1_TotalIncome,
+            BeforeTaxDeductions: res.Step2_BeforeTaxDeduction,
+            InsuranceDeduction: res.Step2_InsuranceDeduction,
+            UnionFeeDeduction: res.Step2_UnionFeeDeduction,
+            OtherBeforeTaxDeduction: res.Step2_OtherBeforeTaxDeduction,
+            IncomeAfterDeductions: res.Step3_IncomeAfterDeductions,
+            TaxableIncome: res.Step4_TaxableIncome,
+            PersonalDeductionAmount: res.Step4_PersonalDeductionAmount,
+            DependentDeductionAmount: res.Step4_DependentDeductionAmount,
+            TotalFamilyDeductions: res.Step4_TotalFamilyDeductions,
+            TaxableIncomeNote: res.Step4_Note,
+            PitTax: res.Step5_PitTax,
+            TaxMethod: res.Step5_TaxMethod,
+            BracketBreakdowns: res.Step5_BracketBreakdowns.Select(b => new TaxBracketBreakdownDto(
+                b.BracketIndex, b.RangeText, b.TaxableAmount, b.RatePercent, b.TaxAmount)).ToList(),
+            TaxNote: res.Step5_Note,
+            TakeHome: res.Step6_TakeHome,
+            TakeHomeRaw: res.Step6_TakeHomeRaw,
+            RoundingUnit: res.Step6_RoundingUnit);
+    }
+
+    // =========================================================================
+    // Payroll Rate Configs
+    // =========================================================================
+
+    public Task<PayrollRateConfigDto[]> ListRateConfigsAsync(PayrollRateConfigFilter filter, CancellationToken ct)
+        => repository.ListRateConfigsAsync(filter, ct);
+
+    public async Task<PayrollRateConfigDto> GetRateConfigAsync(Guid id, CancellationToken ct)
+    {
+        var filter = new PayrollRateConfigFilter(null, null, null, null, null, null);
+        var all = await repository.ListRateConfigsAsync(filter, ct);
+        var match = all.FirstOrDefault(x => x.Id == id)
+            ?? throw new AppException(404, "Không tìm thấy tham số trực / công đoàn.");
+        return match;
+    }
+
+    public async Task<PayrollRateConfigDto> CreateRateConfigAsync(SavePayrollRateConfigRequest request, Guid? creatorId, CancellationToken ct)
+    {
+        var code = PayrollParameterRules.RequireOption(request.Code, PayrollParameterRules.RateConfigCodes, "Mã tham số trực/công");
+        var unit = PayrollParameterRules.RequireOption(request.Unit, PayrollParameterRules.RateConfigUnits, "Đơn vị tính");
+        PayrollParameterRules.EnsureTypedValue(unit == "percent" ? "percent" : "fixed", request.Value, "Giá trị tham số");
         PayrollParameterRules.EnsureEffectiveRange(request.EffectiveFrom, request.EffectiveTo);
         var status = PayrollParameterRules.NormalizeStatus(request.Status);
 
-        if (!await repository.ServiceExistsAndActiveAsync(request.ServiceId, ct))
+        if (request.PositionId.HasValue && !await repository.PositionExistsAndActiveAsync(request.PositionId.Value, ct))
         {
-            throw new AppException(404, "Dịch vụ thủ thuật không tồn tại hoặc đã ngừng hoạt động.");
+            throw new AppException(404, "Chức danh không tồn tại hoặc đã ngừng hoạt động.");
+        }
+
+        if (request.StaffId.HasValue && !await repository.StaffExistsAndActiveAsync(request.StaffId.Value, ct))
+        {
+            throw new AppException(404, "Nhân viên không tồn tại hoặc đã ngừng hoạt động.");
         }
 
         await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
@@ -522,12 +720,237 @@ public sealed class PayrollParameterService(
 
         if (status == PayrollParameterRules.Active)
         {
-            var existing = await repository.GetOverlappingCommissionRulesAsync(request.ServiceId, role, request.EffectiveFrom, request.EffectiveTo, null, ct);
+            var existing = await repository.GetOverlappingRateConfigsAsync(code, request.PositionId, request.StaffId, request.EffectiveFrom, request.EffectiveTo, null, ct);
             foreach (var ex in existing)
             {
                 if (PayrollParameterRules.PeriodsOverlap(request.EffectiveFrom, request.EffectiveTo, ex.EffectiveFrom, ex.EffectiveTo))
                 {
-                    throw new AppException(409, $"Đã có quy tắc hoa hồng cho dịch vụ này với vai trò '{role}' trùng lặp thời gian hiệu lực ({ex.EffectiveFrom:dd/MM/yyyy} - {ex.EffectiveTo:dd/MM/yyyy}).");
+                    throw new AppException(409, $"Đã có tham số '{code}' trùng lặp thời gian hiệu lực ({ex.EffectiveFrom:dd/MM/yyyy} - {ex.EffectiveTo:dd/MM/yyyy}).");
+                }
+            }
+        }
+
+        var entity = new PayrollRateConfig
+        {
+            ConfigId = Guid.NewGuid(),
+            Code = code,
+            PositionId = request.PositionId,
+            StaffId = request.StaffId,
+            Value = request.Value,
+            Unit = unit,
+            Description = request.Description,
+            EffectiveFrom = request.EffectiveFrom,
+            EffectiveTo = request.EffectiveTo,
+            Status = status,
+            CreatedBy = creatorId,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        repository.AddRateConfig(entity);
+
+        var newSnapshot = new
+        {
+            entity.Code,
+            entity.PositionId,
+            entity.StaffId,
+            entity.Value,
+            entity.Unit,
+            entity.Description,
+            entity.EffectiveFrom,
+            entity.EffectiveTo,
+            entity.Status
+        };
+        auditHelper.Log("create", "PayrollRateConfig", entity.ConfigId, null, newSnapshot);
+
+        await SaveChangesWithDeadlockHandlingAsync(ct);
+        await tx.CommitAsync(ct);
+
+        var openMonths = await repository.GetOpenMonthsAsync(ct);
+        var affectedPeriods = PayrollParameterRules.AffectedOpenPeriods(openMonths, request.EffectiveFrom, request.EffectiveTo);
+
+        var dto = await GetRateConfigAsync(entity.ConfigId, ct);
+        return dto with { AffectedOpenPeriods = affectedPeriods };
+    }
+
+    public async Task<PayrollRateConfigDto> UpdateRateConfigAsync(Guid id, SavePayrollRateConfigRequest request, CancellationToken ct)
+    {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+
+        var entity = await repository.FindRateConfigAsync(id, ct)
+            ?? throw new AppException(404, "Không tìm thấy tham số trực / công đoàn.");
+
+        var code = PayrollParameterRules.RequireOption(request.Code, PayrollParameterRules.RateConfigCodes, "Mã tham số trực/công");
+        var unit = PayrollParameterRules.RequireOption(request.Unit, PayrollParameterRules.RateConfigUnits, "Đơn vị tính");
+        PayrollParameterRules.EnsureTypedValue(unit == "percent" ? "percent" : "fixed", request.Value, "Giá trị tham số");
+        PayrollParameterRules.EnsureEffectiveRange(request.EffectiveFrom, request.EffectiveTo);
+        var status = PayrollParameterRules.NormalizeStatus(request.Status);
+
+        if (request.PositionId.HasValue && !await repository.PositionExistsAndActiveAsync(request.PositionId.Value, ct))
+        {
+            throw new AppException(404, "Chức danh không tồn tại hoặc đã ngừng hoạt động.");
+        }
+
+        if (request.StaffId.HasValue && !await repository.StaffExistsAndActiveAsync(request.StaffId.Value, ct))
+        {
+            throw new AppException(404, "Nhân viên không tồn tại hoặc đã ngừng hoạt động.");
+        }
+
+        bool valuesChanged = entity.Code != code
+            || entity.PositionId != request.PositionId
+            || entity.StaffId != request.StaffId
+            || entity.Value != request.Value
+            || entity.Unit != unit
+            || entity.Description != request.Description;
+
+        var lockedMonths = await repository.GetLockedMonthsAsync(ct);
+        PayrollParameterRules.EnsureLockedPeriodRule(
+            lockedMonths,
+            new LockedPeriodState(entity.EffectiveFrom, entity.EffectiveTo, entity.Status ?? "active"),
+            new LockedPeriodState(request.EffectiveFrom, request.EffectiveTo, status),
+            valuesChanged);
+
+        if (status == PayrollParameterRules.Active)
+        {
+            var existing = await repository.GetOverlappingRateConfigsAsync(code, request.PositionId, request.StaffId, request.EffectiveFrom, request.EffectiveTo, id, ct);
+            foreach (var ex in existing)
+            {
+                if (PayrollParameterRules.PeriodsOverlap(request.EffectiveFrom, request.EffectiveTo, ex.EffectiveFrom, ex.EffectiveTo))
+                {
+                    throw new AppException(409, $"Đã có tham số '{code}' trùng lặp thời gian hiệu lực ({ex.EffectiveFrom:dd/MM/yyyy} - {ex.EffectiveTo:dd/MM/yyyy}).");
+                }
+            }
+        }
+
+        var oldSnapshot = new
+        {
+            entity.Code,
+            entity.PositionId,
+            entity.StaffId,
+            entity.Value,
+            entity.Unit,
+            entity.Description,
+            entity.EffectiveFrom,
+            entity.EffectiveTo,
+            entity.Status
+        };
+
+        entity.Code = code;
+        entity.PositionId = request.PositionId;
+        entity.StaffId = request.StaffId;
+        entity.Value = request.Value;
+        entity.Unit = unit;
+        entity.Description = request.Description;
+        entity.EffectiveFrom = request.EffectiveFrom;
+        entity.EffectiveTo = request.EffectiveTo;
+        entity.Status = status;
+
+        var newSnapshot = new
+        {
+            entity.Code,
+            entity.PositionId,
+            entity.StaffId,
+            entity.Value,
+            entity.Unit,
+            entity.Description,
+            entity.EffectiveFrom,
+            entity.EffectiveTo,
+            entity.Status
+        };
+        auditHelper.Log("update", "PayrollRateConfig", id, oldSnapshot, newSnapshot);
+
+        await SaveChangesWithDeadlockHandlingAsync(ct);
+        await tx.CommitAsync(ct);
+
+        var openMonths = await repository.GetOpenMonthsAsync(ct);
+        var affectedPeriods = PayrollParameterRules.AffectedOpenPeriods(openMonths, request.EffectiveFrom, request.EffectiveTo);
+
+        var dto = await GetRateConfigAsync(id, ct);
+        return dto with { AffectedOpenPeriods = affectedPeriods };
+    }
+
+    public async Task<PayrollRateConfigDto> DeactivateRateConfigAsync(Guid id, DeactivateParameterRequest request, CancellationToken ct)
+    {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+
+        var entity = await repository.FindRateConfigAsync(id, ct)
+            ?? throw new AppException(404, "Không tìm thấy tham số trực / công đoàn.");
+
+        var lockedMonths = await repository.GetLockedMonthsAsync(ct);
+        var (effFrom, effTo, newStatus) = PayrollParameterRules.ComputeDeactivation(
+            entity.EffectiveFrom, entity.EffectiveTo, request.EffectiveTo, lockedMonths);
+
+        var oldSnapshot = new { entity.EffectiveFrom, entity.EffectiveTo, entity.Status };
+        entity.EffectiveFrom = effFrom;
+        entity.EffectiveTo = effTo;
+        entity.Status = newStatus;
+        var newSnapshot = new { entity.EffectiveFrom, entity.EffectiveTo, entity.Status };
+        auditHelper.Log("deactivate", "PayrollRateConfig", id, oldSnapshot, newSnapshot);
+
+        await SaveChangesWithDeadlockHandlingAsync(ct);
+        await tx.CommitAsync(ct);
+
+        var openMonths = await repository.GetOpenMonthsAsync(ct);
+        var affectedPeriods = PayrollParameterRules.AffectedOpenPeriods(openMonths, effFrom, effTo);
+
+        var dto = await GetRateConfigAsync(id, ct);
+        return dto with { AffectedOpenPeriods = affectedPeriods };
+    }
+
+    // =========================================================================
+    // Commission Rules
+    // =========================================================================
+
+    public Task<CommissionRuleDto[]> ListCommissionRulesAsync(CommissionRuleFilter filter, CancellationToken ct)
+        => repository.ListCommissionRulesAsync(filter, ct);
+
+    public async Task<CommissionRuleDto> GetCommissionRuleAsync(Guid id, CancellationToken ct)
+    {
+        var filter = new CommissionRuleFilter(null, null, null, null, null, null, null, null);
+        var all = await repository.ListCommissionRulesAsync(filter, ct);
+        var match = all.FirstOrDefault(x => x.Id == id)
+            ?? throw new AppException(404, "Không tìm thấy quy tắc hoa hồng.");
+        return match;
+    }
+
+    public async Task<CommissionRuleDto> CreateCommissionRuleAsync(SaveCommissionRuleRequest request, Guid? creatorId, CancellationToken ct)
+    {
+        if (!request.ServiceId.HasValue && string.IsNullOrWhiteSpace(request.ServiceCategory))
+        {
+            throw new AppException(400, "Quy tắc hoa hồng phải áp dụng cho một dịch vụ cụ thể hoặc theo nhóm dịch vụ.");
+        }
+
+        var role = PayrollParameterRules.RequireOption(request.Role, PayrollParameterRules.CommissionRoles, "Vai trò thực hiện");
+        var valueType = PayrollParameterRules.RequireOption(request.ValueType, PayrollParameterRules.CommissionValueTypes, "Loại hoa hồng");
+        var timeCondition = PayrollParameterRules.RequireOption(request.TimeCondition ?? "all", PayrollParameterRules.TimeConditions, "Điều kiện thời gian");
+        PayrollParameterRules.EnsureTypedValue(valueType == "fixed" || valueType == "per_hour" ? "fixed" : "percentage", request.CommissionValue, "Mức hoa hồng");
+        PayrollParameterRules.EnsureEffectiveRange(request.EffectiveFrom, request.EffectiveTo);
+        var status = PayrollParameterRules.NormalizeStatus(request.Status);
+
+        if (request.ServiceId.HasValue && !await repository.ServiceExistsAndActiveAsync(request.ServiceId.Value, ct))
+        {
+            throw new AppException(404, "Dịch vụ thủ thuật không tồn tại hoặc đã ngừng hoạt động.");
+        }
+
+        if (request.PositionId.HasValue && !await repository.PositionExistsAndActiveAsync(request.PositionId.Value, ct))
+        {
+            throw new AppException(404, "Chức danh áp dụng không tồn tại hoặc đã ngừng hoạt động.");
+        }
+
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+
+        var lockedMonths = await repository.GetLockedMonthsAsync(ct);
+        PayrollParameterRules.EnsureLockedPeriodRule(
+            lockedMonths, null, new LockedPeriodState(request.EffectiveFrom, request.EffectiveTo, status), true);
+
+        if (status == PayrollParameterRules.Active)
+        {
+            var existing = await repository.GetOverlappingCommissionRulesAsync(
+                request.ServiceId, request.ServiceCategory, role, request.PositionId, timeCondition, request.EffectiveFrom, request.EffectiveTo, null, ct);
+            foreach (var ex in existing)
+            {
+                if (PayrollParameterRules.PeriodsOverlap(request.EffectiveFrom, request.EffectiveTo, ex.EffectiveFrom, ex.EffectiveTo))
+                {
+                    throw new AppException(409, $"Đã có quy tắc hoa hồng cho vai trò '{role}' trùng lặp thời gian hiệu lực ({ex.EffectiveFrom:dd/MM/yyyy} - {ex.EffectiveTo:dd/MM/yyyy}).");
                 }
             }
         }
@@ -536,7 +959,10 @@ public sealed class PayrollParameterService(
         {
             RuleId = Guid.NewGuid(),
             ServiceId = request.ServiceId,
+            ServiceCategory = request.ServiceCategory,
+            PositionId = request.PositionId,
             Role = role,
+            TimeCondition = timeCondition,
             ValueType = valueType,
             CommissionValue = request.CommissionValue,
             EffectiveFrom = request.EffectiveFrom,
@@ -551,7 +977,10 @@ public sealed class PayrollParameterService(
         var newSnapshot = new
         {
             entity.ServiceId,
+            entity.ServiceCategory,
+            entity.PositionId,
             entity.Role,
+            entity.TimeCondition,
             entity.ValueType,
             entity.CommissionValue,
             entity.EffectiveFrom,
@@ -577,20 +1006,33 @@ public sealed class PayrollParameterService(
         var entity = await repository.FindCommissionRuleAsync(id, ct)
             ?? throw new AppException(404, "Không tìm thấy quy tắc hoa hồng.");
 
-        if (request.ServiceId == Guid.Empty) throw new AppException(400, "Dịch vụ thủ thuật là bắt buộc.");
+        if (!request.ServiceId.HasValue && string.IsNullOrWhiteSpace(request.ServiceCategory))
+        {
+            throw new AppException(400, "Quy tắc hoa hồng phải áp dụng cho một dịch vụ cụ thể hoặc theo nhóm dịch vụ.");
+        }
+
         var role = PayrollParameterRules.RequireOption(request.Role, PayrollParameterRules.CommissionRoles, "Vai trò thực hiện");
         var valueType = PayrollParameterRules.RequireOption(request.ValueType, PayrollParameterRules.CommissionValueTypes, "Loại hoa hồng");
-        PayrollParameterRules.EnsureTypedValue(valueType == "fixed" ? "fixed" : "percentage", request.CommissionValue, "Mức hoa hồng");
+        var timeCondition = PayrollParameterRules.RequireOption(request.TimeCondition ?? "all", PayrollParameterRules.TimeConditions, "Điều kiện thời gian");
+        PayrollParameterRules.EnsureTypedValue(valueType == "fixed" || valueType == "per_hour" ? "fixed" : "percentage", request.CommissionValue, "Mức hoa hồng");
         PayrollParameterRules.EnsureEffectiveRange(request.EffectiveFrom, request.EffectiveTo);
         var status = PayrollParameterRules.NormalizeStatus(request.Status);
 
-        if (entity.ServiceId != request.ServiceId && !await repository.ServiceExistsAndActiveAsync(request.ServiceId, ct))
+        if (request.ServiceId.HasValue && entity.ServiceId != request.ServiceId && !await repository.ServiceExistsAndActiveAsync(request.ServiceId.Value, ct))
         {
             throw new AppException(404, "Dịch vụ thủ thuật không tồn tại hoặc đã ngừng hoạt động.");
         }
 
+        if (request.PositionId.HasValue && entity.PositionId != request.PositionId && !await repository.PositionExistsAndActiveAsync(request.PositionId.Value, ct))
+        {
+            throw new AppException(404, "Chức danh áp dụng không tồn tại hoặc đã ngừng hoạt động.");
+        }
+
         bool valuesChanged = entity.ServiceId != request.ServiceId
+            || entity.ServiceCategory != request.ServiceCategory
+            || entity.PositionId != request.PositionId
             || entity.Role != role
+            || (entity.TimeCondition ?? "all") != timeCondition
             || entity.ValueType != valueType
             || entity.CommissionValue != request.CommissionValue;
 
@@ -603,12 +1045,13 @@ public sealed class PayrollParameterService(
 
         if (status == PayrollParameterRules.Active)
         {
-            var existing = await repository.GetOverlappingCommissionRulesAsync(request.ServiceId, role, request.EffectiveFrom, request.EffectiveTo, id, ct);
+            var existing = await repository.GetOverlappingCommissionRulesAsync(
+                request.ServiceId, request.ServiceCategory, role, request.PositionId, timeCondition, request.EffectiveFrom, request.EffectiveTo, id, ct);
             foreach (var ex in existing)
             {
                 if (PayrollParameterRules.PeriodsOverlap(request.EffectiveFrom, request.EffectiveTo, ex.EffectiveFrom, ex.EffectiveTo))
                 {
-                    throw new AppException(409, $"Đã có quy tắc hoa hồng cho dịch vụ này với vai trò '{role}' trùng lặp thời gian hiệu lực ({ex.EffectiveFrom:dd/MM/yyyy} - {ex.EffectiveTo:dd/MM/yyyy}).");
+                    throw new AppException(409, $"Đã có quy tắc hoa hồng cho vai trò '{role}' trùng lặp thời gian hiệu lực ({ex.EffectiveFrom:dd/MM/yyyy} - {ex.EffectiveTo:dd/MM/yyyy}).");
                 }
             }
         }
@@ -616,7 +1059,10 @@ public sealed class PayrollParameterService(
         var oldSnapshot = new
         {
             entity.ServiceId,
+            entity.ServiceCategory,
+            entity.PositionId,
             entity.Role,
+            entity.TimeCondition,
             entity.ValueType,
             entity.CommissionValue,
             entity.EffectiveFrom,
@@ -625,7 +1071,10 @@ public sealed class PayrollParameterService(
         };
 
         entity.ServiceId = request.ServiceId;
+        entity.ServiceCategory = request.ServiceCategory;
+        entity.PositionId = request.PositionId;
         entity.Role = role;
+        entity.TimeCondition = timeCondition;
         entity.ValueType = valueType;
         entity.CommissionValue = request.CommissionValue;
         entity.EffectiveFrom = request.EffectiveFrom;
@@ -635,7 +1084,10 @@ public sealed class PayrollParameterService(
         var newSnapshot = new
         {
             entity.ServiceId,
+            entity.ServiceCategory,
+            entity.PositionId,
             entity.Role,
+            entity.TimeCondition,
             entity.ValueType,
             entity.CommissionValue,
             entity.EffectiveFrom,
@@ -654,10 +1106,287 @@ public sealed class PayrollParameterService(
         return dto with { AffectedOpenPeriods = affectedPeriods };
     }
 
+    public async Task<CommissionRuleDto> DeactivateCommissionRuleAsync(Guid id, DeactivateParameterRequest request, CancellationToken ct)
+    {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+
+        var entity = await repository.FindCommissionRuleAsync(id, ct)
+            ?? throw new AppException(404, "Không tìm thấy quy tắc hoa hồng.");
+
+        var lockedMonths = await repository.GetLockedMonthsAsync(ct);
+        var (effFrom, effTo, newStatus) = PayrollParameterRules.ComputeDeactivation(
+            entity.EffectiveFrom, entity.EffectiveTo, request.EffectiveTo, lockedMonths);
+
+        var oldSnapshot = new { entity.EffectiveFrom, entity.EffectiveTo, entity.Status };
+        entity.EffectiveFrom = effFrom;
+        entity.EffectiveTo = effTo;
+        entity.Status = newStatus;
+        var newSnapshot = new { entity.EffectiveFrom, entity.EffectiveTo, entity.Status };
+        auditHelper.Log("deactivate", "CommissionRule", id, oldSnapshot, newSnapshot);
+
+        await SaveChangesWithDeadlockHandlingAsync(ct);
+        await tx.CommitAsync(ct);
+
+        var openMonths = await repository.GetOpenMonthsAsync(ct);
+        var affectedPeriods = PayrollParameterRules.AffectedOpenPeriods(openMonths, effFrom, effTo);
+
+        var dto = await GetCommissionRuleAsync(id, ct);
+        return dto with { AffectedOpenPeriods = affectedPeriods };
+    }
+
+    public Task<CommissionMatrixDto> GetCommissionMatrixAsync(CancellationToken ct)
+        => repository.GetCommissionMatrixAsync(ct);
+
     public Task<ProcedureServiceOptionDto[]> ListActiveProcedureServicesAsync(CancellationToken ct)
         => repository.ListActiveProcedureServicesAsync(ct);
 
-    // ---------- Helper for deadlock (1205) ----------
+    // =========================================================================
+    // Staff Commission Overrides
+    // =========================================================================
+
+    public Task<StaffCommissionOverrideDto[]> ListStaffCommissionOverridesAsync(StaffCommissionOverrideFilter filter, CancellationToken ct)
+        => repository.ListStaffCommissionOverridesAsync(filter, ct);
+
+    public async Task<StaffCommissionOverrideDto> GetStaffCommissionOverrideAsync(Guid id, CancellationToken ct)
+    {
+        var filter = new StaffCommissionOverrideFilter(null, null, null, null, null, null, null);
+        var all = await repository.ListStaffCommissionOverridesAsync(filter, ct);
+        var match = all.FirstOrDefault(x => x.Id == id)
+            ?? throw new AppException(404, "Không tìm thấy hoa hồng riêng của nhân viên.");
+        return match;
+    }
+
+    public async Task<StaffCommissionOverrideDto> CreateStaffCommissionOverrideAsync(SaveStaffCommissionOverrideRequest request, Guid? creatorId, CancellationToken ct)
+    {
+        if (!request.ServiceId.HasValue && string.IsNullOrWhiteSpace(request.ServiceCategory))
+        {
+            throw new AppException(400, "Đơn giá hoa hồng riêng phải áp dụng cho một dịch vụ cụ thể hoặc theo nhóm dịch vụ.");
+        }
+
+        if (!await repository.StaffExistsAndActiveAsync(request.StaffId, ct))
+        {
+            throw new AppException(404, "Nhân viên không tồn tại hoặc đã ngừng hoạt động.");
+        }
+
+        if (request.ServiceId.HasValue && !await repository.ServiceExistsAndActiveAsync(request.ServiceId.Value, ct))
+        {
+            throw new AppException(404, "Dịch vụ thủ thuật không tồn tại hoặc đã ngừng hoạt động.");
+        }
+
+        var role = PayrollParameterRules.RequireOption(request.Role, PayrollParameterRules.CommissionRoles, "Vai trò thực hiện");
+        var valueType = PayrollParameterRules.RequireOption(request.ValueType, PayrollParameterRules.CommissionValueTypes, "Loại hoa hồng");
+        var timeCondition = PayrollParameterRules.RequireOption(request.TimeCondition ?? "all", PayrollParameterRules.TimeConditions, "Điều kiện thời gian");
+        PayrollParameterRules.EnsureTypedValue(valueType == "fixed" || valueType == "per_hour" ? "fixed" : "percentage", request.CommissionValue, "Mức hoa hồng");
+        PayrollParameterRules.EnsureEffectiveRange(request.EffectiveFrom, request.EffectiveTo);
+        var status = PayrollParameterRules.NormalizeStatus(request.Status);
+
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+
+        var lockedMonths = await repository.GetLockedMonthsAsync(ct);
+        PayrollParameterRules.EnsureLockedPeriodRule(
+            lockedMonths, null, new LockedPeriodState(request.EffectiveFrom, request.EffectiveTo, status), true);
+
+        if (status == PayrollParameterRules.Active)
+        {
+            var existing = await repository.GetOverlappingStaffCommissionOverridesAsync(
+                request.StaffId, request.ServiceId, request.ServiceCategory, role, timeCondition, request.EffectiveFrom, request.EffectiveTo, null, ct);
+            foreach (var ex in existing)
+            {
+                if (PayrollParameterRules.PeriodsOverlap(request.EffectiveFrom, request.EffectiveTo, ex.EffectiveFrom, ex.EffectiveTo))
+                {
+                    throw new AppException(409, $"Nhân viên đã có đơn giá hoa hồng riêng cho vai trò '{role}' trùng lặp thời gian hiệu lực ({ex.EffectiveFrom:dd/MM/yyyy} - {ex.EffectiveTo:dd/MM/yyyy}).");
+                }
+            }
+        }
+
+        var entity = new StaffCommissionOverride
+        {
+            OverrideId = Guid.NewGuid(),
+            StaffId = request.StaffId,
+            ServiceId = request.ServiceId,
+            ServiceCategory = request.ServiceCategory,
+            Role = role,
+            TimeCondition = timeCondition,
+            ValueType = valueType,
+            CommissionValue = request.CommissionValue,
+            EffectiveFrom = request.EffectiveFrom,
+            EffectiveTo = request.EffectiveTo,
+            Status = status,
+            CreatedBy = creatorId,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        repository.AddStaffCommissionOverride(entity);
+
+        var newSnapshot = new
+        {
+            entity.StaffId,
+            entity.ServiceId,
+            entity.ServiceCategory,
+            entity.Role,
+            entity.TimeCondition,
+            entity.ValueType,
+            entity.CommissionValue,
+            entity.EffectiveFrom,
+            entity.EffectiveTo,
+            entity.Status
+        };
+        auditHelper.Log("create", "StaffCommissionOverride", entity.OverrideId, null, newSnapshot);
+
+        await SaveChangesWithDeadlockHandlingAsync(ct);
+        await tx.CommitAsync(ct);
+
+        var openMonths = await repository.GetOpenMonthsAsync(ct);
+        var affectedPeriods = PayrollParameterRules.AffectedOpenPeriods(openMonths, request.EffectiveFrom, request.EffectiveTo);
+
+        var dto = await GetStaffCommissionOverrideAsync(entity.OverrideId, ct);
+        return dto with { AffectedOpenPeriods = affectedPeriods };
+    }
+
+    public async Task<StaffCommissionOverrideDto> UpdateStaffCommissionOverrideAsync(Guid id, SaveStaffCommissionOverrideRequest request, CancellationToken ct)
+    {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+
+        var entity = await repository.FindStaffCommissionOverrideAsync(id, ct)
+            ?? throw new AppException(404, "Không tìm thấy hoa hồng riêng của nhân viên.");
+
+        if (!request.ServiceId.HasValue && string.IsNullOrWhiteSpace(request.ServiceCategory))
+        {
+            throw new AppException(400, "Đơn giá hoa hồng riêng phải áp dụng cho một dịch vụ cụ thể hoặc theo nhóm dịch vụ.");
+        }
+
+        if (entity.StaffId != request.StaffId && !await repository.StaffExistsAndActiveAsync(request.StaffId, ct))
+        {
+            throw new AppException(404, "Nhân viên không tồn tại hoặc đã ngừng hoạt động.");
+        }
+
+        if (request.ServiceId.HasValue && entity.ServiceId != request.ServiceId && !await repository.ServiceExistsAndActiveAsync(request.ServiceId.Value, ct))
+        {
+            throw new AppException(404, "Dịch vụ thủ thuật không tồn tại hoặc đã ngừng hoạt động.");
+        }
+
+        var role = PayrollParameterRules.RequireOption(request.Role, PayrollParameterRules.CommissionRoles, "Vai trò thực hiện");
+        var valueType = PayrollParameterRules.RequireOption(request.ValueType, PayrollParameterRules.CommissionValueTypes, "Loại hoa hồng");
+        var timeCondition = PayrollParameterRules.RequireOption(request.TimeCondition ?? "all", PayrollParameterRules.TimeConditions, "Điều kiện thời gian");
+        PayrollParameterRules.EnsureTypedValue(valueType == "fixed" || valueType == "per_hour" ? "fixed" : "percentage", request.CommissionValue, "Mức hoa hồng");
+        PayrollParameterRules.EnsureEffectiveRange(request.EffectiveFrom, request.EffectiveTo);
+        var status = PayrollParameterRules.NormalizeStatus(request.Status);
+
+        bool valuesChanged = entity.StaffId != request.StaffId
+            || entity.ServiceId != request.ServiceId
+            || entity.ServiceCategory != request.ServiceCategory
+            || entity.Role != role
+            || (entity.TimeCondition ?? "all") != timeCondition
+            || entity.ValueType != valueType
+            || entity.CommissionValue != request.CommissionValue;
+
+        var lockedMonths = await repository.GetLockedMonthsAsync(ct);
+        PayrollParameterRules.EnsureLockedPeriodRule(
+            lockedMonths,
+            new LockedPeriodState(entity.EffectiveFrom, entity.EffectiveTo, entity.Status ?? "active"),
+            new LockedPeriodState(request.EffectiveFrom, request.EffectiveTo, status),
+            valuesChanged);
+
+        if (status == PayrollParameterRules.Active)
+        {
+            var existing = await repository.GetOverlappingStaffCommissionOverridesAsync(
+                request.StaffId, request.ServiceId, request.ServiceCategory, role, timeCondition, request.EffectiveFrom, request.EffectiveTo, id, ct);
+            foreach (var ex in existing)
+            {
+                if (PayrollParameterRules.PeriodsOverlap(request.EffectiveFrom, request.EffectiveTo, ex.EffectiveFrom, ex.EffectiveTo))
+                {
+                    throw new AppException(409, $"Nhân viên đã có đơn giá hoa hồng riêng cho vai trò '{role}' trùng lặp thời gian hiệu lực ({ex.EffectiveFrom:dd/MM/yyyy} - {ex.EffectiveTo:dd/MM/yyyy}).");
+                }
+            }
+        }
+
+        var oldSnapshot = new
+        {
+            entity.StaffId,
+            entity.ServiceId,
+            entity.ServiceCategory,
+            entity.Role,
+            entity.TimeCondition,
+            entity.ValueType,
+            entity.CommissionValue,
+            entity.EffectiveFrom,
+            entity.EffectiveTo,
+            entity.Status
+        };
+
+        entity.StaffId = request.StaffId;
+        entity.ServiceId = request.ServiceId;
+        entity.ServiceCategory = request.ServiceCategory;
+        entity.Role = role;
+        entity.TimeCondition = timeCondition;
+        entity.ValueType = valueType;
+        entity.CommissionValue = request.CommissionValue;
+        entity.EffectiveFrom = request.EffectiveFrom;
+        entity.EffectiveTo = request.EffectiveTo;
+        entity.Status = status;
+
+        var newSnapshot = new
+        {
+            entity.StaffId,
+            entity.ServiceId,
+            entity.ServiceCategory,
+            entity.Role,
+            entity.TimeCondition,
+            entity.ValueType,
+            entity.CommissionValue,
+            entity.EffectiveFrom,
+            entity.EffectiveTo,
+            entity.Status
+        };
+        auditHelper.Log("update", "StaffCommissionOverride", id, oldSnapshot, newSnapshot);
+
+        await SaveChangesWithDeadlockHandlingAsync(ct);
+        await tx.CommitAsync(ct);
+
+        var openMonths = await repository.GetOpenMonthsAsync(ct);
+        var affectedPeriods = PayrollParameterRules.AffectedOpenPeriods(openMonths, request.EffectiveFrom, request.EffectiveTo);
+
+        var dto = await GetStaffCommissionOverrideAsync(id, ct);
+        return dto with { AffectedOpenPeriods = affectedPeriods };
+    }
+
+    public async Task<StaffCommissionOverrideDto> DeactivateStaffCommissionOverrideAsync(Guid id, DeactivateParameterRequest request, CancellationToken ct)
+    {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+
+        var entity = await repository.FindStaffCommissionOverrideAsync(id, ct)
+            ?? throw new AppException(404, "Không tìm thấy hoa hồng riêng của nhân viên.");
+
+        var lockedMonths = await repository.GetLockedMonthsAsync(ct);
+        var (effFrom, effTo, newStatus) = PayrollParameterRules.ComputeDeactivation(
+            entity.EffectiveFrom, entity.EffectiveTo, request.EffectiveTo, lockedMonths);
+
+        var oldSnapshot = new { entity.EffectiveFrom, entity.EffectiveTo, entity.Status };
+        entity.EffectiveFrom = effFrom;
+        entity.EffectiveTo = effTo;
+        entity.Status = newStatus;
+        var newSnapshot = new { entity.EffectiveFrom, entity.EffectiveTo, entity.Status };
+        auditHelper.Log("deactivate", "StaffCommissionOverride", id, oldSnapshot, newSnapshot);
+
+        await SaveChangesWithDeadlockHandlingAsync(ct);
+        await tx.CommitAsync(ct);
+
+        var openMonths = await repository.GetOpenMonthsAsync(ct);
+        var affectedPeriods = PayrollParameterRules.AffectedOpenPeriods(openMonths, effFrom, effTo);
+
+        var dto = await GetStaffCommissionOverrideAsync(id, ct);
+        return dto with { AffectedOpenPeriods = affectedPeriods };
+    }
+
+    // =========================================================================
+    // Lookups
+    // =========================================================================
+
+    public Task<PositionOptionDto[]> ListPositionsAsync(CancellationToken ct)
+        => repository.ListPositionsAsync(ct);
+
+    public Task<SiteOptionDto[]> ListSitesAsync(CancellationToken ct)
+        => repository.ListSitesAsync(ct);
 
     private async Task SaveChangesWithDeadlockHandlingAsync(CancellationToken ct)
     {

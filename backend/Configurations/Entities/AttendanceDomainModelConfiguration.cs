@@ -92,7 +92,7 @@ public static class AttendanceDomainModelConfiguration
             entity.Property(x => x.Code).HasColumnName("code").HasColumnType("nvarchar(50)");
             entity.Property(x => x.Name).HasColumnName("name").HasColumnType("nvarchar(100)");
             entity.Property(x => x.Description).HasColumnName("description").HasColumnType("nvarchar(255)");
-            entity.Property(x => x.IsPaid).HasColumnName("is_paid").HasColumnType("bit").HasDefaultValue(true);
+            entity.Property(x => x.IsPaid).HasColumnName("is_paid").HasColumnType("bit").HasDefaultValue(true).HasSentinel(true);
             entity.Property(x => x.Status).HasColumnName("status").HasColumnType("nvarchar(20)").HasDefaultValueSql("'active'");
             entity.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
             entity.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");

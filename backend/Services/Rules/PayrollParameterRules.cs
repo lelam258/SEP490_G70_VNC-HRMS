@@ -3,7 +3,7 @@ using Vnc.HRMS.Common.Exceptions;
 namespace Vnc.HRMS.Services.Rules;
 
 /// <summary>
-/// Pure validation and business rules for payroll parameters (UC-05).
+/// Pure validation and business rules for payroll parameters (UC-05, GB-19..GB-31).
 /// No I/O: every method takes plain values so it can be unit tested directly.
 /// Violations are reported as <see cref="AppException"/> with a Vietnamese message.
 /// </summary>
@@ -14,14 +14,28 @@ public static class PayrollParameterRules
 
     public static readonly IReadOnlyList<string> Statuses = [Active, Inactive];
     public static readonly IReadOnlyList<string> AllowanceValueTypes = ["fixed", "percentage"];
+    public static readonly IReadOnlyList<string> AllowanceCalcMethods = ["fixed", "prorate_by_workdays", "per_service_year", "percentage"];
     public static readonly IReadOnlyList<string> InsuranceTypes = ["social", "health", "unemployment", "accident"];
     public static readonly IReadOnlyList<string> InsurancePayers = ["employee", "employer"];
-    public static readonly IReadOnlyList<string> CommissionRoles = ["indicating", "performing", "assisting"];
-    public static readonly IReadOnlyList<string> CommissionValueTypes = ["fixed", "percent_service", "percent_profit"];
+
+    public static readonly IReadOnlyList<string> RateConfigCodes =
+        ["duty_night", "duty_noon", "duty_extra_hour_multiplier", "union_fee", "standard_working_days"];
+    public static readonly IReadOnlyList<string> RateConfigUnits = ["vnd", "percent", "days"];
+
+    // 5 roles per clinic operation policy (indicating, performing, assisting, lab, typist)
+    public static readonly IReadOnlyList<string> CommissionRoles = ["indicating", "performing", "assisting", "lab", "typist"];
+    public static readonly IReadOnlyList<string> CommissionValueTypes = ["fixed", "percent_service", "percent_profit", "per_hour"];
+    public static readonly IReadOnlyList<string> TimeConditions = ["all", "in_hours", "after_hours"];
+
+    public static readonly IReadOnlyList<string> SalaryTypes = ["daily", "monthly"];
+    public static readonly IReadOnlyList<string> TaxMethods = ["progressive", "flat_10"];
 
     /// <summary>Earliest accepted effective date; also rejects an omitted DateOnly (0001-01-01).</summary>
     public static readonly DateOnly MinEffectiveDate = new(2000, 1, 1);
     public const decimal MaxMoney = 9_999_999_999_999.99m; // decimal(15,2)
+
+    public static DateOnly TodayVn()
+        => DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
 
     // ---------- Normalization ----------
 
@@ -79,7 +93,7 @@ public static class PayrollParameterRules
     /// <summary>Fixed values are VND amounts; any percentage type is limited to 0–100.</summary>
     public static void EnsureTypedValue(string valueType, decimal value, string field)
     {
-        if (valueType == "fixed") EnsureMoney(value, field);
+        if (valueType == "fixed" || valueType == "per_hour") EnsureMoney(value, field);
         else EnsurePercent(value, field);
     }
 
@@ -146,13 +160,6 @@ public static class PayrollParameterRules
 
     /// <summary>
     /// Locked-period rule shared by every dated parameter, staff allowance and contract compensation.
-    /// <list type="bullet">
-    /// <item>Create (<paramref name="original"/> is null): the new period must not touch any locked month.</item>
-    /// <item>Update: the record must not start covering a locked month it did not already cover.</item>
-    /// <item>Update of a record already covering locked months: values and start date are frozen,
-    /// inactive → active is blocked, and the end date may be set or shortened but not before the
-    /// last day of the latest locked month it covers.</item>
-    /// </list>
     /// </summary>
     public static void EnsureLockedPeriodRule(
         IReadOnlyCollection<string> lockedMonths,
@@ -179,6 +186,33 @@ public static class PayrollParameterRules
         var lastDay = MonthStart(latest)!.Value.AddMonths(1).AddDays(-1);
         if (updated.To is not null && updated.To < lastDay)
             throw new AppException(409, $"Ngày kết thúc hiệu lực không được trước {lastDay:dd/MM/yyyy} vì kỳ lương {latest} đã khóa.");
+    }
+
+    public static (DateOnly EffectiveFrom, DateOnly? EffectiveTo, string Status) ComputeDeactivation(
+        DateOnly currentFrom,
+        DateOnly? currentTo,
+        DateOnly? requestedEffectiveTo,
+        IReadOnlyCollection<string> lockedMonths)
+    {
+        var today = TodayVn();
+        if (currentFrom > today)
+        {
+            return (currentFrom, currentTo, Inactive);
+        }
+
+        var effTo = requestedEffectiveTo ?? today;
+        if (effTo < currentFrom)
+        {
+            throw new AppException(400, "Ngày kết thúc hiệu lực không được trước ngày bắt đầu.");
+        }
+
+        var covered = LockedMonthsCovered(lockedMonths, effTo, effTo);
+        if (covered.Count > 0)
+        {
+            throw new AppException(409, $"Ngày kết thúc hiệu lực rơi vào kỳ lương đã khóa ({covered[0]}).");
+        }
+
+        return (currentFrom, effTo, Inactive);
     }
 
     private static AppException LockedError(string month)
