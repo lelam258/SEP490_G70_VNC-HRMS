@@ -9,11 +9,12 @@ import type {
   ComplianceDepartmentOption,
   ComplianceKpiSummary,
   CompliancePositionOption,
-  ComplianceSelectOption,
   OperationalComplianceFilterParams,
-  OperationalKpiSummary,
 } from '../../types/compliance';
-import ReportFilterBar from '../../components/compliance/ReportFilterBar';
+import ReportFilterBar, {
+  formatPeriodPresetLabelVi,
+  formatReportTypeLabelVi,
+} from '../../components/compliance/ReportFilterBar';
 import Alert from '../../components/ui/Alert';
 import Icon from '../../components/ui/Icon';
 
@@ -28,41 +29,19 @@ const EMPTY_KPIS: ComplianceKpiSummary = {
   cmeAlertThresholdDays: 180,
 };
 
-const EMPTY_OPERATIONAL_KPIS: OperationalKpiSummary = {
-  totalActiveStaff: 0,
-  expiringContractsCount: 0,
-  pendingLeaveRequestsCount: 0,
-  onCallShiftsCount: 0,
-  totalWorkDaysInPeriod: 0,
-};
-
 const DEFAULT_FILTERS: OperationalComplianceFilterParams = {
+  reportType: 'all',
+  periodPreset: 'all',
   departmentId: 'all',
   position: 'all',
-  staffStatus: 'active',
-  contractType: 'all',
   keyword: '',
   fromDate: '',
   toDate: '',
-  payMonth: 'all',
   itemType: 'all',
   maxDaysLeft: '',
   sortBy: 'daysLeft',
   sortDir: 'asc',
 };
-
-const DEFAULT_CONTRACT_TYPES: ComplianceSelectOption[] = [
-  { value: 'probation', label: 'Hợp đồng thử việc' },
-  { value: 'fixed_term', label: 'Hợp đồng xác định thời hạn' },
-  { value: 'indefinite', label: 'Hợp đồng không xác định thời hạn' },
-  { value: 'part_time', label: 'Hợp đồng bán thời gian / CTV' },
-];
-
-const DEFAULT_STAFF_STATUSES: ComplianceSelectOption[] = [
-  { value: 'active', label: 'Đang làm việc' },
-  { value: 'maternity_leave', label: 'Nghỉ thai sản' },
-  { value: 'inactive', label: 'Tạm ngưng / Nghỉ việc' },
-];
 
 function sortByDaysLeftAsc(rows: ComplianceAttentionRow[]): ComplianceAttentionRow[] {
   return [...rows].sort((a, b) => {
@@ -163,18 +142,11 @@ export default function ComplianceDashboardPage() {
 
   // Dữ liệu Dashboard từ API
   const [kpis, setKpis] = useState<ComplianceKpiSummary>(EMPTY_KPIS);
-  const [operationalKpis, setOperationalKpis] =
-    useState<OperationalKpiSummary>(EMPTY_OPERATIONAL_KPIS);
   const [staffItems, setStaffItems] = useState<ComplianceAttentionRow[]>([]);
   const [cmeItems, setCmeItems] = useState<ComplianceAttentionRow[]>([]);
   const [chartItems, setChartItems] = useState<ComplianceChartItem[]>([]);
   const [departments, setDepartments] = useState<ComplianceDepartmentOption[]>([]);
   const [positions, setPositions] = useState<CompliancePositionOption[]>([]);
-  const [contractTypes, setContractTypes] =
-    useState<ComplianceSelectOption[]>(DEFAULT_CONTRACT_TYPES);
-  const [staffStatuses, setStaffStatuses] =
-    useState<ComplianceSelectOption[]>(DEFAULT_STAFF_STATUSES);
-  const [availablePayMonths, setAvailablePayMonths] = useState<string[]>([]);
   const [lockedDepartmentId, setLockedDepartmentId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState<boolean>(true);
@@ -191,23 +163,11 @@ export default function ComplianceDashboardPage() {
       try {
         const data = await complianceApi.getDashboard(filterParams);
         setKpis(data.kpis);
-        if (data.operationalKpis) {
-          setOperationalKpis(data.operationalKpis);
-        }
         setStaffItems(data.staffItems || []);
         setCmeItems(data.cmeItems || []);
         setChartItems(data.departmentChart || []);
         setDepartments(data.departments || []);
         setPositions(data.positions || []);
-        if (data.contractTypes && data.contractTypes.length > 0) {
-          setContractTypes(data.contractTypes);
-        }
-        if (data.staffStatuses && data.staffStatuses.length > 0) {
-          setStaffStatuses(data.staffStatuses);
-        }
-        if (data.availablePayMonths) {
-          setAvailablePayMonths(data.availablePayMonths);
-        }
         setLockedDepartmentId(data.lockedDepartmentId);
 
         if (data.lockedDepartmentId) {
@@ -224,7 +184,7 @@ export default function ComplianceDashboardPage() {
         setError(
           cause instanceof Error
             ? cause.message
-            : 'Không tải được dữ liệu bảng theo dõi vận hành & tuân thủ.'
+            : 'Không tải được dữ liệu bảng theo dõi tuân thủ chứng chỉ & CME.'
         );
       } finally {
         setLoading(false);
@@ -283,11 +243,26 @@ export default function ComplianceDashboardPage() {
       return;
     }
 
-    const defaultVal = DEFAULT_FILTERS[key];
-    const nextFilters: OperationalComplianceFilterParams = {
-      ...appliedFilters,
-      [key]: key === 'departmentId' && lockedDepartmentId ? lockedDepartmentId : defaultVal,
-    };
+    let nextFilters: OperationalComplianceFilterParams = { ...appliedFilters };
+
+    if (key === 'reportType') {
+      nextFilters.reportType = 'all';
+      nextFilters.itemType = 'all';
+    } else if (key === 'periodPreset') {
+      nextFilters.periodPreset = 'all';
+      nextFilters.fromDate = '';
+      nextFilters.toDate = '';
+    } else {
+      const defaultVal = DEFAULT_FILTERS[key];
+      nextFilters = {
+        ...appliedFilters,
+        [key]:
+          key === 'departmentId' && lockedDepartmentId
+            ? lockedDepartmentId
+            : defaultVal,
+      };
+    }
+
     setDraftFilters(nextFilters);
     setAppliedFilters(nextFilters);
     void fetchDashboard(nextFilters);
@@ -305,9 +280,45 @@ export default function ComplianceDashboardPage() {
     });
   }
 
+  // Xác định các phân khu hiển thị dựa theo Loại báo cáo (Report Type) đã chọn
+  const activeReportType = appliedFilters.reportType || 'all';
+  const showCertificateSection =
+    activeReportType !== 'cme_cycle' && appliedFilters.itemType !== 'cme_cycle';
+  const showCmeSection =
+    activeReportType !== 'certificate' && appliedFilters.itemType !== 'certificate';
+
+  // Tính thông tin hiển thị của Phạm vi thẩm quyền (Authorized Scope) và Kỳ hạn (Period)
+  const authorizedScopeLabel = useMemo(() => {
+    const deptId = lockedDepartmentId || appliedFilters.departmentId;
+    if (!deptId || deptId === 'all') {
+      return 'Toàn viện (Tất cả Khoa/Phòng)';
+    }
+    const found = departments.find(d => d.id === deptId);
+    return found ? found.name : 'Khoa/Phòng được ủy quyền';
+  }, [lockedDepartmentId, appliedFilters.departmentId, departments]);
+
+  const appliedPeriodLabel = useMemo(
+    () =>
+      formatPeriodPresetLabelVi(
+        appliedFilters.periodPreset,
+        appliedFilters.fromDate,
+        appliedFilters.toDate
+      ),
+    [
+      appliedFilters.periodPreset,
+      appliedFilters.fromDate,
+      appliedFilters.toDate,
+    ]
+  );
+
+  const complianceRatePct = useMemo(() => {
+    if (kpis.totalStaff <= 0) return 100;
+    return Math.round((kpis.validCount / kpis.totalStaff) * 100);
+  }, [kpis.totalStaff, kpis.validCount]);
+
   // Phần 1: Danh sách chứng chỉ (xếp theo ngày hết hạn tăng dần)
   const displayedCertificateRows = useMemo(() => {
-    if (appliedFilters.itemType === 'cme_cycle') return [];
+    if (!showCertificateSection) return [];
 
     const filtered = staffItems.filter(row => {
       switch (activeCard) {
@@ -329,11 +340,11 @@ export default function ComplianceDashboardPage() {
       }
     });
     return sortByDaysLeftAsc(filtered);
-  }, [staffItems, activeCard, appliedFilters.itemType]);
+  }, [staffItems, activeCard, showCertificateSection]);
 
   // Phần 2: Danh sách chu kỳ CME (xếp theo hạn chu kỳ CME tăng dần)
   const displayedCmeRows = useMemo(() => {
-    if (appliedFilters.itemType === 'certificate') return [];
+    if (!showCmeSection) return [];
 
     const filtered = cmeItems.filter(row => {
       if (activeCard === 'total' || showAllCme) return true;
@@ -341,7 +352,7 @@ export default function ComplianceDashboardPage() {
       return row.isCmeAtRisk;
     });
     return sortByDaysLeftAsc(filtered);
-  }, [cmeItems, activeCard, showAllCme, appliedFilters.itemType]);
+  }, [cmeItems, activeCard, showAllCme, showCmeSection]);
 
   function getStatusBadgeClasses(status: string): string {
     switch (status) {
@@ -377,6 +388,9 @@ export default function ComplianceDashboardPage() {
     }
 
     const headers = [
+      'Loại báo cáo',
+      'Phạm vi thẩm quyền',
+      'Kỳ hạn xét',
       'Phân mục',
       'Mã nhân viên',
       'Họ và tên',
@@ -397,10 +411,15 @@ export default function ComplianceDashboardPage() {
       return str;
     };
 
+    const reportTypeLabel = formatReportTypeLabelVi(activeReportType);
+
     const csvLines = [
       headers.join(','),
       ...displayedCertificateRows.map(r =>
         [
+          escapeCsv(reportTypeLabel),
+          escapeCsv(authorizedScopeLabel),
+          escapeCsv(appliedPeriodLabel),
           escapeCsv('Chứng chỉ'),
           escapeCsv(r.staffCode),
           escapeCsv(r.staffName),
@@ -415,6 +434,9 @@ export default function ComplianceDashboardPage() {
       ),
       ...displayedCmeRows.map(r =>
         [
+          escapeCsv(reportTypeLabel),
+          escapeCsv(authorizedScopeLabel),
+          escapeCsv(appliedPeriodLabel),
           escapeCsv('Chu kỳ CME'),
           escapeCsv(r.staffCode),
           escapeCsv(r.staffName),
@@ -435,7 +457,7 @@ export default function ComplianceDashboardPage() {
     const link = document.createElement('a');
     const dateStr = new Date().toISOString().slice(0, 10);
     link.href = url;
-    link.setAttribute('download', `bao-cao-van-hanh-tuan-thu-${dateStr}.csv`);
+    link.setAttribute('download', `bao-cao-tuan-thu-${dateStr}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -501,19 +523,16 @@ export default function ComplianceDashboardPage() {
     }
   }, [activeCard, kpis.certExpiringThresholdDays, kpis.cmeAlertThresholdDays]);
 
-  const showCertificateSection = appliedFilters.itemType !== 'cme_cycle';
-  const showCmeSection = appliedFilters.itemType !== 'certificate';
-
   return (
     <section className="max-w-6xl mx-auto space-y-6">
-      {/* Tiêu đề trang */}
+      {/* Tiêu đề trang & Nút hành động */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
-            Báo cáo Vận hành &amp; Tuân thủ (Chứng chỉ &amp; CME)
+            Bảng theo dõi &amp; Báo cáo Tuân thủ Chứng chỉ &amp; CME
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Giám sát tổng thể vận hành nhân sự, thời hạn chứng chỉ hành nghề và tiến độ đào tạo liên tục (CME).
+            Giám sát thời hạn chứng chỉ hành nghề (Certificate) và tiến độ đào tạo liên tục (CME) theo loại báo cáo, kỳ hạn và phạm vi thẩm quyền.
           </p>
         </div>
 
@@ -540,16 +559,13 @@ export default function ComplianceDashboardPage() {
         </div>
       </div>
 
-      {/* Thanh Bộ lọc Báo cáo Vận hành & Tuân thủ (Operational & Compliance Report Filters) */}
+      {/* Thanh Bộ lọc Báo cáo (1. Report Type - 2. Period - 3. Authorized Scope) */}
       <ReportFilterBar
         draftFilters={draftFilters}
         appliedFilters={appliedFilters}
         activeCard={activeCard}
         departments={departments}
         positions={positions}
-        contractTypes={contractTypes}
-        staffStatuses={staffStatuses}
-        availablePayMonths={availablePayMonths}
         lockedDepartmentId={lockedDepartmentId}
         isDepartmentManager={isDepartmentManager}
         loading={loading}
@@ -560,6 +576,36 @@ export default function ComplianceDashboardPage() {
         onReset={handleResetFilters}
         onRemoveAppliedFilter={handleRemoveAppliedFilter}
       />
+
+      {/* Banner Ngữ cảnh Báo cáo đang hiển thị (Report Type + Period + Authorized Scope) */}
+      <div className="bg-slate-100/80 border border-slate-200 rounded-md px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-700">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <span>
+            <strong className="text-slate-900">Loại báo cáo:</strong>{' '}
+            {formatReportTypeLabelVi(activeReportType)}
+          </span>
+          <span className="text-slate-300">|</span>
+          <span>
+            <strong className="text-slate-900">Kỳ hạn xét:</strong> {appliedPeriodLabel}
+          </span>
+          <span className="text-slate-300">|</span>
+          <span className="inline-flex items-center gap-1">
+            <strong className="text-slate-900">Phạm vi thẩm quyền:</strong>{' '}
+            <span className="font-semibold text-teal-800">{authorizedScopeLabel}</span>
+            {(lockedDepartmentId || isDepartmentManager) && (
+              <span className="text-[11px] text-amber-700 font-medium">
+                (Giới hạn theo quyền Trưởng khoa)
+              </span>
+            )}
+          </span>
+        </div>
+        <div className="font-semibold text-slate-800">
+          Tỷ lệ chứng chỉ đạt chuẩn:{' '}
+          <span className="text-emerald-700">
+            {kpis.validCount} / {kpis.totalStaff} nhân sự ({complianceRatePct}%)
+          </span>
+        </div>
+      </div>
 
       {/* Thông báo lỗi / thành công */}
       {error && <Alert variant="error">{error}</Alert>}
@@ -577,67 +623,7 @@ export default function ComplianceDashboardPage() {
         </Alert>
       )}
 
-      {/* Chỉ số Vận hành nhanh (Operational Summary Strip) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-slate-50/80 border border-slate-200 rounded-md px-4 py-3 flex items-center justify-between">
-          <div>
-            <span className="block text-[11px] font-medium text-slate-500">
-              Nhân sự đang làm việc
-            </span>
-            <span className="text-lg font-bold text-slate-900">
-              {operationalKpis.totalActiveStaff}
-            </span>
-          </div>
-          <span className="text-slate-400">
-            <Icon name="users" size={18} />
-          </span>
-        </div>
-
-        <div className="bg-slate-50/80 border border-slate-200 rounded-md px-4 py-3 flex items-center justify-between">
-          <div>
-            <span className="block text-[11px] font-medium text-slate-500">
-              HĐ sắp đến hạn (&lt;= 60 ngày)
-            </span>
-            <span className="text-lg font-bold text-slate-900">
-              {operationalKpis.expiringContractsCount}
-            </span>
-          </div>
-          <span className="text-slate-400">
-            <Icon name="fileText" size={18} />
-          </span>
-        </div>
-
-        <div className="bg-slate-50/80 border border-slate-200 rounded-md px-4 py-3 flex items-center justify-between">
-          <div>
-            <span className="block text-[11px] font-medium text-slate-500">
-              Ca trực trong kỳ lọc
-            </span>
-            <span className="text-lg font-bold text-slate-900">
-              {operationalKpis.onCallShiftsCount}
-            </span>
-          </div>
-          <span className="text-slate-400">
-            <Icon name="clock" size={18} />
-          </span>
-        </div>
-
-        <div className="bg-slate-50/80 border border-slate-200 rounded-md px-4 py-3 flex items-center justify-between">
-          <div>
-            <span className="block text-[11px] font-medium text-slate-500">
-              Đơn nghỉ phép / Ngày công
-            </span>
-            <span className="text-lg font-bold text-slate-900">
-              {operationalKpis.pendingLeaveRequestsCount} đơn /{' '}
-              {operationalKpis.totalWorkDaysInPeriod} công
-            </span>
-          </div>
-          <span className="text-slate-400">
-            <Icon name="calendar" size={18} />
-          </span>
-        </div>
-      </div>
-
-      {/* 6 Thẻ chỉ số KPI Tuân thủ (Bấm vào để lọc danh sách) */}
+      {/* TÓM TẮT TUÂN THỦ CHỨNG CHỈ & CME TRONG PHẠM VI ĐƯỢC ỦY QUYỀN (6 Thẻ KPI) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         {/* 1. Tổng nhân sự */}
         <button
@@ -752,7 +738,7 @@ export default function ComplianceDashboardPage() {
                   1. Chứng chỉ chuyên môn / Hành nghề cần chú ý (Xét theo ngày hết hạn)
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Hiển thị tất cả chứng chỉ của nhân viên được sắp xếp theo ngày hết hạn tăng dần (Đã hết hạn, Sắp hết hạn, CCHN cũ).
+                  Hiển thị tất cả chứng chỉ của nhân viên trong phạm vi thẩm quyền, sắp xếp theo ngày hết hạn tăng dần.
                 </p>
               </div>
               <span className="text-xs font-semibold px-2.5 py-0.5 rounded bg-slate-100 text-slate-700">
@@ -983,7 +969,7 @@ export default function ComplianceDashboardPage() {
         <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-2xs space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-bold text-slate-800">
-              Thống kê Tuân thủ theo Phòng ban / Khoa
+              Thống kê Tuân thủ Chứng chỉ &amp; CME theo Phòng ban / Khoa
             </h3>
             <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
               <span className="inline-flex items-center gap-1.5">

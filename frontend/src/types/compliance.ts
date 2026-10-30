@@ -22,7 +22,24 @@ export type ComplianceCardFilter =
   | 'legacy'
   | 'cme_at_risk';
 
+export type ReportTypeValue =
+  | 'all'
+  | 'compliance'
+  | 'operational'
+  | 'certificate'
+  | 'cme_cycle';
+
+export type ReportPeriodPreset =
+  | 'all'
+  | 'month'
+  | 'this_month'
+  | 'this_quarter'
+  | 'this_year'
+  | 'custom';
+
 export interface OperationalComplianceFilterParams {
+  reportType?: ReportTypeValue | string;
+  periodPreset?: ReportPeriodPreset | string;
   departmentId?: string;
   position?: string;
   staffStatus?: string;
