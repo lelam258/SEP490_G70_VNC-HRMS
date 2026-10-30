@@ -40,3 +40,4 @@ Script giữ dữ liệu đã có, sao lưu database đích trước DDL và t�
 - [Database và migration](docs/MIGRATION.md)
 - [Quyền dự kiến](docs/PERMISSIONS.md)
 - [Database dùng chung](docs/DATABASE.md)
+- [Bộ test case theo tính năng](docs/TEST_CASES_FEATURES.md)
