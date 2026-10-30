@@ -86,7 +86,7 @@ public sealed class SelfServiceRepository(AppDbContext db) : ISelfServiceReposit
             sEntity.Gender,
             sEntity.Phone,
             sEntity.Email,
-            ProfileRules.MaskIdCard(sEntity.IdCardNumber),
+            sEntity.IdCardNumber,
             sEntity.AvatarUrl,
             row.DepartmentName,
             row.PositionName,

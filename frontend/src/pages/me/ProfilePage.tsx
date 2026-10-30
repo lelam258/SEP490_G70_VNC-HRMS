@@ -62,7 +62,7 @@ export default function ProfilePage() {
     setFullNameInput(profile.fullName || '');
     setDateOfBirthInput(profile.dateOfBirth || '');
     setGenderInput(profile.gender || '');
-    setIdCardInput('');
+    setIdCardInput(profile.idCardNumber || '');
     setIsClearingIdCard(false);
     setPhoneInput(profile.phone || '');
     setFieldErrors({});
@@ -83,7 +83,7 @@ export default function ProfilePage() {
     if ((genderInput || '') !== (profile.gender || '')) return true;
     if (phoneInput.trim() !== (profile.phone || '').trim()) return true;
     if (isClearingIdCard) return true;
-    if (idCardInput.trim().length > 0) return true;
+    if (idCardInput.trim() !== (profile.idCardNumber || '').trim()) return true;
     return false;
   }, [profile, fullNameInput, dateOfBirthInput, genderInput, phoneInput, isClearingIdCard, idCardInput]);
 
@@ -149,7 +149,7 @@ export default function ProfilePage() {
     // - entered 12 digits if provided
     // - null if left blank (meaning keep unchanged)
     let payloadIdCard: string | null = null;
-    if (isClearingIdCard) {
+    if (isClearingIdCard || (profile.idCardNumber && idCardInput.trim() === '')) {
       payloadIdCard = 'CLEAR';
     } else if (idCardInput.trim().length > 0) {
       payloadIdCard = idCardInput.trim();
@@ -467,7 +467,7 @@ export default function ProfilePage() {
                         type="button"
                         className="button small secondary"
                         style={{ padding: '2px 8px', fontSize: '11px', marginLeft: 'auto' }}
-                        onClick={() => setIsClearingIdCard(false)}
+                        onClick={() => { setIsClearingIdCard(false); setIdCardInput(profile.idCardNumber || ''); }}
                       >
                         Hoàn tác
                       </button>
@@ -480,8 +480,8 @@ export default function ProfilePage() {
                       maxLength={12}
                       className="input"
                       value={idCardInput}
-                      onChange={(e) => setIdCardInput(e.target.value)}
-                      placeholder={profile.idCardNumber ? `Để trống để giữ nguyên (${profile.idCardNumber})` : 'Nhập đúng 12 chữ số'}
+                      onChange={(e) => setIdCardInput(e.target.value.replace(/\D/g, ''))}
+                      placeholder="Nhập đúng 12 chữ số"
                       disabled={saving}
                     />
                   )}

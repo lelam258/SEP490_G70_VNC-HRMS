@@ -11,6 +11,8 @@ public sealed record AllowanceTypeDto(
     string ValueType,
     decimal? DefaultValue,
     string AppliesTo,
+    string DefaultCalcMethod,
+    int? MinServiceYears,
     bool IsTaxable,
     bool IsInsuranceBasis,
     string Status,
@@ -23,6 +25,8 @@ public sealed record SaveAllowanceTypeRequest(
     string? ValueType,
     decimal? DefaultValue,
     [StringLength(50)] string? AppliesTo,
+    string? DefaultCalcMethod,
+    int? MinServiceYears,
     bool IsTaxable,
     bool IsInsuranceBasis,
     string? Status);
@@ -72,14 +76,73 @@ public sealed record SaveTaxBracketRequest(
 /// <summary>Read-only family deductions from iam.system_policies; null when not configured.</summary>
 public sealed record TaxDeductionPolicyDto(decimal? PersonalDeduction, decimal? DependentDeduction);
 
+/// <summary>Full PIT policy summary including brackets, deductions, flat tax settings, and flags.</summary>
+public sealed record TaxPolicySummaryDto(
+    IReadOnlyList<TaxBracketDto> Brackets,
+    decimal PersonalDeduction,
+    decimal DependentDeduction,
+    decimal TaxFlatThreshold,
+    decimal TaxFlatRate,
+    decimal RoundingUnit,
+    bool DeductInsuranceBeforeTax = true,
+    bool DeductUnionFeeBeforeTax = true,
+    bool DeductOtherBeforeTax = false,
+    string FlatTaxBase = "gross");
+
+/// <summary>Request to update before-tax deduction flags and flat tax base.</summary>
+public sealed record UpdateTaxPolicyFlagsRequest(
+    bool? DeductUnionFeeBeforeTax,
+    bool? DeductOtherBeforeTax,
+    string? FlatTaxBase);
+
+/// <summary>Request to preview PIT & Take-Home 6-step calculation.</summary>
+public sealed record TaxCalculationPreviewRequest(
+    decimal TotalIncome,
+    decimal InsuranceSalary,
+    bool IsUnionMember,
+    int DependentCount,
+    string? TaxMethod = "progressive",
+    decimal OtherDeductions = 0);
+
+public sealed record TaxBracketBreakdownDto(
+    int BracketIndex,
+    string RangeText,
+    decimal TaxableAmount,
+    decimal RatePercent,
+    decimal TaxAmount);
+
+public sealed record TaxCalculationResultDto(
+    decimal TotalIncome,
+    decimal BeforeTaxDeductions,
+    decimal InsuranceDeduction,
+    decimal UnionFeeDeduction,
+    decimal OtherBeforeTaxDeduction,
+    decimal IncomeAfterDeductions,
+    decimal TaxableIncome,
+    decimal PersonalDeductionAmount,
+    decimal DependentDeductionAmount,
+    decimal TotalFamilyDeductions,
+    string? TaxableIncomeNote,
+    decimal PitTax,
+    string TaxMethod,
+    IReadOnlyList<TaxBracketBreakdownDto> BracketBreakdowns,
+    string? TaxNote,
+    decimal TakeHome,
+    decimal TakeHomeRaw,
+    decimal RoundingUnit);
+
 // ---------- Commission rules ----------
 
 public sealed record CommissionRuleDto(
     Guid Id,
-    Guid ServiceId,
-    string ServiceCode,
-    string ServiceName,
+    Guid? ServiceId,
+    string? ServiceCode,
+    string? ServiceName,
+    string? ServiceCategory,
+    Guid? PositionId,
+    string? PositionName,
     string Role,
+    string TimeCondition,
     string ValueType,
     decimal CommissionValue,
     DateOnly EffectiveFrom,
@@ -90,17 +153,34 @@ public sealed record CommissionRuleDto(
     IReadOnlyList<string>? AffectedOpenPeriods = null);
 
 public sealed record SaveCommissionRuleRequest(
-    Guid ServiceId,
+    Guid? ServiceId,
+    string? ServiceCategory,
+    Guid? PositionId,
     string? Role,
+    string? TimeCondition,
     string? ValueType,
     decimal CommissionValue,
     DateOnly EffectiveFrom,
     DateOnly? EffectiveTo,
     string? Status);
 
-public sealed record ProcedureServiceOptionDto(Guid Id, string Code, string Name, string? Category);
+public sealed record ProcedureServiceOptionDto(Guid Id, string Code, string Name, string? Category, decimal? BasePrice);
+
+public sealed record PositionOptionDto(Guid Id, string Name, string? ScopeTag);
+
+public sealed record SiteOptionDto(Guid Id, string Code, string Name, string? Address);
 
 // ---------- Filters ----------
 
 /// <summary>Common list filter: status, records effective on a date, and free-text search.</summary>
 public sealed record PayrollParameterFilter(string? Status, DateOnly? EffectiveOn, string? Q);
+
+public sealed record CommissionRuleFilter(
+    Guid? ServiceId,
+    string? ServiceCategory,
+    Guid? PositionId,
+    string? Role,
+    string? TimeCondition,
+    string? Status,
+    DateOnly? EffectiveOn,
+    string? Q);

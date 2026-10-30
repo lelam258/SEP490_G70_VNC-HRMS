@@ -9,6 +9,7 @@ namespace Vnc.HRMS.Controllers;
 [ApiController]
 [Authorize(Policy = "Accountant")]
 [Route("api/compensation")]
+[Route("api/v1/payroll/compensation")]
 public sealed class CompensationController(ICompensationService service) : ControllerBase
 {
     // ---------- 1. CONTRACTS ----------
@@ -26,6 +27,15 @@ public sealed class CompensationController(ICompensationService service) : Contr
     public Task<ContractCompensationDto> UpdateContractCompensation(
         Guid id, UpdateContractCompensationRequest request, CancellationToken ct)
         => service.UpdateContractCompensationAsync(id, request, ct);
+
+    [HttpGet("contracts/{id:guid}/salary-history")]
+    public Task<ContractSalaryHistoryDto[]> ListSalaryHistories(Guid id, CancellationToken ct)
+        => service.ListSalaryHistoriesAsync(id, ct);
+
+    [HttpGet("contracts/{id:guid}/salary-segments")]
+    public Task<ContractSalarySegmentDto[]> GetSalarySegments(
+        Guid id, [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct)
+        => service.GetSalarySegmentsAsync(id, from, to, ct);
 
     // ---------- 2. STAFF ALLOWANCES ----------
 
@@ -51,4 +61,9 @@ public sealed class CompensationController(ICompensationService service) : Contr
         return service.UpdateStaffAllowanceAsync(
             id, staffAllowanceId, request, approverId == Guid.Empty ? null : approverId, ct);
     }
+
+    [HttpPost("contracts/{id:guid}/allowances/{staffAllowanceId:guid}/deactivate")]
+    public Task<StaffAllowanceDto> DeactivateStaffAllowance(
+        Guid id, Guid staffAllowanceId, [FromBody] DeactivateParameterRequest? request, CancellationToken ct)
+        => service.DeactivateStaffAllowanceAsync(id, staffAllowanceId, request ?? new DeactivateParameterRequest(), ct);
 }

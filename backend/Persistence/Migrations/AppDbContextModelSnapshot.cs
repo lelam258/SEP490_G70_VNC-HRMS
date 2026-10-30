@@ -47,6 +47,13 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("SYSUTCDATETIME()");
 
+                    b.Property<string>("DefaultCalcMethod")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(30)")
+                        .HasColumnName("default_calc_method")
+                        .HasDefaultValueSql("'fixed'");
+
                     b.Property<decimal?>("DefaultValue")
                         .HasColumnType("decimal(15,2)")
                         .HasColumnName("default_value");
@@ -62,6 +69,10 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnType("bit")
                         .HasColumnName("is_taxable")
                         .HasDefaultValueSql("0");
+
+                    b.Property<int?>("MinServiceYears")
+                        .HasColumnType("int")
+                        .HasColumnName("min_service_years");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -762,12 +773,20 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnType("date")
                         .HasColumnName("effective_to");
 
+                    b.Property<Guid?>("PositionId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("position_id");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("role");
 
-                    b.Property<Guid>("ServiceId")
+                    b.Property<string>("ServiceCategory")
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("service_category");
+
+                    b.Property<Guid?>("ServiceId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("service_id");
 
@@ -777,12 +796,21 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnName("status")
                         .HasDefaultValueSql("'active'");
 
+                    b.Property<string>("TimeCondition")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("time_condition")
+                        .HasDefaultValueSql("'all'");
+
                     b.Property<string>("ValueType")
                         .IsRequired()
                         .HasColumnType("nvarchar(20)")
                         .HasColumnName("value_type");
 
                     b.HasKey("RuleId");
+
+                    b.HasIndex("PositionId");
 
                     b.HasIndex("ServiceId");
 
@@ -791,6 +819,8 @@ namespace Vnc.HRMS.Persistence.Migrations
                             t.HasCheckConstraint("CK_commission_rules_1", "[effective_to] IS NULL OR [effective_to] >= [effective_from]");
 
                             t.HasCheckConstraint("CK_commission_rules_2", "[commission_value] >= 0");
+
+                            t.HasCheckConstraint("CK_commission_rules_3", "[service_id] IS NOT NULL OR [service_category] IS NOT NULL");
                         });
                 });
 
@@ -1024,9 +1054,27 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasDefaultValue(true)
                         .HasColumnName("is_insurance_eligible");
 
+                    b.Property<decimal?>("MonthlySalary")
+                        .HasPrecision(15, 2)
+                        .HasColumnType("decimal(15,2)")
+                        .HasColumnName("monthly_salary");
+
+                    b.Property<string>("SalaryType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("daily")
+                        .HasColumnName("salary_type");
+
                     b.Property<Guid>("StaffId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("staff_id");
+
+                    b.Property<decimal?>("StandardWorkingDays")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)")
+                        .HasColumnName("standard_working_days");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1035,6 +1083,14 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnType("nvarchar(20)")
                         .HasDefaultValue("active")
                         .HasColumnName("status");
+
+                    b.Property<string>("TaxMethod")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("progressive")
+                        .HasColumnName("tax_method");
 
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
@@ -1054,7 +1110,88 @@ namespace Vnc.HRMS.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_contracts_1", "[effective_to] IS NULL OR [effective_to] >= [effective_from]");
 
-                            t.HasCheckConstraint("CK_contracts_2", "[daily_rate] >= 0 AND ([insurance_salary_basis] IS NULL OR [insurance_salary_basis] >= 0)");
+                            t.HasCheckConstraint("CK_contracts_2", "[daily_rate] >= 0 AND ([monthly_salary] IS NULL OR [monthly_salary] >= 0) AND ([insurance_salary_basis] IS NULL OR [insurance_salary_basis] >= 0)");
+                        });
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.Employees.ContractSalaryHistory", b =>
+                {
+                    b.Property<Guid>("HistoryId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("history_id")
+                        .HasDefaultValueSql("NEWID()");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("contract_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("created_by");
+
+                    b.Property<decimal>("DailyRate")
+                        .HasPrecision(15, 2)
+                        .HasColumnType("decimal(15,2)")
+                        .HasColumnName("daily_rate");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_from");
+
+                    b.Property<DateOnly?>("EffectiveTo")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_to");
+
+                    b.Property<decimal?>("InsuranceSalaryBasis")
+                        .HasPrecision(15, 2)
+                        .HasColumnType("decimal(15,2)")
+                        .HasColumnName("insurance_salary_basis");
+
+                    b.Property<bool>("IsInsuranceEligible")
+                        .HasColumnType("bit")
+                        .HasColumnName("is_insurance_eligible");
+
+                    b.Property<decimal?>("MonthlySalary")
+                        .HasPrecision(15, 2)
+                        .HasColumnType("decimal(15,2)")
+                        .HasColumnName("monthly_salary");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("SalaryType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("salary_type");
+
+                    b.Property<decimal?>("StandardWorkingDays")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)")
+                        .HasColumnName("standard_working_days");
+
+                    b.Property<string>("TaxMethod")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("tax_method");
+
+                    b.HasKey("HistoryId");
+
+                    b.HasIndex("ContractId", "EffectiveFrom");
+
+                    b.ToTable("contract_salary_histories", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_contract_salary_histories_1", "[effective_to] IS NULL OR [effective_to] >= [effective_from]");
                         });
                 });
 
@@ -1176,6 +1313,12 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnType("nvarchar(20)")
                         .HasColumnName("id_card_number");
 
+                    b.Property<bool>("IsUnionMember")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_union_member");
+
                     b.Property<string>("Phone")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)")
@@ -1189,6 +1332,10 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)")
                         .HasColumnName("scope_of_practice");
+
+                    b.Property<Guid?>("SiteId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("site_id");
 
                     b.Property<string>("StaffCode")
                         .IsRequired()
@@ -1233,6 +1380,8 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasFilter("[id_card_number] IS NOT NULL");
 
                     b.HasIndex("PositionId");
+
+                    b.HasIndex("SiteId");
 
                     b.HasIndex("StaffCode")
                         .IsUnique();
@@ -1331,6 +1480,61 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_leave_requests_2", "[total_days] IS NULL OR [total_days] > 0");
                         });
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.LeaveType", b =>
+                {
+                    b.Property<Guid>("LeaveTypeId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("leave_type_id")
+                        .HasDefaultValueSql("NEWID()");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsPaid")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_paid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("status")
+                        .HasDefaultValueSql("'active'");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.HasKey("LeaveTypeId");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("leave_types", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.MaternityCase", b =>
@@ -1846,6 +2050,79 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.ToTable("payroll_locks", "dbo");
                 });
 
+            modelBuilder.Entity("Vnc.HRMS.Models.PayrollRateConfig", b =>
+                {
+                    b.Property<Guid>("ConfigId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("config_id")
+                        .HasDefaultValueSql("NEWID()");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("description");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_from");
+
+                    b.Property<DateOnly?>("EffectiveTo")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_to");
+
+                    b.Property<Guid?>("PositionId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("position_id");
+
+                    b.Property<Guid?>("StaffId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("staff_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("status")
+                        .HasDefaultValueSql("'active'");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("unit");
+
+                    b.Property<decimal>("Value")
+                        .HasColumnType("decimal(15,4)")
+                        .HasColumnName("rate_value");
+
+                    b.HasKey("ConfigId");
+
+                    b.HasIndex("PositionId");
+
+                    b.HasIndex("StaffId");
+
+                    b.ToTable("payroll_rate_configs", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_payroll_rate_configs_1", "[effective_to] IS NULL OR [effective_to] >= [effective_from]");
+
+                            t.HasCheckConstraint("CK_payroll_rate_configs_2", "[rate_value] >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Vnc.HRMS.Models.PayrollTaxBracket", b =>
                 {
                     b.Property<Guid>("BracketId")
@@ -2254,6 +2531,10 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnName("service_id")
                         .HasDefaultValueSql("NEWID()");
 
+                    b.Property<decimal?>("BasePrice")
+                        .HasColumnType("decimal(15,2)")
+                        .HasColumnName("base_price");
+
                     b.Property<string>("Category")
                         .HasColumnType("nvarchar(100)")
                         .HasColumnName("category");
@@ -2290,6 +2571,10 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnName("slip_id")
                         .HasDefaultValueSql("NEWID()");
 
+                    b.Property<decimal?>("ChargedAmount")
+                        .HasColumnType("decimal(15,2)")
+                        .HasColumnName("charged_amount");
+
                     b.Property<DateTime?>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2(0)")
@@ -2299,6 +2584,24 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.Property<Guid?>("DepartmentId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("department_id");
+
+                    b.Property<decimal?>("DirectCost")
+                        .HasColumnType("decimal(15,2)")
+                        .HasColumnName("direct_cost");
+
+                    b.Property<decimal?>("DurationHours")
+                        .HasColumnType("decimal(4,2)")
+                        .HasColumnName("duration_hours");
+
+                    b.Property<Guid?>("IndicatingStaffId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("indicating_staff_id");
+
+                    b.Property<bool>("IsAfterHours")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_after_hours");
 
                     b.Property<string>("PatientCode")
                         .HasColumnType("nvarchar(50)")
@@ -2343,12 +2646,55 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasIndex("DepartmentId");
 
+                    b.HasIndex("IndicatingStaffId");
+
                     b.HasIndex("ServiceId");
 
                     b.HasIndex("SlipNumber")
                         .IsUnique();
 
                     b.ToTable("procedure_slips", "dbo");
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.Site", b =>
+                {
+                    b.Property<Guid>("SiteId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("site_id")
+                        .HasDefaultValueSql("NEWID()");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("address");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("SiteCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("site_code");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("active")
+                        .HasColumnName("status");
+
+                    b.HasKey("SiteId");
+
+                    b.HasIndex("SiteCode")
+                        .IsUnique();
+
+                    b.ToTable("sites", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.StaffAllowance", b =>
@@ -2370,6 +2716,12 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.Property<Guid?>("ApprovedBy")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("approved_by");
+
+                    b.Property<string>("CalcMethod")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(30)")
+                        .HasColumnName("calc_method")
+                        .HasDefaultValueSql("'fixed'");
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -2413,6 +2765,88 @@ namespace Vnc.HRMS.Persistence.Migrations
                             t.HasCheckConstraint("CK_staff_allowances_1", "[effective_to] IS NULL OR [effective_to] >= [effective_from]");
 
                             t.HasCheckConstraint("CK_staff_allowances_2", "[amount_value] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.StaffCommissionOverride", b =>
+                {
+                    b.Property<Guid>("OverrideId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("override_id")
+                        .HasDefaultValueSql("NEWID()");
+
+                    b.Property<decimal>("CommissionValue")
+                        .HasColumnType("decimal(15,4)")
+                        .HasColumnName("commission_value");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_from");
+
+                    b.Property<DateOnly?>("EffectiveTo")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_to");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("role");
+
+                    b.Property<string>("ServiceCategory")
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("service_category");
+
+                    b.Property<Guid?>("ServiceId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("service_id");
+
+                    b.Property<Guid>("StaffId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("staff_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("status")
+                        .HasDefaultValueSql("'active'");
+
+                    b.Property<string>("TimeCondition")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("time_condition")
+                        .HasDefaultValueSql("'all'");
+
+                    b.Property<string>("ValueType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("value_type");
+
+                    b.HasKey("OverrideId");
+
+                    b.HasIndex("ServiceId");
+
+                    b.HasIndex("StaffId");
+
+                    b.ToTable("staff_commission_overrides", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_staff_commission_overrides_1", "[effective_to] IS NULL OR [effective_to] >= [effective_from]");
+
+                            t.HasCheckConstraint("CK_staff_commission_overrides_2", "[commission_value] >= 0");
+
+                            t.HasCheckConstraint("CK_staff_commission_overrides_3", "[service_id] IS NOT NULL OR [service_category] IS NOT NULL");
                         });
                 });
 
@@ -2713,11 +3147,15 @@ namespace Vnc.HRMS.Persistence.Migrations
 
             modelBuilder.Entity("Vnc.HRMS.Models.CommissionRule", b =>
                 {
+                    b.HasOne("Vnc.HRMS.Models.Organization.Position", null)
+                        .WithMany()
+                        .HasForeignKey("PositionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Vnc.HRMS.Models.ProcedureService", null)
                         .WithMany()
                         .HasForeignKey("ServiceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.Complaint", b =>
@@ -2766,6 +3204,15 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Vnc.HRMS.Models.Employees.ContractSalaryHistory", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.Employees.Contract", null)
+                        .WithMany()
+                        .HasForeignKey("ContractId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Vnc.HRMS.Models.Employees.Degree", b =>
                 {
                     b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
@@ -2790,6 +3237,11 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.HasOne("Vnc.HRMS.Models.Organization.Position", null)
                         .WithMany()
                         .HasForeignKey("PositionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Vnc.HRMS.Models.Site", null)
+                        .WithMany()
+                        .HasForeignKey("SiteId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Vnc.HRMS.Models.Users.User", null)
@@ -2868,6 +3320,19 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
+            modelBuilder.Entity("Vnc.HRMS.Models.PayrollRateConfig", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.Organization.Position", null)
+                        .WithMany()
+                        .HasForeignKey("PositionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("Vnc.HRMS.Models.Payslip", b =>
                 {
                     b.HasOne("Vnc.HRMS.Models.BankExport", null)
@@ -2942,6 +3407,11 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasForeignKey("DepartmentId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
+                        .WithMany()
+                        .HasForeignKey("IndicatingStaffId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Vnc.HRMS.Models.ProcedureService", null)
                         .WithMany()
                         .HasForeignKey("ServiceId")
@@ -2956,6 +3426,20 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasForeignKey("AllowanceId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.StaffCommissionOverride", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.ProcedureService", null)
+                        .WithMany()
+                        .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
                         .WithMany()
