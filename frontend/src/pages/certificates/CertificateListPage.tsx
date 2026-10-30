@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { certificateApi } from '../../services/certificateApi';
 import { departmentApi, type Department } from '../../services/departmentApi';
 import type {
@@ -83,6 +84,8 @@ function normalizeCertificate(raw: Partial<Certificate>): Certificate {
 }
 
 export default function CertificateListPage() {
+  const [searchParams] = useSearchParams();
+  const staffIdParam = searchParams.get('staffId');
   const [staffList, setStaffList] = useState<StaffCertificateSummary[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,34 +109,6 @@ export default function CertificateListPage() {
   const [creatingForStaff, setCreatingForStaff] = useState<StaffCertificateSummary | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
 
-  // Load staff summaries & departments
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const [summaries, depts] = await Promise.all([
-        certificateApi.listStaffSummaries(),
-        departmentApi.list(),
-      ]);
-      setStaffList(summaries);
-      setDepartments(depts);
-
-      // If a staff is already selected, update their summary reference
-      if (selectedStaff) {
-        const found = summaries.find(s => s.staffId === selectedStaff.staffId);
-        if (found) setSelectedStaff(found);
-      }
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Không tải được danh sách chứng chỉ.');
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedStaff?.staffId]);
-
-  useEffect(() => {
-    void loadData();
-  }, []);
-
   // Load certificates whenever selected staff changes
   const loadCertificates = useCallback(async (staffId: string) => {
     setLoadingCertificates(true);
@@ -146,6 +121,38 @@ export default function CertificateListPage() {
       setLoadingCertificates(false);
     }
   }, []);
+
+  // Load staff summaries & departments
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [summaries, depts] = await Promise.all([
+        certificateApi.listStaffSummaries(),
+        departmentApi.list(),
+      ]);
+      setStaffList(summaries);
+      setDepartments(depts);
+
+      // If a staff is already selected or passed via ?staffId=, select them and load certificates
+      const targetId = selectedStaff?.staffId || staffIdParam;
+      if (targetId) {
+        const found = summaries.find(s => s.staffId === targetId);
+        if (found) {
+          setSelectedStaff(found);
+          void loadCertificates(found.staffId);
+        }
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Không tải được danh sách chứng chỉ.');
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedStaff?.staffId, staffIdParam, loadCertificates]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   function handleSelectStaff(staff: StaffCertificateSummary) {
     setSelectedStaff(staff);

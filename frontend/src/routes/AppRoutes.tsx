@@ -15,6 +15,7 @@ import EmployeeEditPage from '../pages/employees/EmployeeEditPage';
 import DepartmentPage from '../pages/departments/DepartmentPage';
 import CertificateListPage from '../pages/certificates/CertificateListPage';
 import CmeRecordListPage from '../pages/cme/CmeRecordListPage';
+import ComplianceDashboardPage from '../pages/compliance/ComplianceDashboardPage';
 import DashboardPage from '../pages/DashboardPage';
 import NotFoundPage from '../pages/NotFoundPage';
 import ProtectedRoute from './ProtectedRoute';
@@ -35,6 +36,9 @@ export default function AppRoutes() {
             <Route path="/accounts/new" element={<AccountCreatePage />} />
             <Route path="/accounts/:id" element={<AccountDetailPage />} />
             <Route path="/accounts/:id/edit" element={<AccountEditPage />} />
+          </Route>
+          <Route element={<ProtectedRoute roles={['hr_manager', 'department_head', 'admin']} />}>
+            <Route path="/compliance" element={<ComplianceDashboardPage />} />
           </Route>
           <Route element={<ProtectedRoute roles={['hr_manager']} />}>
             <Route path="/employees" element={<EmployeeListPage />} />

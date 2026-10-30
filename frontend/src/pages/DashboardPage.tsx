@@ -13,9 +13,14 @@ export default function DashboardPage() {
       </p>
       <div className="mt-6 flex flex-wrap gap-3">
         {user.role === 'admin' && (
-          <Link className="button primary" to="/accounts">
-            Quản lý tài khoản
-          </Link>
+          <>
+            <Link className="button primary" to="/accounts">
+              Quản lý tài khoản
+            </Link>
+            <Link className="button" to="/compliance">
+              Compliance Dashboard
+            </Link>
+          </>
         )}
         {user.role === 'hr_manager' && (
           <>
@@ -25,6 +30,9 @@ export default function DashboardPage() {
             <Link className="button" to="/departments">
               Khoa/phòng
             </Link>
+            <Link className="button" to="/compliance">
+              Compliance Dashboard
+            </Link>
             <Link className="button" to="/certificates">
               Certificate / Qualification List
             </Link>
@@ -32,6 +40,11 @@ export default function DashboardPage() {
               CME Records
             </Link>
           </>
+        )}
+        {user.role === 'department_head' && (
+          <Link className="button primary" to="/compliance">
+            Compliance Dashboard
+          </Link>
         )}
         <Link className="button" to="/change-password">
           Đổi mật khẩu

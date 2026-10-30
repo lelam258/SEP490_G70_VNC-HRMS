@@ -21,6 +21,8 @@ export default function AppLayout() {
     ? 'Nhân viên'
     : location.pathname.startsWith('/departments')
     ? 'Khoa/phòng'
+    : location.pathname.startsWith('/compliance')
+    ? 'Compliance Dashboard'
     : location.pathname.startsWith('/certificates')
     ? 'Certificate / Qualification List'
     : location.pathname.startsWith('/cme-records')
@@ -77,6 +79,10 @@ export default function AppLayout() {
                   <Icon name="building" />
                   Khoa/phòng
                 </NavLink>
+                <NavLink to="/compliance" className={navClass}>
+                  <Icon name="shield" />
+                  Compliance
+                </NavLink>
                 <NavLink to="/certificates" className={navClass}>
                   <Icon name="award" />
                   Certificate / Qualification List
@@ -86,6 +92,12 @@ export default function AppLayout() {
                   CME Records
                 </NavLink>
               </>
+            )}
+            {(user.role === 'department_head' || user.role === 'admin') && (
+              <NavLink to="/compliance" className={navClass}>
+                <Icon name="shield" />
+                Compliance
+              </NavLink>
             )}
             <NavLink to="/change-password" className={navClass}>
               <Icon name="lock" />
