@@ -18,6 +18,13 @@ import CmeRecordListPage from '../pages/cme/CmeRecordListPage';
 import ComplianceDashboardPage from '../pages/compliance/ComplianceDashboardPage';
 import DashboardPage from '../pages/DashboardPage';
 import NotFoundPage from '../pages/NotFoundPage';
+import PayrollParameterPage from '../pages/payroll/PayrollParameterPage';
+import CompensationPage from '../pages/payroll/CompensationPage';
+import PayrollPeriodsPage from '../pages/payroll/PayrollPeriodsPage';
+import PayrollPeriodDetailPage from '../pages/payroll/PayrollPeriodDetailPage';
+import ProfilePage from '../pages/me/ProfilePage';
+import MyLeaveRequestsPage from '../pages/me/MyLeaveRequestsPage';
+import LeaveRequestNewPage from '../pages/me/LeaveRequestNewPage';
 import ProtectedRoute from './ProtectedRoute';
 
 export default function AppRoutes() {
@@ -48,6 +55,17 @@ export default function AppRoutes() {
             <Route path="/certificates" element={<CertificateListPage />} />
             <Route path="/cme-records" element={<CmeRecordListPage />} />
             <Route path="/organization" element={<Navigate to="/employees" replace />} />
+          </Route>
+          <Route element={<ProtectedRoute roles={['hr_manager', 'hr_staff', 'accountant', 'department_head', 'employee']} />}>
+            <Route path="/me/profile" element={<ProfilePage />} />
+            <Route path="/me/leave-requests" element={<MyLeaveRequestsPage />} />
+            <Route path="/me/leave-requests/new" element={<LeaveRequestNewPage />} />
+          </Route>
+          <Route element={<ProtectedRoute roles={['accountant']} />}>
+            <Route path="/payroll/parameters" element={<PayrollParameterPage />} />
+            <Route path="/payroll/compensation" element={<CompensationPage />} />
+            <Route path="/payroll/periods" element={<PayrollPeriodsPage />} />
+            <Route path="/payroll/periods/:month" element={<PayrollPeriodDetailPage />} />
           </Route>
         </Route>
       </Route>

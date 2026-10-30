@@ -9,21 +9,27 @@ namespace Vnc.HRMS.Persistence;
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : TimestampDbContext(options)
 {
     public DbSet<User> Users => Set<User>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<Staff> Staff => Set<Staff>();
     public DbSet<Contract> Contracts => Set<Contract>();
+    public DbSet<ContractSalaryHistory> ContractSalaryHistories => Set<ContractSalaryHistory>();
     public DbSet<Degree> Degrees => Set<Degree>();
+    public DbSet<Site> Sites => Set<Site>();
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<Position> Positions => Set<Position>();
     public DbSet<AttendanceImport> AttendanceImports => Set<AttendanceImport>();
     public DbSet<OnCallShift> OnCallShifts => Set<OnCallShift>();
     public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
     public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
+    public DbSet<LeaveType> LeaveTypes => Set<LeaveType>();
     public DbSet<WorkScheduleTemplate> WorkScheduleTemplates => Set<WorkScheduleTemplate>();
     public DbSet<MonthlyTimesheet> MonthlyTimesheets => Set<MonthlyTimesheet>();
     public DbSet<ProcedureService> ProcedureServices => Set<ProcedureService>();
     public DbSet<CommissionRule> CommissionRules => Set<CommissionRule>();
+    public DbSet<StaffCommissionOverride> StaffCommissionOverrides => Set<StaffCommissionOverride>();
+    public DbSet<PayrollRateConfig> PayrollRateConfigs => Set<PayrollRateConfig>();
     public DbSet<ProcedureSlip> ProcedureSlips => Set<ProcedureSlip>();
     public DbSet<ProcedureAssignment> ProcedureAssignments => Set<ProcedureAssignment>();
     public DbSet<MaternityCase> MaternityCases => Set<MaternityCase>();
@@ -43,6 +49,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Times
     public DbSet<CmeRecord> CmeRecords => Set<CmeRecord>();
     public DbSet<ComplianceScan> ComplianceScans => Set<ComplianceScan>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<SystemPolicy> SystemPolicies => Set<SystemPolicy>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         IAMDomainModelConfiguration.Configure(modelBuilder);

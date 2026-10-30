@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Vnc.HRMS.Models;
 using Vnc.HRMS.Models.Organization;
 namespace Vnc.HRMS.Configurations.Entities;
 public static class OrganizationModelConfiguration
@@ -26,5 +27,15 @@ public static class OrganizationModelConfiguration
         position.Property(x => x.ScopeTag).HasColumnName("scope_tag").HasMaxLength(50);
         position.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue("active");
         position.HasIndex(x => x.Name).IsUnique();
+
+        var site = modelBuilder.Entity<Site>();
+        site.ToTable("sites", "dbo");
+        site.HasKey(x => x.SiteId);
+        site.Property(x => x.SiteId).HasColumnName("site_id").HasDefaultValueSql("NEWID()");
+        site.Property(x => x.SiteCode).HasColumnName("site_code").HasMaxLength(20);
+        site.Property(x => x.Name).HasColumnName("name").HasMaxLength(100);
+        site.Property(x => x.Address).HasColumnName("address").HasMaxLength(255);
+        site.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue("active");
+        site.HasIndex(x => x.SiteCode).IsUnique();
     }
 }
