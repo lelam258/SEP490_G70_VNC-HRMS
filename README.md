@@ -10,7 +10,7 @@ Một React SPA và một ASP.NET Core 8 Web API phân lớp, dùng chung SQL Se
 - Domain models, mapping và migration chung cho các module; UnitOfWork, xử lý lỗi và cấu hình JWT/6 role.
 - Adapter SMTP gửi OTP và Cloudinary upload tệp.
 
-Đã có xác thực và quản lý phiên, đăng ký/đổi/quên mật khẩu, quản lý tài khoản, khoa/phòng và nhân viên. Các API đọc dữ liệu chấm công, lương, tuân thủ và thông báo dùng chung cấu trúc lớp và phân quyền; model/bảng tồn tại không có nghĩa toàn bộ nghiệp vụ đã triển khai. Database theo thiết kế 2.0, dùng `dbo`, bổ sung bảng OTP và các cột bảo vệ tài khoản. Xem tài liệu migration trước khi cập nhật database đã có.
+Đã có xác thực và quản lý phiên, đổi/quên mật khẩu, quản lý tài khoản, khoa/phòng và nhân viên. Tài khoản do quản trị viên cấp; hệ thống không hỗ trợ tự đăng ký. Các API đọc dữ liệu chấm công, lương, tuân thủ và thông báo dùng chung cấu trúc lớp và phân quyền; model/bảng tồn tại không có nghĩa toàn bộ nghiệp vụ đã triển khai. Database theo thiết kế 2.0, dùng `dbo`, bổ sung bảng OTP và các cột bảo vệ tài khoản. Xem tài liệu migration trước khi cập nhật database đã có.
 
 ## Khởi tạo
 

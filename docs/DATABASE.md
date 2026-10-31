@@ -42,7 +42,7 @@ Database mặc định: **VNC_HRMS_Iteration1**, SQL Server. Toàn bộ module s
 - Tất cả bảng liệt kê ở trên thuộc `dbo`; tên nhóm không phải tên schema hay database riêng.
 - `dbo.staff.user_id NOT NULL` là liên kết chính đến `dbo.users.user_id`, có unique index và foreign key. Không còn cột `users.employee_id` hoặc bảng `credentials` trong cấu trúc runtime.
 - `password_hash`, `failed_login_count`, `locked_until`, `last_login` nằm trong `dbo.users`.
-- Tạo hồ sơ sẽ tạo kèm tài khoản dự trữ chưa được cấp quyền; đăng ký hoặc quản trị viên cấp tài khoản sẽ kích hoạt cùng tài khoản đó. Tài khoản dự trữ không đăng nhập được.
+- Tạo hồ sơ sẽ tạo kèm tài khoản dự trữ chưa được cấp quyền; quản trị viên cấp tài khoản sẽ kích hoạt cùng tài khoản đó. Tài khoản dự trữ không đăng nhập được. Hệ thống không hỗ trợ tự đăng ký.
 - Khóa ngoại liên module theo SQL 2.0 được cấu hình trong `Version2RelationshipsConfiguration.cs` cùng các mapping từng nhóm. Service vẫn kiểm tra trạng thái và quy tắc nghiệp vụ trước khi ghi dữ liệu.
 - Timestamp lưu UTC; tiền và tỷ lệ dùng decimal theo precision mapping; nullable unique index được filter.
 - Password hash và token hash là dữ liệu nội bộ, không đưa vào DTO trả về hoặc log.
