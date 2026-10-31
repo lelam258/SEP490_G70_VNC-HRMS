@@ -8,6 +8,5 @@ public sealed class EmployeeDirectoryRepository(IEmployeeRepository employees) :
 {
     public Task<AccountEmployeeOption[]> ListAccountOptionsAsync(CancellationToken ct) => employees.ListAccountOptionsAsync(ct);
     public async Task<EmployeeIdentity?> FindAsync(Guid id, CancellationToken ct) => Identity(await employees.FindAsync(id, ct));
-    public async Task<EmployeeIdentity?> FindForRegistrationAsync(string code, string email, CancellationToken ct) => Identity(await employees.FindForRegistrationAsync(code, email, ct));
     private static EmployeeIdentity? Identity(Staff? staff) => staff is null ? null : new(staff.StaffId, staff.FullName, staff.Email, staff.Status);
 }

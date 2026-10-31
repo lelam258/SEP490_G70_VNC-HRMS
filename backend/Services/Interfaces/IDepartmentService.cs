@@ -6,4 +6,5 @@ public interface IDepartmentService
     Task<DepartmentDto> GetAsync(Guid id, CancellationToken ct);
     Task<DepartmentDto> CreateAsync(CreateDepartmentRequest request, CancellationToken ct);
     Task<DepartmentDto> UpdateAsync(Guid id, UpdateDepartmentRequest request, CancellationToken ct);
+    Task<DepartmentDto> SetStatusAsync(Guid id, string status, CancellationToken ct);
 }

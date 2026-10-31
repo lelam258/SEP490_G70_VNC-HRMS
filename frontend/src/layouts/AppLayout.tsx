@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Icon from '../components/ui/Icon';
 import { useAuthStore } from '../store/useAuthStore';
@@ -11,6 +11,7 @@ export default function AppLayout() {
   const sidebarOpen = useAppStore(state => state.sidebarOpen); const toggleSidebar = useAppStore(state => state.toggleSidebar);
   const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const location = useLocation(); const navigate = useNavigate();
+  useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }, [location.pathname]);
   const navClass = ({ isActive }: { isActive: boolean }) => `nav-item ${isActive ? 'selected' : ''}`;
   const title = location.pathname.startsWith('/accounts') ? 'Quản lý tài khoản' : location.pathname.startsWith('/employees') ? 'Nhân viên' : location.pathname.startsWith('/departments') ? 'Khoa/phòng' : location.pathname === '/change-password' ? 'Đổi mật khẩu' : 'Trang chủ';
   async function logout() {

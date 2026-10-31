@@ -34,6 +34,6 @@ export default function LoginPage() {
       <Link to="/forgot-password" className="text-button justify-end">Quên mật khẩu?</Link>
       {error && <Alert>{error}</Alert>}{notice && <Alert variant="success">{notice}</Alert>}
       <button className="button primary login-submit" disabled={busy}>{busy ? 'Đang đăng nhập…' : 'Đăng nhập'}</button>
-    </form><p className="auth-register">Chưa có tài khoản? <Link className="text-button" to="/register">Đăng ký</Link></p>
+    </form><p className="auth-account-help">Chưa có tài khoản? Vui lòng liên hệ quản trị viên để được cấp tài khoản.</p>
   </AuthLayout>;
 }

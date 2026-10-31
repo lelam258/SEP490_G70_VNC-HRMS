@@ -31,7 +31,7 @@ public sealed class EmployeeService(IEmployeeRepository employees, IDepartmentRe
             DateJoined = request.DateJoined ?? DateOnly.FromDateTime(DateTime.UtcNow)
         };
         // Schema 2.0 requires a user before a staff row. This reserved account cannot log in
-        // until an administrator provisions it or the employee completes registration.
+        // until an administrator provisions it.
         var user = new Vnc.HRMS.Models.Users.User
         {
             UserId = Guid.NewGuid(), Username = "pending_" + Guid.NewGuid().ToString("N"),
