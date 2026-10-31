@@ -8,3 +8,61 @@ body { background: #f5f7fa; }
 a { text-decoration: none; }
 .vnc .nav-item { text-decoration: none; }
 .vnc .workspace-main { min-width: 0; }
+
+/* Let the document own vertical scrolling; short pages fit the workspace. */
+.vnc .workspace-main { min-height: 100dvh; }
+.vnc .topbar { min-height: 64px; height: auto; padding-block: 10px; flex-shrink: 0; }
+.vnc .page-content { padding: 20px 28px; margin: 0 auto; min-width: 0; }
+.vnc .workspace-footer { padding: 10px 28px 14px; }
+.vnc .page-content .admin-page { min-height: 0; padding: 0; }
+.vnc .page-content > main { min-height: 0; }
+.vnc .page-heading { margin-bottom: 18px; }
+.vnc .stats-grid { margin-bottom: 18px; gap: 12px; }
+.vnc .stat-card { min-height: 104px; padding: 15px 16px 28px; }
+.vnc .stat-card > small { bottom: 10px; left: 16px; }
+.vnc .list-heading { padding: 16px 20px; }
+.vnc .filter-bar { padding: 0 20px 16px; }
+.vnc .panel-heading { padding: 18px 22px 0; }
+.vnc .form-section { padding: 18px 22px; }
+.vnc .form-grid { margin-top: 18px; gap: 16px; }
+.vnc .form-actions { padding: 14px 22px; }
+.vnc .page-footnote { margin-top: 12px; }
+.vnc .sidebar { height: auto; min-height: 100dvh; align-self: stretch; position: static; }
+.vnc .sidebar nav { min-width: 0; }
+.vnc .nav-item { white-space: normal; }
+.vnc .topbar-user { min-width: 0; overflow-wrap: anywhere; }
+.vnc .table-scroll { max-height: none; }
+.vnc dialog { margin: auto; max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
+html:has(dialog[open]), body:has(dialog[open]) { overflow: hidden; }
+
+@media (min-width: 601px) and (max-height: 800px) {
+  .vnc .login-story { padding-block: 24px; }
+  .vnc .story-content { padding-top: 20px; }
+  .vnc .story-content h1 { font-size: 30px; margin-block: 12px; }
+  .vnc .story-art { height: 180px; margin-block: 0; }
+  .vnc .orbit.two { width: 190px; height: 190px; }
+  .vnc .orbit.one { width: 150px; height: 150px; }
+  .vnc .story-footer { padding-top: 12px; }
+  .vnc .login-main { padding: 24px 30px 16px; }
+  .vnc .login-form { margin-top: 22px; }
+  .vnc .login-form > label:not(:first-child) { margin-top: 16px; }
+  .vnc .login-note { padding: 12px; margin-top: 18px; }
+  .vnc .login-help { margin-top: 14px; }
+  .vnc .login-footer { padding-top: 18px; }
+}
+
+@media (max-width: 850px) {
+  .vnc .page-content { padding: 18px 20px; }
+  .vnc .workspace-footer { padding-inline: 20px; }
+}
+@media (max-width: 600px) {
+  .vnc .workspace-main { min-height: 0; }
+  .vnc .sidebar { min-height: 0; }
+  .vnc .sidebar nav { flex-wrap: wrap; }
+  .vnc .page-content { padding: 18px 15px; }
+  .vnc .workspace-footer { padding-inline: 15px; }
+  .vnc .topbar { gap: 12px; }
+  .vnc .topbar-user { gap: 6px; }
+  .vnc .form-section { padding: 18px; }
+  .vnc .form-actions { padding: 14px 18px; flex-wrap: wrap; }
+}
