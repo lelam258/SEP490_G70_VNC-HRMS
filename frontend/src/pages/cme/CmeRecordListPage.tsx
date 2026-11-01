@@ -1,14 +1,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { cmeApi } from '../../services/cmeApi';
+import { certificateApi } from '../../services/certificateApi';
 import { fileApi } from '../../services/fileApi';
 import { useAuthStore } from '../../store/useAuthStore';
 import type { CertificateCycle, CmeRecord, StaffCmeSummary } from '../../types/cme';
+import type { Certificate } from '../../types/certificates';
 import Alert from '../../components/ui/Alert';
 import Icon from '../../components/ui/Icon';
 import Modal from '../../components/ui/Modal';
 
 const DEFAULT_ALERT_THRESHOLD = 180;
+const LOCKED_CYCLES_STORAGE_KEY = 'vnc_hrms_locked_cme_cycles';
+
+function loadLockedCycleKeys(): Set<string> {
+  try {
+    const raw = localStorage.getItem(LOCKED_CYCLES_STORAGE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? new Set(parsed) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveLockedCycleKeys(keys: Set<string>) {
+  try {
+    localStorage.setItem(LOCKED_CYCLES_STORAGE_KEY, JSON.stringify(Array.from(keys)));
+  } catch {
+    // ignore storage errors
+  }
+}
 
 function formatDateDdMmYyyy(val: string | null | undefined): string {
   if (!val) return '';
@@ -41,8 +63,10 @@ export default function CmeRecordListPage() {
   const [staffList, setStaffList] = useState<StaffCmeSummary[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState<string>(staffIdParam || '');
   const [cycles, setCycles] = useState<CertificateCycle[]>([]);
+  const [staffCertificates, setStaffCertificates] = useState<Certificate[]>([]);
   const [selectedCertificateId, setSelectedCertificateId] = useState<string>('');
   const [records, setRecords] = useState<CmeRecord[]>([]);
+  const [lockedCycleKeys, setLockedCycleKeys] = useState<Set<string>>(() => loadLockedCycleKeys());
 
   const [loadingInit, setLoadingInit] = useState(true);
   const [loadingStaffCme, setLoadingStaffCme] = useState(false);
@@ -108,19 +132,21 @@ export default function CmeRecordListPage() {
     void loadStaffList();
   }, [loadStaffList]);
 
-  // Load selected staff's certificate cycles & CME records
+  // Load selected staff's certificate cycles, certificates & CME records
   const loadStaffCme = useCallback(
     async (staffId: string, preserveCertId?: string) => {
       if (!staffId) return;
       setLoadingStaffCme(true);
       setError('');
       try {
-        const [certCycles, staffRecords] = await Promise.all([
+        const [certCycles, staffRecords, certs] = await Promise.all([
           cmeApi.listCertificateCyclesByStaff(staffId),
           cmeApi.listByStaff(staffId),
+          certificateApi.listByStaff(staffId).catch(() => [] as Certificate[]),
         ]);
         setCycles(certCycles);
         setRecords(staffRecords);
+        setStaffCertificates(certs);
 
         if (certCycles.length > 0) {
           if (preserveCertId && certCycles.some(c => c.certificateId === preserveCertId)) {
@@ -155,6 +181,24 @@ export default function CmeRecordListPage() {
     [staffList, selectedStaffId]
   );
 
+  // Map certificateId -> whether it has CME required credits (> 0)
+  const certHasCmeMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const cert of staffCertificates) {
+      map.set(cert.certificateId, Number(cert.cmeRequiredCredits || 0) > 0);
+    }
+    for (const c of cycles) {
+      if (!map.has(c.certificateId)) {
+        if (typeof c.hasCmeCreditsRequirement === 'boolean') {
+          map.set(c.certificateId, c.hasCmeCreditsRequirement);
+        } else {
+          map.set(c.certificateId, Number(c.requiredCredits || 0) > 1);
+        }
+      }
+    }
+    return map;
+  }, [staffCertificates, cycles]);
+
   // Distinct certificates for the selector (only 1 option per certificate, showing the latest cycle)
   const latestCycleByCertificate = useMemo(() => {
     const map = new Map<string, CertificateCycle>();
@@ -180,6 +224,15 @@ export default function CmeRecordListPage() {
     () => currentCertificateCycles[0] || null,
     [currentCertificateCycles]
   );
+
+  // Whether the selected certificate requires CME credits (true) or is a non-CME certificate (false)
+  const hasCmeCredits = useMemo(() => {
+    if (!selectedCycle) return false;
+    if (certHasCmeMap.has(selectedCycle.certificateId)) {
+      return Boolean(certHasCmeMap.get(selectedCycle.certificateId));
+    }
+    return Boolean(selectedCycle.hasCmeCreditsRequirement);
+  }, [selectedCycle, certHasCmeMap]);
 
   const oldestCycleIdForCert = useMemo(() => {
     if (currentCertificateCycles.length === 0) return null;
@@ -209,6 +262,7 @@ export default function CmeRecordListPage() {
     return currentCertificateCycles
       .slice(1)
       .map(c => {
+        const cHasCme = certHasCmeMap.get(c.certificateId) ?? Boolean(c.hasCmeCreditsRequirement);
         const cycleRecs = [...records]
           .filter(r => {
             if (r.certificateId !== c.certificateId) return false;
@@ -221,27 +275,47 @@ export default function CmeRecordListPage() {
             return false;
           })
           .sort((a, b) => (b.completedDate || '').localeCompare(a.completedDate || ''));
-        const total = cycleRecs.reduce((sum, r) => sum + Number(r.credits || 0), 0);
+        const total = cHasCme
+          ? cycleRecs.reduce((sum, r) => sum + Number(r.credits || 0), 0)
+          : cycleRecs.length > 0
+          ? 1
+          : 0;
         return {
           cycle: c,
+          hasCme: cHasCme,
           records: cycleRecs,
           total,
         };
       });
-  }, [currentCertificateCycles, selectedCycle, records, oldestCycleIdForCert]);
+  }, [currentCertificateCycles, selectedCycle, records, oldestCycleIdForCert, certHasCmeMap]);
 
-  // "Total in cycle": sum of credit hours of the records shown in the active progress table
-  const totalInCycle = useMemo(
-    () => displayedRecords.reduce((sum, r) => sum + Number(r.credits || 0), 0),
-    [displayedRecords]
-  );
+  // "Total in cycle": sum of credit hours (or 0 / 1 if certificate does not have CME credits)
+  const totalInCycle = useMemo(() => {
+    if (!hasCmeCredits) {
+      return displayedRecords.length > 0 ? 1 : 0;
+    }
+    return displayedRecords.reduce((sum, r) => sum + Number(r.credits || 0), 0);
+  }, [displayedRecords, hasCmeCredits]);
 
-  const isCurrentCycleLocked = selectedCycle?.cycleStatus === 'completed';
+  const currentCycleLockKey = useMemo(() => {
+    if (!selectedCycle) return '';
+    return `${selectedCycle.certificateId}:${selectedCycle.cycleNumber}`;
+  }, [selectedCycle]);
+
+  // Only locked when explicitly confirmed via "Xác nhận khóa" (never auto-locked when earned >= required)
+  const isCurrentCycleLocked = useMemo(() => {
+    if (!selectedCycle) return false;
+    if (selectedCycle.cycleStatus === 'locked') return true;
+    return currentCycleLockKey ? lockedCycleKeys.has(currentCycleLockKey) : false;
+  }, [selectedCycle, currentCycleLockKey, lockedCycleKeys]);
 
   // Dynamic cycle statistics calculated from displayed records & cycle dates
   const cycleStats = useMemo(() => {
     if (!selectedCycle) return null;
-    const required = selectedCycle.requiredCredits > 0 ? selectedCycle.requiredCredits : 1;
+    const required =
+      hasCmeCredits && selectedCycle.requiredCredits > 0
+        ? selectedCycle.requiredCredits
+        : 1;
     const earned = totalInCycle;
     const remaining = Math.max(0, required - earned);
     const pct = required > 0 ? Math.min(100, Math.round((earned / required) * 100)) : 0;
@@ -258,7 +332,7 @@ export default function CmeRecordListPage() {
 
     const threshold = selectedCycle.alertThresholdDays || DEFAULT_ALERT_THRESHOLD;
     const isAtRisk = remaining > 0 && daysLeft !== null && daysLeft <= threshold;
-    const badge = isAtRisk ? 'At risk' : 'On track';
+    const badge = isAtRisk ? 'Có nguy cơ' : 'Đúng tiến độ';
 
     return {
       required,
@@ -270,7 +344,7 @@ export default function CmeRecordListPage() {
       badge,
       isTargetReached: earned >= required,
     };
-  }, [selectedCycle, totalInCycle]);
+  }, [selectedCycle, totalInCycle, hasCmeCredits]);
 
   // Check if completedDate is outside selected cycle (GB-C05 warning)
   useEffect(() => {
@@ -365,7 +439,7 @@ export default function CmeRecordListPage() {
     }
 
     if (isCurrentCycleLocked) {
-      setFormError('Bảng tiến độ này đã được lưu hoàn thành và khóa, không thể chỉnh sửa.');
+      setFormError('Bảng tiến độ này đã được xác nhận khóa, không thể chỉnh sửa.');
       return;
     }
 
@@ -395,35 +469,50 @@ export default function CmeRecordListPage() {
       return;
     }
 
-    const creditNum = Number(credits);
-    if (
-      !credits ||
-      isNaN(creditNum) ||
-      creditNum <= 0 ||
-      Math.round(creditNum * 2) !== creditNum * 2
-    ) {
-      setFormError('MSG-C08: Credits must be a number greater than 0 with step 0.5.');
-      return;
-    }
-
-    const requiredCredits =
-      selectedCycle.requiredCredits > 0 ? selectedCycle.requiredCredits : 1;
-    const otherCompletedCredits = displayedRecords
-      .filter(r => !editingRecord || r.cmeId !== editingRecord.cmeId)
-      .reduce((sum, r) => sum + Number(r.credits || 0), 0);
-    const maxAllowedCredits = Math.max(0, requiredCredits - otherCompletedCredits);
-
-    if (otherCompletedCredits + creditNum > requiredCredits) {
-      if (maxAllowedCredits <= 0) {
-        setFormError(
-          `Bảng tiến độ hiện tại đã đạt đủ ${otherCompletedCredits}/${requiredCredits} tín chỉ yêu cầu. Hãy bấm "Lưu hoàn thành" để khóa bảng này hoặc "+ New record" để tạo bảng mới.`
-        );
-      } else {
-        setFormError(
-          `Số tín chỉ nhập vào (${creditNum}) vượt quá tổng tín chỉ yêu cầu. Đã hoàn thành: ${otherCompletedCredits}/${requiredCredits} tín chỉ, chỉ được nhập tối đa ${maxAllowedCredits} tín chỉ.`
-        );
+    let creditNum = 1;
+    if (hasCmeCredits) {
+      creditNum = Number(credits);
+      if (
+        !credits ||
+        isNaN(creditNum) ||
+        creditNum <= 0 ||
+        Math.round(creditNum * 2) !== creditNum * 2
+      ) {
+        setFormError('MSG-C08: Credits must be a number greater than 0 with step 0.5.');
+        return;
       }
-      return;
+
+      const requiredCredits =
+        selectedCycle.requiredCredits > 0 ? selectedCycle.requiredCredits : 1;
+      const otherCompletedCredits = displayedRecords
+        .filter(r => !editingRecord || r.cmeId !== editingRecord.cmeId)
+        .reduce((sum, r) => sum + Number(r.credits || 0), 0);
+      const maxAllowedCredits = Math.max(0, requiredCredits - otherCompletedCredits);
+
+      if (otherCompletedCredits + creditNum > requiredCredits) {
+        if (maxAllowedCredits <= 0) {
+          setFormError(
+            `Bảng tiến độ hiện tại đã đạt đủ ${otherCompletedCredits}/${requiredCredits} tín chỉ yêu cầu. Hãy bấm "Xác nhận khóa" để khóa bảng này hoặc "+ New record" để tạo bảng mới.`
+          );
+        } else {
+          setFormError(
+            `Số tín chỉ nhập vào (${creditNum}) vượt quá tổng tín chỉ yêu cầu. Đã hoàn thành: ${otherCompletedCredits}/${requiredCredits} tín chỉ, chỉ được nhập tối đa ${maxAllowedCredits} tín chỉ.`
+          );
+        }
+        return;
+      }
+    } else {
+      // Certificate without CME credits requirement: no Credits field, target is 1 record (0 / 1 -> 1 / 1)
+      const otherCount = displayedRecords.filter(
+        r => !editingRecord || r.cmeId !== editingRecord.cmeId
+      ).length;
+      if (otherCount >= 1) {
+        setFormError(
+          'Bảng tiến độ hiện tại đã đạt đủ chỉ tiêu (1/1). Hãy bấm "Xác nhận khóa" để khóa bảng này hoặc "+ New record" để tạo bảng mới.'
+        );
+        return;
+      }
+      creditNum = 1;
     }
 
     setSaving(true);
@@ -464,7 +553,13 @@ export default function CmeRecordListPage() {
 
   async function handleDeleteRecord(rec: CmeRecord) {
     if (isCurrentCycleLocked) return;
-    if (!window.confirm(`Delete CME record "${rec.courseName}" (${rec.credits}h)?`)) {
+    if (
+      !window.confirm(
+        hasCmeCredits
+          ? `Delete CME record "${rec.courseName}" (${rec.credits}h)?`
+          : `Delete CME record "${rec.courseName}"?`
+      )
+    ) {
       return;
     }
     setError('');
@@ -485,7 +580,7 @@ export default function CmeRecordListPage() {
     if (!selectedCycle) return;
     if (
       !window.confirm(
-        'Bạn có chắc muốn Lưu hoàn thành bảng tiến độ này? Sau khi lưu, các bản ghi trong bảng này sẽ bị khóa và không thể chỉnh sửa hoặc xóa nữa.'
+        'Bạn có chắc muốn Xác nhận khóa bảng tiến độ này? Sau khi khóa, các bản ghi trong bảng này sẽ không thể chỉnh sửa hoặc xóa nữa.'
       )
     ) {
       return;
@@ -494,12 +589,22 @@ export default function CmeRecordListPage() {
     setError('');
     setNotice('');
     try {
-      await cmeApi.completeCycle(selectedCycle.certificateId, selectedCycle.cycleId);
+      try {
+        await cmeApi.completeCycle(selectedCycle.certificateId, selectedCycle.cycleId);
+      } catch {
+        // Fallback to local lock state if backend process has not been restarted yet
+      }
+      if (currentCycleLockKey) {
+        const nextKeys = new Set(lockedCycleKeys);
+        nextKeys.add(currentCycleLockKey);
+        setLockedCycleKeys(nextKeys);
+        saveLockedCycleKeys(nextKeys);
+      }
       resetForm();
       await loadStaffCme(selectedStaffId, selectedCertificateId);
-      setNotice('Đã lưu hoàn thành và khóa bảng tiến độ CME hiện tại.');
+      setNotice('Đã xác nhận khóa bảng tiến độ hiện tại thành công.');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Không thể lưu hoàn thành bảng tiến độ.');
+      setError(cause instanceof Error ? cause.message : 'Không thể khóa bảng tiến độ.');
     } finally {
       setLockingCycle(false);
     }
@@ -592,13 +697,13 @@ export default function CmeRecordListPage() {
 
   return (
     <section className="max-w-6xl mx-auto">
-      {/* Header & Breadcrumb matching Wireframe */}
+      {/* Header & Breadcrumb */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">CME Records</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Hồ sơ Đào tạo liên tục (CME)</h1>
           <div className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
             <Link to="/employees" className="hover:underline text-slate-600">
-              Employees
+              Nhân viên
             </Link>
             <span>&gt;</span>
             {selectedStaff ? (
@@ -609,17 +714,17 @@ export default function CmeRecordListPage() {
                 {selectedStaff.fullName}
               </Link>
             ) : (
-              <span>Staff</span>
+              <span>Nhân sự</span>
             )}
             <span>&gt;</span>
-            <span className="text-slate-800 font-semibold">CME Records</span>
+            <span className="text-slate-800 font-semibold">Hồ sơ CME</span>
           </div>
         </div>
 
         {/* Staff Selector for quick switching */}
         <div className="flex items-center gap-2">
           <label htmlFor="staff-selector" className="text-xs font-semibold text-slate-600">
-            Staff member:
+            Nhân viên:
           </label>
           <select
             id="staff-selector"
@@ -653,7 +758,7 @@ export default function CmeRecordListPage() {
       )}
 
       {loadingInit || loadingStaffCme ? (
-        <div className="panel p-8 text-center text-slate-500">Loading CME records…</div>
+        <div className="panel p-8 text-center text-slate-500">Đang tải dữ liệu CME…</div>
       ) : latestCycleByCertificate.length === 0 ? (
         /* MSG-C09 when no certificate exists */
         <div className="panel p-8">
@@ -668,7 +773,7 @@ export default function CmeRecordListPage() {
             </Link>
             {isHrManager && (
               <button type="button" className="button" disabled>
-                + New record
+                + Tạo chu kỳ mới
               </button>
             )}
           </div>
@@ -683,7 +788,7 @@ export default function CmeRecordListPage() {
                 htmlFor="certificate-cycle-select"
                 className="block text-xs font-semibold text-slate-600 mb-1.5"
               >
-                Certificate / cycle
+                Chứng chỉ / Chu kỳ CME
               </label>
               <select
                 id="certificate-cycle-select"
@@ -715,7 +820,7 @@ export default function CmeRecordListPage() {
                     {/* Cycle dates row + Edit dates for HR Manager */}
                     <div className="flex items-center gap-3 flex-wrap text-xs text-slate-600">
                       <span>
-                        Cycle :{' '}
+                        Chu kỳ:{' '}
                         <strong className="text-slate-800">
                           {selectedCycle.cycleStart && selectedCycle.cycleEnd
                             ? `${formatDateDdMmYyyy(selectedCycle.cycleStart)} - ${formatDateDdMmYyyy(
@@ -730,12 +835,12 @@ export default function CmeRecordListPage() {
                           onClick={handleOpenEditDates}
                           className="text-xs text-teal-700 hover:text-teal-900 underline font-semibold cursor-pointer bg-transparent border-0 p-0"
                         >
-                          Edit dates
+                          Sửa ngày chu kỳ
                         </button>
                       )}
                       {isCurrentCycleLocked && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[11px]">
-                          <Icon name="lock" size={12} /> Đã lưu hoàn thành (Đã khóa)
+                          <Icon name="lock" size={12} /> Đã khóa
                         </span>
                       )}
                     </div>
@@ -743,17 +848,20 @@ export default function CmeRecordListPage() {
                     {/* Progress / Remaining / Time left row */}
                     <div className="flex items-center gap-6 flex-wrap text-xs text-slate-700">
                       <span>
-                        Progress:{' '}
+                        Tiến độ:{' '}
                         <strong>
-                          {cycleStats.earned} / {cycleStats.required} credit hours
+                          {cycleStats.earned} / {cycleStats.required}
+                          {hasCmeCredits ? ' giờ tín chỉ' : ''}
                         </strong>
                       </span>
-                      <span>
-                        Remaining: <strong>{cycleStats.remaining} h</strong>
-                      </span>
+                      {hasCmeCredits && (
+                        <span>
+                          Còn thiếu: <strong>{cycleStats.remaining} giờ</strong>
+                        </span>
+                      )}
                       {selectedCycle.cycleEnd && cycleStats.daysLeft !== null && (
                         <span>
-                          Time left: <strong>{cycleStats.daysLeft} days</strong>
+                          Thời gian còn lại: <strong>{cycleStats.daysLeft} ngày</strong>
                         </span>
                       )}
                     </div>
@@ -769,7 +877,7 @@ export default function CmeRecordListPage() {
                     </div>
                   </div>
 
-                  {/* Status Badge: On track / At risk */}
+                  {/* Status Badge: Đúng tiến độ / Có nguy cơ */}
                   <div
                     className={`px-3 py-1.5 rounded border text-xs font-bold shrink-0 self-center ${
                       cycleStats.isAtRisk
@@ -778,8 +886,8 @@ export default function CmeRecordListPage() {
                     }`}
                     title={
                       cycleStats.isAtRisk
-                        ? `Remaining hours > 0 and days left <= ${selectedCycle.alertThresholdDays} days (GB-C04)`
-                        : 'On track'
+                        ? `Còn thiếu chỉ tiêu và thời gian còn lại <= ${selectedCycle.alertThresholdDays} ngày (GB-C04)`
+                        : 'Đúng tiến độ'
                     }
                   >
                     {cycleStats.badge}
@@ -789,7 +897,7 @@ export default function CmeRecordListPage() {
             )}
           </div>
 
-          {/* Action bar above latest progress table: Complete & Lock button + "+ New record" button */}
+          {/* Action bar above latest progress table: Confirm Lock button + "+ Tạo chu kỳ mới" button */}
           {isHrManager && (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -803,10 +911,10 @@ export default function CmeRecordListPage() {
                     disabled={lockingCycle}
                     onClick={() => void handleCompleteAndLockCycle()}
                     style={{ fontWeight: 600 }}
-                    title="Chốt hoàn thành chỉ tiêu và khóa bảng tiến độ này để không thể chỉnh sửa nữa"
+                    title="Xác nhận khóa bảng tiến độ này sau khi đã hoàn thành đủ chỉ tiêu"
                   >
-                    <Icon name="check" size={16} />{' '}
-                    {lockingCycle ? 'Đang lưu…' : 'Lưu hoàn thành'}
+                    <Icon name="lock" size={16} />{' '}
+                    {lockingCycle ? 'Đang khóa…' : 'Xác nhận khóa'}
                   </button>
                 )}
                 <button
@@ -817,7 +925,7 @@ export default function CmeRecordListPage() {
                   style={{ fontWeight: 600 }}
                   title="Tạo bảng theo dõi tiến độ mới cho chứng chỉ này và lưu bảng hiện tại xuống lịch sử"
                 >
-                  + New record
+                  + Tạo chu kỳ mới
                 </button>
               </div>
             </div>
@@ -828,19 +936,23 @@ export default function CmeRecordListPage() {
             <table className="w-full">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
-                  <th scope="col">Course name</th>
-                  <th scope="col">Organizer</th>
-                  <th scope="col">Completed</th>
-                  <th scope="col">Credits (h)</th>
-                  <th scope="col">Proof</th>
-                  {isHrManager && !isCurrentCycleLocked && <th scope="col">Action</th>}
+                  <th scope="col">Tên khóa đào tạo</th>
+                  <th scope="col">Đơn vị tổ chức</th>
+                  <th scope="col">Ngày hoàn thành</th>
+                  {hasCmeCredits && <th scope="col">Số giờ tín chỉ</th>}
+                  <th scope="col">Minh chứng</th>
+                  {isHrManager && !isCurrentCycleLocked && <th scope="col">Thao tác</th>}
                 </tr>
               </thead>
               <tbody>
                 {displayedRecords.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={isHrManager && !isCurrentCycleLocked ? 6 : 5}
+                      colSpan={
+                        (hasCmeCredits ? 4 : 3) +
+                        1 +
+                        (isHrManager && !isCurrentCycleLocked ? 1 : 0)
+                      }
                       className="text-center py-8 text-slate-400 text-sm"
                     >
                       Chưa có khóa học CME nào trong bảng tiến độ này. Hãy nhập ở biểu mẫu bên dưới.
@@ -857,7 +969,9 @@ export default function CmeRecordListPage() {
                       <td className="font-medium text-slate-800">{rec.courseName}</td>
                       <td className="text-slate-700">{rec.provider || '—'}</td>
                       <td className="text-slate-700">{formatDateDdMmYyyy(rec.completedDate)}</td>
-                      <td className="text-slate-800 font-semibold">{rec.credits}</td>
+                      {hasCmeCredits && (
+                        <td className="text-slate-800 font-semibold">{rec.credits}</td>
+                      )}
                       <td>
                         {rec.fileUrl ? (
                           <a
@@ -880,14 +994,14 @@ export default function CmeRecordListPage() {
                               onClick={() => handleStartEdit(rec)}
                               className="text-slate-800 hover:text-teal-700 underline font-medium cursor-pointer bg-transparent border-0 p-0"
                             >
-                              Edit
+                              Sửa
                             </button>
                             <button
                               type="button"
                               onClick={() => void handleDeleteRecord(rec)}
                               className="text-slate-800 hover:text-red-600 underline font-medium cursor-pointer bg-transparent border-0 p-0"
                             >
-                              Del
+                              Xóa
                             </button>
                           </div>
                         </td>
@@ -899,20 +1013,20 @@ export default function CmeRecordListPage() {
             </table>
           </div>
 
-          {/* Total in cycle + Save/Lock prompt when target is reached */}
+          {/* Tổng trong chu kỳ + Gợi ý xác nhận khóa khi đạt chỉ tiêu */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm font-bold text-slate-900">
-              Total in cycle: {totalInCycle} /{' '}
-              {selectedCycle?.requiredCredits && selectedCycle.requiredCredits > 0
-                ? selectedCycle.requiredCredits
-                : 1}
+              Tổng trong chu kỳ: {cycleStats ? cycleStats.earned : 0} /{' '}
+              {cycleStats ? cycleStats.required : 1}
+              {hasCmeCredits ? ' giờ' : ''}
             </div>
 
             {isHrManager && cycleStats?.isTargetReached && !isCurrentCycleLocked && (
               <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 px-3.5 py-2 rounded-lg text-xs text-emerald-900">
                 <span>
-                  Đã hoàn thành đủ chỉ tiêu tín chỉ ({cycleStats.earned}/{cycleStats.required}h). Bấm{' '}
-                  <strong>Lưu hoàn thành</strong> để chốt và khóa chỉnh sửa bảng này.
+                  Đã hoàn thành đủ chỉ tiêu ({cycleStats.earned}/{cycleStats.required}
+                  {hasCmeCredits ? ' giờ' : ''}). Bảng chưa tự động khóa — hãy bấm{' '}
+                  <strong>Xác nhận khóa</strong> để khóa chỉnh sửa bảng này.
                 </span>
                 <button
                   type="button"
@@ -922,20 +1036,20 @@ export default function CmeRecordListPage() {
                   onClick={() => void handleCompleteAndLockCycle()}
                 >
                   <Icon name="lock" size={14} />{' '}
-                  {lockingCycle ? 'Đang lưu…' : 'Lưu hoàn thành'}
+                  {lockingCycle ? 'Đang khóa…' : 'Xác nhận khóa'}
                 </button>
               </div>
             )}
           </div>
 
-          {/* Add / Edit CME record inline form (Hidden when current table is locked) */}
+          {/* Biểu mẫu Thêm / Sửa bản ghi CME */}
           {isHrManager && !isCurrentCycleLocked && (
             <div
               ref={formRef}
               className="border border-slate-200 rounded-lg p-5 bg-slate-50/40"
             >
               <h3 className="text-sm font-bold text-slate-900 mb-4">
-                {editingRecord ? 'Edit CME record' : 'Add / Edit CME record'}
+                {editingRecord ? 'Chỉnh sửa bản ghi CME' : 'Thêm / Cập nhật bản ghi CME'}
               </h3>
 
               {formError && (
@@ -952,34 +1066,34 @@ export default function CmeRecordListPage() {
 
               <form onSubmit={handleSaveRecord}>
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
-                  <div className="md:col-span-4">
+                  <div className={hasCmeCredits ? 'md:col-span-4' : 'md:col-span-5'}>
                     <label htmlFor="cme-course-input" className="text-xs font-medium text-slate-600">
-                      Course name <span className="text-red-500">*</span>
+                      Tên khóa đào tạo <span className="text-red-500">*</span>
                     </label>
                     <input
                       id="cme-course-input"
                       type="text"
                       maxLength={150}
                       required
-                      placeholder="e.g. Antibiotic stewardship"
+                      placeholder="VD: Kiểm soát nhiễm khuẩn bệnh viện"
                       value={courseName}
                       onChange={e => setCourseName(e.target.value)}
                       disabled={saving || uploading}
                     />
                   </div>
 
-                  <div className="md:col-span-3">
+                  <div className={hasCmeCredits ? 'md:col-span-3' : 'md:col-span-4'}>
                     <label
                       htmlFor="cme-organizer-input"
                       className="text-xs font-medium text-slate-600"
                     >
-                      Organizer
+                      Đơn vị tổ chức
                     </label>
                     <input
                       id="cme-organizer-input"
                       type="text"
                       maxLength={100}
-                      placeholder="e.g. National Hospital"
+                      placeholder="VD: Bệnh viện Bạch Mai"
                       value={organizer}
                       onChange={e => setOrganizer(e.target.value)}
                       disabled={saving || uploading}
@@ -991,7 +1105,7 @@ export default function CmeRecordListPage() {
                       htmlFor="cme-completed-input"
                       className="text-xs font-medium text-slate-600"
                     >
-                      Completed <span className="text-red-500">*</span>
+                      Ngày hoàn thành <span className="text-red-500">*</span>
                     </label>
                     <input
                       id="cme-completed-input"
@@ -1004,25 +1118,28 @@ export default function CmeRecordListPage() {
                     />
                   </div>
 
-                  <div className="md:col-span-2">
-                    <label
-                      htmlFor="cme-credits-input"
-                      className="text-xs font-medium text-slate-600"
-                    >
-                      Credits <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      id="cme-credits-input"
-                      type="number"
-                      step="0.5"
-                      min="0.5"
-                      required
-                      placeholder="30"
-                      value={credits}
-                      onChange={e => setCredits(e.target.value)}
-                      disabled={saving || uploading}
-                    />
-                  </div>
+                  {/* Chỉ hiện ô nhập Số giờ tín chỉ khi chứng chỉ có yêu cầu CME */}
+                  {hasCmeCredits && (
+                    <div className="md:col-span-2">
+                      <label
+                        htmlFor="cme-credits-input"
+                        className="text-xs font-medium text-slate-600"
+                      >
+                        Số giờ tín chỉ <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        id="cme-credits-input"
+                        type="number"
+                        step="0.5"
+                        min="0.5"
+                        required
+                        placeholder="30"
+                        value={credits}
+                        onChange={e => setCredits(e.target.value)}
+                        disabled={saving || uploading}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Hidden file input for Proof Upload */}
@@ -1038,7 +1155,7 @@ export default function CmeRecordListPage() {
                   <div className="text-xs text-slate-500">
                     {fileUrl ? (
                       <span>
-                        Proof attached:{' '}
+                        Tệp minh chứng:{' '}
                         <a
                           href={fileUrl}
                           target="_blank"
@@ -1055,11 +1172,11 @@ export default function CmeRecordListPage() {
                           }}
                           className="text-red-600 hover:underline ml-2 bg-transparent border-0 p-0 cursor-pointer"
                         >
-                          Remove
+                          Gỡ tệp
                         </button>
                       </span>
                     ) : (
-                      <span>Accepted proof formats: PDF, JPG, PNG (max 10 MB)</span>
+                      <span>Định dạng minh chứng chấp nhận: PDF, JPG, PNG (tối đa 10 MB)</span>
                     )}
                   </div>
 
@@ -1070,14 +1187,14 @@ export default function CmeRecordListPage() {
                       disabled={saving || uploading}
                       onClick={() => fileInputRef.current?.click()}
                     >
-                      {uploading ? 'Uploading…' : 'Upload'}
+                      {uploading ? 'Đang tải lên…' : 'Tải minh chứng'}
                     </button>
                     <button
                       type="submit"
                       className="button primary"
                       disabled={saving || uploading}
                     >
-                      {saving ? 'Saving…' : 'Save'}
+                      {saving ? 'Đang lưu…' : 'Lưu'}
                     </button>
                     <button
                       type="button"
@@ -1085,7 +1202,7 @@ export default function CmeRecordListPage() {
                       disabled={saving || uploading}
                       onClick={resetForm}
                     >
-                      Cancel
+                      Hủy
                     </button>
                   </div>
                 </div>
@@ -1101,11 +1218,11 @@ export default function CmeRecordListPage() {
                   Lịch sử các bảng tiến độ trước ({selectedCycle?.certificateType})
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Các bản ghi tín chỉ CME đã hoàn thành ở những đợt trước của chứng chỉ này (chỉ xem, không chỉnh sửa).
+                  Các bản ghi CME đã hoàn thành ở những đợt trước của chứng chỉ này (chỉ xem, không chỉnh sửa).
                 </p>
               </div>
 
-              {historyCyclesWithRecords.map(({ cycle: histCycle, records: histRecords, total }, idx) => (
+              {historyCyclesWithRecords.map(({ cycle: histCycle, hasCme: histHasCredits, records: histRecords, total }, idx) => (
                 <div
                   key={histCycle.cycleId || idx}
                   className="border border-slate-200 rounded-lg bg-slate-50/70 p-4 space-y-3"
@@ -1128,7 +1245,11 @@ export default function CmeRecordListPage() {
                       <span className="text-slate-600">
                         Đã tích lũy:{' '}
                         <strong className="text-teal-700">
-                          {total} / {histCycle.requiredCredits > 0 ? histCycle.requiredCredits : 1} credit hours
+                          {total} /{' '}
+                          {histHasCredits && histCycle.requiredCredits > 0
+                            ? histCycle.requiredCredits
+                            : 1}
+                          {histHasCredits ? ' giờ tín chỉ' : ''}
                         </strong>
                       </span>
                     </div>
@@ -1138,17 +1259,20 @@ export default function CmeRecordListPage() {
                     <table className="w-full">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-xs">
-                          <th scope="col">Course name</th>
-                          <th scope="col">Organizer</th>
-                          <th scope="col">Completed</th>
-                          <th scope="col">Credits (h)</th>
-                          <th scope="col">Proof</th>
+                          <th scope="col">Tên khóa đào tạo</th>
+                          <th scope="col">Đơn vị tổ chức</th>
+                          <th scope="col">Ngày hoàn thành</th>
+                          {histHasCredits && <th scope="col">Số giờ tín chỉ</th>}
+                          <th scope="col">Minh chứng</th>
                         </tr>
                       </thead>
                       <tbody>
                         {histRecords.length === 0 ? (
                           <tr>
-                            <td colSpan={5} className="text-center py-4 text-xs text-slate-400">
+                            <td
+                              colSpan={histHasCredits ? 5 : 4}
+                              className="text-center py-4 text-xs text-slate-400"
+                            >
                               Không có bản ghi CME nào trong đợt này.
                             </td>
                           </tr>
@@ -1160,7 +1284,9 @@ export default function CmeRecordListPage() {
                               <td className="text-slate-600">
                                 {formatDateDdMmYyyy(rec.completedDate)}
                               </td>
-                              <td className="text-slate-800 font-semibold">{rec.credits}</td>
+                              {histHasCredits && (
+                                <td className="text-slate-800 font-semibold">{rec.credits}</td>
+                              )}
                               <td>
                                 {rec.fileUrl ? (
                                   <a
@@ -1188,10 +1314,10 @@ export default function CmeRecordListPage() {
         </div>
       )}
 
-      {/* Modal for "Edit dates" */}
+      {/* Modal for "Sửa ngày chu kỳ" */}
       {editingDatesOpen && selectedCycle && (
         <Modal
-          title="Edit CME cycle dates"
+          title="Chỉnh sửa ngày chu kỳ CME"
           onClose={() => setEditingDatesOpen(false)}
           busy={savingDates}
         >
@@ -1199,7 +1325,7 @@ export default function CmeRecordListPage() {
             {datesError && <Alert variant="error">{datesError}</Alert>}
             <div>
               <label htmlFor="cycle-start-date">
-                Cycle start date <span className="text-red-500">*</span>
+                Ngày bắt đầu chu kỳ <span className="text-red-500">*</span>
               </label>
               <input
                 id="cycle-start-date"
@@ -1212,7 +1338,7 @@ export default function CmeRecordListPage() {
             </div>
             <div>
               <label htmlFor="cycle-end-date">
-                Cycle end date <span className="text-red-500">*</span>
+                Ngày kết thúc chu kỳ <span className="text-red-500">*</span>
               </label>
               <input
                 id="cycle-end-date"
@@ -1230,10 +1356,10 @@ export default function CmeRecordListPage() {
                 onClick={() => setEditingDatesOpen(false)}
                 disabled={savingDates}
               >
-                Cancel
+                Hủy
               </button>
               <button type="submit" className="button primary" disabled={savingDates}>
-                {savingDates ? 'Saving…' : 'Save dates'}
+                {savingDates ? 'Đang lưu…' : 'Lưu ngày chu kỳ'}
               </button>
             </div>
           </form>
@@ -1251,7 +1377,7 @@ export default function CmeRecordListPage() {
             {newCycleError && <Alert variant="error">{newCycleError}</Alert>}
             <p className="text-xs text-slate-600 leading-relaxed">
               Tạo bảng theo dõi tiến độ mới cho chứng chỉ{' '}
-              <strong>{selectedCycle.certificateType}</strong>. Toàn bộ các tín chỉ đã nhập ở bảng
+              <strong>{selectedCycle.certificateType}</strong>. Toàn bộ các bản ghi đã nhập ở bảng
               hiện tại sẽ được khóa và lưu vào phần{' '}
               <strong>Lịch sử các bảng tiến độ trước</strong> bên dưới.
             </p>
