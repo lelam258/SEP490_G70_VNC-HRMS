@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace Vnc.HRMS.DTOs.Certificates;
 
 public sealed record SaveCertificateRequest(
-    [Required] Guid StaffId,
+    Guid StaffId,
     string? CertificateNumber,
     string? Category,
     [Required] string CertificateType,

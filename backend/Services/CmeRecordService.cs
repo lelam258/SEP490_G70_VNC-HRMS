@@ -73,7 +73,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
 
             var totalRequired = staffCerts.Sum(c =>
                 c.CmeRequiredCredits is > 0 ? c.CmeRequiredCredits.Value : DefaultRequiredCredits);
-            var totalEarned = staffRecords.Sum(r => r.Credits);
+            var totalEarned = staffRecords.Where(r => r.Verified).Sum(r => r.Credits);
             var pendingCount = staffRecords.Count(r => !r.Verified);
 
             return new StaffCmeSummaryDto(
@@ -494,8 +494,8 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
 
         var recArray = cycleRecords as CmeRecord[] ?? cycleRecords.ToArray();
         var earned = hasCmeCreditsRequirement
-            ? recArray.Sum(r => r.Credits)
-            : (recArray.Length > 0 ? 1m : 0m);
+            ? recArray.Where(r => r.Verified ?? true).Sum(r => r.Credits)
+            : (recArray.Any(r => r.Verified ?? true) ? 1m : 0m);
         var remaining = Math.Max(0m, required - earned);
 
         int? daysLeft = null;
@@ -1023,7 +1023,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         var hasCmeCredits = cert?.CmeRequiredCredits is > 0;
 
         var existingRecs = await db.CmeRecords.AsNoTracking()
-            .Where(r => r.CmeCycleId == cycleId)
+            .Where(r => r.CmeCycleId == cycleId && (r.Verified == true || r.Verified == null))
             .ToListAsync(ct);
 
         var totalCredits = hasCmeCredits
@@ -1037,5 +1037,78 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
             cycle.Status = "active";
         }
         await unitOfWork.SaveChangesAsync(ct);
+    }
+
+    public async Task<CmeRecordDto[]> ListPendingRecordsAsync(CancellationToken ct = default)
+    {
+        var query = await (
+            from rec in db.CmeRecords.AsNoTracking()
+            where rec.Verified == false
+            join cert in db.Certificates.AsNoTracking() on rec.CertificateId equals cert.CertificateId
+            join staff in db.Staff.AsNoTracking() on cert.StaffId equals staff.StaffId
+            join dept in db.Departments.AsNoTracking() on staff.DepartmentId equals dept.DepartmentId into depts
+            from dept in depts.DefaultIfEmpty()
+            join cycle in db.CmeCycles.AsNoTracking() on rec.CmeCycleId equals cycle.CycleId into cycles
+            from cycle in cycles.DefaultIfEmpty()
+            join verifier in db.Users.AsNoTracking() on rec.VerifiedBy equals verifier.UserId into verifiers
+            from verifier in verifiers.DefaultIfEmpty()
+            orderby rec.CreatedAt descending
+            select new
+            {
+                rec.CmeId,
+                rec.CertificateId,
+                cert.CertificateType,
+                cert.CertificateNumber,
+                cert.CmeCycleMonths,
+                cert.CmeRequiredCredits,
+                staff.StaffId,
+                staff.StaffCode,
+                staff.FullName,
+                staff.DepartmentId,
+                DepartmentName = dept != null ? dept.Name : null,
+                rec.CmeCycleId,
+                CycleNumber = cycle != null ? (int?)cycle.CycleNumber : null,
+                rec.CourseName,
+                rec.Provider,
+                rec.CompletedDate,
+                rec.Credits,
+                rec.FileUrl,
+                Verified = rec.Verified ?? false,
+                rec.VerifiedBy,
+                VerifiedByName = verifier != null ? verifier.FullName : null,
+                rec.VerifiedAt,
+                rec.CreatedAt
+            }
+        ).ToArrayAsync(ct);
+
+        return query.Select(x =>
+        {
+            var (_, _, cleanCertName) = CertificateCategoryHelper.Parse(x.CertificateType);
+            return new CmeRecordDto(
+                x.CmeId,
+                x.CertificateId,
+                string.IsNullOrWhiteSpace(cleanCertName) ? x.CertificateType : cleanCertName,
+                x.CertificateNumber,
+                x.CmeCycleMonths,
+                x.CmeRequiredCredits,
+                x.StaffId,
+                x.StaffCode,
+                x.FullName,
+                x.DepartmentId,
+                x.DepartmentName,
+                x.CmeCycleId,
+                x.CycleNumber,
+                x.CourseName,
+                x.Provider,
+                x.CompletedDate,
+                x.Credits,
+                x.FileUrl,
+                x.Verified,
+                x.VerifiedBy,
+                x.VerifiedByName,
+                x.VerifiedAt,
+                x.CreatedAt
+            );
+        }).ToArray();
     }
 }

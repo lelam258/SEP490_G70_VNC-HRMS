@@ -10,6 +10,7 @@ public sealed class EmployeeService(IEmployeeRepository employees, IDepartmentRe
     Microsoft.AspNetCore.Identity.IPasswordHasher<Vnc.HRMS.Models.Users.User> hasher, IUnitOfWork unitOfWork) : IEmployeeService
 {
     public Task<EmployeeDto[]> ListAsync(CancellationToken ct) => employees.ListAsync(ct);
+    public Task<UnlinkedAccountDto[]> ListUnlinkedAccountsAsync(CancellationToken ct) => users.ListUnlinkedAccountsAsync(ct);
 
     public async Task<EmployeeDto> GetAsync(Guid id, CancellationToken ct)
     {
@@ -41,6 +42,9 @@ public sealed class EmployeeService(IEmployeeRepository employees, IDepartmentRe
     {
         if (string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Name))
             throw new AppException(400, "Mã nhân viên và họ tên là bắt buộc.");
+        var staffCode = request.Code.Trim().ToUpperInvariant();
+        if (await employees.ExistsCodeAsync(staffCode, ct))
+            throw new AppException(409, "Mã nhân viên đã tồn tại.");
         if (request.DepartmentId is Guid departmentId && await departments.FindAsync(departmentId, ct) is not { Status: "active" })
             throw new AppException(400, "Phòng ban không tồn tại hoặc đã ngừng hoạt động.");
 
@@ -48,7 +52,7 @@ public sealed class EmployeeService(IEmployeeRepository employees, IDepartmentRe
         var employee = new Staff
         {
             StaffId = Guid.NewGuid(),
-            StaffCode = request.Code.Trim().ToUpperInvariant(),
+            StaffCode = staffCode,
             FullName = request.Name.Trim(),
             Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLowerInvariant(),
             DepartmentId = request.DepartmentId,
@@ -56,19 +60,37 @@ public sealed class EmployeeService(IEmployeeRepository employees, IDepartmentRe
             CreatedAt = now,
             UpdatedAt = now
         };
+
+        await using var transaction = await unitOfWork.BeginTransactionAsync(ct);
+
+        if (request.UserId is Guid userId)
+        {
+            var user = await users.FindAsync(userId, ct) ?? throw new AppException(404, "Không tìm thấy tài khoản đã chọn.");
+            if (user.Employee is not null)
+                throw new AppException(409, "Tài khoản này đã được liên kết với nhân viên khác.");
+
+            employee.UserId = user.UserId;
+            if (string.IsNullOrWhiteSpace(user.FullName)) user.FullName = employee.FullName;
+            if (string.IsNullOrWhiteSpace(user.Email) && employee.Email is not null) user.Email = employee.Email;
+
+            employees.Add(employee);
+            await unitOfWork.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return await GetAsync(employee.StaffId, ct);
+        }
+
         // Schema 2.0 requires a user before a staff row. This reserved account cannot log in
         // until an administrator provisions it.
-        var user = new Vnc.HRMS.Models.Users.User
+        var reservedUser = new Vnc.HRMS.Models.Users.User
         {
             UserId = Guid.NewGuid(), Username = "pending_" + Guid.NewGuid().ToString("N"),
             FullName = employee.FullName, Email = employee.Email, Role = "employee",
             AccountStatus = "inactive", IsProvisioned = false, Employee = employee
         };
-        user.NormalizedUsername = user.Username.ToUpperInvariant();
-        user.PasswordHash = hasher.HashPassword(user, Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(48)));
-        employee.UserId = user.UserId;
-        await using var transaction = await unitOfWork.BeginTransactionAsync(ct);
-        users.Add(user);
+        reservedUser.NormalizedUsername = reservedUser.Username.ToUpperInvariant();
+        reservedUser.PasswordHash = hasher.HashPassword(reservedUser, Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(48)));
+        employee.UserId = reservedUser.UserId;
+        users.Add(reservedUser);
         employees.Add(employee);
         await unitOfWork.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);

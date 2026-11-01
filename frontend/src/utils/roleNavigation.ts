@@ -12,7 +12,7 @@ export function loginDestination(role: string, from: unknown): string {
   const url = new URL(from, 'https://vnc.local');
   if (url.origin !== 'https://vnc.local') return roleHome(role);
   const path = url.pathname;
-  const isSelfService = role !== 'admin' && (path === '/me/profile' || path === '/me/leave-requests' || path === '/me/leave-requests/new');
+  const isSelfService = role !== 'admin' && (path === '/me/profile' || path === '/me/certificates' || path === '/me/cme-records' || path === '/me/leave-requests' || path === '/me/leave-requests/new');
   const permitted = path === '/' || path === '/change-password'
     || (role === 'admin' && (path === '/accounts' || path.startsWith('/accounts/') || path === '/compliance'))
     || (role === 'department_head' && path === '/compliance')

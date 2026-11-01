@@ -6,7 +6,7 @@ using Vnc.HRMS.Services.Interfaces;
 
 namespace Vnc.HRMS.Controllers;
 
-[ApiController, Authorize(Roles = $"{AccountRoles.Administrator},{AccountRoles.HrManager}"), Route("api/files")]
+[ApiController, Authorize, Route("api/files")]
 public sealed class FilesController(IFileService files, IWebHostEnvironment env) : ControllerBase
 {
     [HttpPost, RequestSizeLimit(11 * 1024 * 1024)]

@@ -8,5 +8,6 @@ public interface IEmployeeRepository
     Task<EmployeeDto[]> ListAsync(CancellationToken ct);
     Task<Vnc.HRMS.Contracts.AccountEmployeeOption[]> ListAccountOptionsAsync(CancellationToken ct);
     Task<Staff?> FindAsync(Guid id, CancellationToken ct);
+    Task<bool> ExistsCodeAsync(string code, CancellationToken ct);
     void Add(Staff employee);
 }

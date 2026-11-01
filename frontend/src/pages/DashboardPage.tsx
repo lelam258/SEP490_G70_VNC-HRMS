@@ -589,6 +589,38 @@ export default function DashboardPage() {
                     <span className="text-slate-400 text-xs">→</span>
                   </Link>
 
+                  {['employee', 'accountant', 'department_head', 'hr_staff'].includes(user.role) && (
+                    <>
+                      <Link
+                        to="/me/certificates"
+                        className="flex items-center gap-3 p-2.5 rounded-lg border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/50 transition-all group block"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                          <Icon name="award" size={16} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-semibold text-slate-800 group-hover:text-indigo-700">Chứng chỉ của tôi</div>
+                          <div className="text-[11px] text-slate-500 truncate">Hồ sơ bằng cấp & chứng chỉ hành nghề</div>
+                        </div>
+                        <span className="text-slate-400 group-hover:text-indigo-600 text-xs">→</span>
+                      </Link>
+
+                      <Link
+                        to="/me/cme-records"
+                        className="flex items-center gap-3 p-2.5 rounded-lg border border-slate-100 hover:border-amber-200 hover:bg-amber-50/50 transition-all group block"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                          <Icon name="fileText" size={16} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-semibold text-slate-800 group-hover:text-amber-700">Hồ sơ CME của tôi</div>
+                          <div className="text-[11px] text-slate-500 truncate">Đào tạo y khoa liên tục & tích lũy tín chỉ</div>
+                        </div>
+                        <span className="text-slate-400 group-hover:text-amber-600 text-xs">→</span>
+                      </Link>
+                    </>
+                  )}
+
                   <Link
                     to="/me/leave-requests"
                     className="flex items-center gap-3 p-2.5 rounded-lg border border-slate-100 hover:border-slate-200 hover:bg-slate-50 transition-all group block"

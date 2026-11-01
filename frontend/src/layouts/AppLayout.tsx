@@ -38,6 +38,10 @@ export default function AppLayout() {
     ? 'Kỳ tính lương'
     : location.pathname.startsWith('/me/profile')
     ? 'Hồ sơ của tôi'
+    : location.pathname.startsWith('/me/certificates')
+    ? 'Chứng chỉ của tôi'
+    : location.pathname.startsWith('/me/cme-records')
+    ? 'Hồ sơ CME của tôi'
     : location.pathname.startsWith('/me/leave-requests')
     ? 'Đơn nghỉ phép'
     : location.pathname === '/change-password'
@@ -125,6 +129,18 @@ export default function AppLayout() {
                 <NavLink to="/payroll/periods" className={navClass}>
                   <Icon name="calendar" />
                   Kỳ tính lương
+                </NavLink>
+              </>
+            )}
+            {['employee', 'accountant', 'department_head', 'hr_staff'].includes(user.role) && (
+              <>
+                <NavLink to="/me/certificates" className={navClass}>
+                  <Icon name="award" />
+                  Chứng chỉ của tôi
+                </NavLink>
+                <NavLink to="/me/cme-records" className={navClass}>
+                  <Icon name="fileText" />
+                  Hồ sơ CME của tôi
                 </NavLink>
               </>
             )}

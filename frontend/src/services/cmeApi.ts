@@ -14,6 +14,10 @@ export const cmeApi = {
     return (await axiosClient.get<StaffCmeSummary[]>('/cme-records/employees')).data;
   },
 
+  async listPending(): Promise<CmeRecord[]> {
+    return (await axiosClient.get<CmeRecord[]>('/cme-records/pending')).data;
+  },
+
   async listCertificateCyclesByStaff(staffId: string): Promise<CertificateCycle[]> {
     return (await axiosClient.get<CertificateCycle[]>(`/cme-records/employee/${staffId}/cycles`)).data;
   },

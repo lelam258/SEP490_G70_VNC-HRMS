@@ -26,5 +26,6 @@ public sealed record CertificateDto(
     string? VerificationStatus = null,
     string? Notes = null,
     string? ProfessionalDegree = null,
-    string? IssuanceMethod = null
+    string? IssuanceMethod = null,
+    string? RejectionReason = null
 );

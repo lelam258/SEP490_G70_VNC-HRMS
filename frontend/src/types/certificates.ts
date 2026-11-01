@@ -70,10 +70,16 @@ export interface Certificate {
   // Trường chuyên biệt cho Chứng chỉ (Certificate):
   professionalDegree?: string | null; // Văn bằng chuyên môn
   issuanceMethod?: string | null; // Hình thức cấp (nếu có)
+  rejectionReason?: string | null; // Lý do từ chối nếu có
+}
+
+export interface ReviewCertificateInput {
+  action: 'approve' | 'reject';
+  rejectionReason?: string;
 }
 
 export interface SaveCertificateInput {
-  staffId: string;
+  staffId?: string;
   category?: CertificateCategory | null;
   certificateNumber?: string | null;
   certificateType: string;

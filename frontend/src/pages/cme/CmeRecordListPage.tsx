@@ -9,6 +9,7 @@ import type { Certificate } from '../../types/certificates';
 import Alert from '../../components/ui/Alert';
 import Icon from '../../components/ui/Icon';
 import Modal from '../../components/ui/Modal';
+import CmeRecordDetailModal from '../../components/cme/CmeRecordDetailModal';
 
 const DEFAULT_ALERT_THRESHOLD = 180;
 const LOCKED_CYCLES_STORAGE_KEY = 'vnc_hrms_locked_cme_cycles';
@@ -74,6 +75,9 @@ export default function CmeRecordListPage() {
   const [notice, setNotice] = useState('');
   const [cycleWarning, setCycleWarning] = useState('');
   const [lockingCycle, setLockingCycle] = useState(false);
+  const [selectedDetailRecord, setSelectedDetailRecord] = useState<CmeRecord | null>(null);
+  const [verifyingRecordId, setVerifyingRecordId] = useState<string | null>(null);
+  const [cmeStatusFilter, setCmeStatusFilter] = useState<'all' | 'verified' | 'pending'>('all');
 
   // Inline Add / Edit CME record form state
   const [editingRecord, setEditingRecord] = useState<CmeRecord | null>(null);
@@ -152,11 +156,21 @@ export default function CmeRecordListPage() {
           if (preserveCertId && certCycles.some(c => c.certificateId === preserveCertId)) {
             setSelectedCertificateId(preserveCertId);
           } else {
-            // Default: current valid certificate
-            const validCert =
-              certCycles.find(c => c.certificateStatus === 'active' && c.isCurrentCycle !== false) ||
-              certCycles[0];
-            setSelectedCertificateId(validCert.certificateId);
+            // ƯU TIÊN 1: Tự động chọn chứng chỉ đang có bản ghi CME chờ thẩm định (!r.verified)
+            const certWithPending = certCycles.find(c =>
+              staffRecords.some(r => r.certificateId === c.certificateId && !r.verified)
+            );
+            if (certWithPending) {
+              setSelectedCertificateId(certWithPending.certificateId);
+              setCmeStatusFilter('pending'); // Chuyển thẳng sang tab Chờ duyệt để HR xem ngay
+            } else {
+              // ƯU TIÊN 2: Chứng chỉ active hiện tại
+              const validCert =
+                certCycles.find(c => c.certificateStatus === 'active' && c.isCurrentCycle !== false) ||
+                certCycles[0];
+              setSelectedCertificateId(validCert.certificateId);
+              setCmeStatusFilter('all');
+            }
           }
         } else {
           setSelectedCertificateId('');
@@ -294,8 +308,47 @@ export default function CmeRecordListPage() {
     if (!hasCmeCredits) {
       return displayedRecords.length > 0 ? 1 : 0;
     }
-    return displayedRecords.reduce((sum, r) => sum + Number(r.credits || 0), 0);
+    return displayedRecords.filter(r => r.verified).reduce((sum, r) => sum + Number(r.credits || 0), 0);
   }, [displayedRecords, hasCmeCredits]);
+
+  const pendingInActiveCount = useMemo(
+    () => displayedRecords.filter(r => !r.verified).length,
+    [displayedRecords]
+  );
+  const verifiedInActiveCount = useMemo(
+    () => displayedRecords.filter(r => r.verified).length,
+    [displayedRecords]
+  );
+
+  const visibleActiveRecords = useMemo(() => {
+    if (cmeStatusFilter === 'verified') return displayedRecords.filter(r => r.verified);
+    if (cmeStatusFilter === 'pending') return displayedRecords.filter(r => !r.verified);
+    return displayedRecords;
+  }, [displayedRecords, cmeStatusFilter]);
+
+  // Pending CME records count by certificateId
+  const pendingCountByCert = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of records) {
+      if (!r.verified) {
+        map.set(r.certificateId, (map.get(r.certificateId) || 0) + 1);
+      }
+    }
+    return map;
+  }, [records]);
+
+  // Pending count for the selected certificate across all cycles
+  const pendingForCurrentCert = useMemo(() => {
+    return selectedCertificateId ? pendingCountByCert.get(selectedCertificateId) || 0 : 0;
+  }, [selectedCertificateId, pendingCountByCert]);
+
+  // Certificates of this staff that have pending records but are NOT currently selected
+  const otherCertsWithPending = useMemo(() => {
+    return latestCycleByCertificate.filter(c => {
+      if (c.certificateId === selectedCertificateId) return false;
+      return (pendingCountByCert.get(c.certificateId) || 0) > 0;
+    });
+  }, [latestCycleByCertificate, selectedCertificateId, pendingCountByCert]);
 
   const currentCycleLockKey = useMemo(() => {
     if (!selectedCycle) return '';
@@ -551,6 +604,29 @@ export default function CmeRecordListPage() {
     }
   }
 
+  async function handleVerifyCmeRecord(rec: CmeRecord, verified: boolean) {
+    setVerifyingRecordId(rec.cmeId);
+    setError('');
+    setNotice('');
+    try {
+      await cmeApi.verify(rec.cmeId, verified);
+      setNotice(
+        verified
+          ? `Đã phê duyệt và xác minh khóa đào tạo "${rec.courseName}" thành công.`
+          : `Đã hủy xác minh khóa đào tạo "${rec.courseName}".`
+      );
+      if (selectedDetailRecord && selectedDetailRecord.cmeId === rec.cmeId) {
+        setSelectedDetailRecord(prev => (prev ? { ...prev, verified } : null));
+      }
+      await loadStaffCme(selectedStaffId, selectedCertificateId);
+      await loadStaffList();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Xác minh khóa đào tạo CME thất bại.');
+    } finally {
+      setVerifyingRecordId(null);
+    }
+  }
+
   async function handleDeleteRecord(rec: CmeRecord) {
     if (isCurrentCycleLocked) return;
     if (
@@ -735,7 +811,7 @@ export default function CmeRecordListPage() {
           >
             {staffList.map(s => (
               <option key={s.staffId} value={s.staffId}>
-                {s.fullName} ({s.staffCode}) - {s.departmentName}
+                {s.fullName} ({s.staffCode}) - {s.departmentName}{s.pendingVerifyCount > 0 ? ` 🔔 [Chờ duyệt: ${s.pendingVerifyCount}]` : ''}
               </option>
             ))}
           </select>
@@ -786,23 +862,42 @@ export default function CmeRecordListPage() {
             <div className="lg:col-span-4">
               <label
                 htmlFor="certificate-cycle-select"
-                className="block text-xs font-semibold text-slate-600 mb-1.5"
+                className="block text-xs font-semibold text-slate-600 mb-1.5 flex items-center justify-between"
               >
-                Chứng chỉ / Chu kỳ CME
+                <span>Chứng chỉ / Chu kỳ CME</span>
+                {pendingForCurrentCert > 0 && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full animate-pulse">
+                    🔔 {pendingForCurrentCert} khóa chờ duyệt
+                  </span>
+                )}
               </label>
               <select
                 id="certificate-cycle-select"
                 value={selectedCertificateId}
                 onChange={e => {
-                  setSelectedCertificateId(e.target.value);
+                  const nextCertId = e.target.value;
+                  setSelectedCertificateId(nextCertId);
+                  const hasPending = (pendingCountByCert.get(nextCertId) || 0) > 0;
+                  if (hasPending) {
+                    setCmeStatusFilter('pending');
+                  }
                   resetForm();
                 }}
-                className="w-full border border-slate-300 rounded px-3 py-2 text-sm font-medium text-slate-800 bg-white"
+                className={`w-full border rounded px-3 py-2 text-sm font-medium text-slate-800 bg-white transition-all ${
+                  pendingForCurrentCert > 0
+                    ? 'border-amber-400 ring-2 ring-amber-100'
+                    : 'border-slate-300'
+                }`}
               >
                 {latestCycleByCertificate.map(c => {
-                  const label = c.certificateNumber
+                  const pendingCount = pendingCountByCert.get(c.certificateId) || 0;
+                  const baseLabel = c.certificateNumber
                     ? `${c.certificateNumber} - ${c.certificateType}`
                     : c.certificateType;
+                  const label =
+                    pendingCount > 0
+                      ? `🔔 [Chờ duyệt: ${pendingCount}] ${baseLabel}`
+                      : baseLabel;
                   return (
                     <option key={c.certificateId} value={c.certificateId}>
                       {label}
@@ -897,11 +992,113 @@ export default function CmeRecordListPage() {
             )}
           </div>
 
+          {/* Alert khi nhân viên có chứng chỉ khác đang có khóa học chờ duyệt */}
+          {otherCertsWithPending.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 flex items-center justify-between gap-3 flex-wrap">
+              <span className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                <span>
+                  Nhân viên <strong>{selectedStaff?.fullName}</strong> có{' '}
+                  <strong className="text-amber-950 font-bold">
+                    {otherCertsWithPending.reduce((sum, c) => sum + (pendingCountByCert.get(c.certificateId) || 0), 0)}
+                  </strong>{' '}
+                  khóa đào tạo chờ duyệt tại chứng chỉ khác:
+                </span>
+              </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                {otherCertsWithPending.map(c => {
+                  const pCount = pendingCountByCert.get(c.certificateId) || 0;
+                  return (
+                    <button
+                      key={c.certificateId}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCertificateId(c.certificateId);
+                        setCmeStatusFilter('pending');
+                        resetForm();
+                      }}
+                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded text-xs shadow-2xs inline-flex items-center gap-1.5 transition-colors"
+                    >
+                      <span>Chuyển sang: {c.certificateType} (🔔 {pCount} khóa chờ duyệt)</span>
+                      <span>→</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Alert nếu chứng chỉ này có khóa học chờ duyệt ở chu kỳ lịch sử phía dưới */}
+          {pendingForCurrentCert > 0 && pendingInActiveCount === 0 && (
+            <div className="bg-sky-50 border border-sky-200 rounded-lg p-3 text-xs text-sky-900 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse shrink-0" />
+              <span>
+                Chứng chỉ này có <strong>{pendingForCurrentCert}</strong> khóa đào tạo chờ duyệt nằm ở <strong>chu kỳ trước (phần lịch sử bên dưới)</strong>. Vui lòng cuộn xuống để thẩm định.
+              </span>
+            </div>
+          )}
+
+          {/* Pending CME submissions notification for HR trong chu kỳ hiện tại */}
+          {pendingInActiveCount > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
+                <strong>Thẩm định CME:</strong> Có {pendingInActiveCount} khóa đào tạo do nhân viên nộp đang chờ phòng Nhân sự thẩm định minh chứng và phê duyệt.
+              </span>
+              {cmeStatusFilter !== 'pending' && (
+                <button
+                  type="button"
+                  onClick={() => setCmeStatusFilter('pending')}
+                  className="font-bold underline text-amber-800 hover:text-amber-950 shrink-0"
+                >
+                  Lọc khóa chờ duyệt
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Action bar above latest progress table: Confirm Lock button + "+ Tạo chu kỳ mới" button */}
           {isHrManager && (
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Bảng theo dõi tiến độ hiện tại ({selectedCycle?.certificateType})
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Bảng theo dõi tiến độ ({selectedCycle?.certificateType})
+                </div>
+                <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setCmeStatusFilter('all')}
+                    className={`px-2.5 py-0.5 rounded-md font-medium transition-colors ${
+                      cmeStatusFilter === 'all'
+                        ? 'bg-white text-slate-800 shadow-2xs font-semibold'
+                        : 'text-slate-600 hover:text-slate-950'
+                    }`}
+                  >
+                    Tất cả ({displayedRecords.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCmeStatusFilter('verified')}
+                    className={`px-2.5 py-0.5 rounded-md font-medium transition-colors ${
+                      cmeStatusFilter === 'verified'
+                        ? 'bg-white text-emerald-800 shadow-2xs font-semibold'
+                        : 'text-slate-600 hover:text-slate-950'
+                    }`}
+                  >
+                    Đã duyệt ({verifiedInActiveCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCmeStatusFilter('pending')}
+                    className={`px-2.5 py-0.5 rounded-md font-medium transition-colors ${
+                      cmeStatusFilter === 'pending'
+                        ? 'bg-white text-amber-800 shadow-2xs font-semibold'
+                        : 'text-slate-600 hover:text-slate-950'
+                    }`}
+                  >
+                    Chờ duyệt ({pendingInActiveCount}){pendingInActiveCount > 0 ? ' 🔔' : ''}
+                  </button>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 {cycleStats?.isTargetReached && !isCurrentCycleLocked && (
@@ -941,15 +1138,16 @@ export default function CmeRecordListPage() {
                   <th scope="col">Ngày hoàn thành</th>
                   {hasCmeCredits && <th scope="col">Số giờ tín chỉ</th>}
                   <th scope="col">Minh chứng</th>
-                  {isHrManager && !isCurrentCycleLocked && <th scope="col">Thao tác</th>}
+                  <th scope="col">Trạng thái</th>
+                  <th scope="col">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
-                {displayedRecords.length === 0 ? (
+                {visibleActiveRecords.length === 0 ? (
                   <tr>
                     <td
                       colSpan={
-                        (hasCmeCredits ? 4 : 3) +
+                        (hasCmeCredits ? 4 : 3) + 2 +
                         1 +
                         (isHrManager && !isCurrentCycleLocked ? 1 : 0)
                       }
@@ -959,7 +1157,7 @@ export default function CmeRecordListPage() {
                     </td>
                   </tr>
                 ) : (
-                  displayedRecords.map(rec => (
+                  visibleActiveRecords.map(rec => (
                     <tr
                       key={rec.cmeId}
                       className={
@@ -986,26 +1184,76 @@ export default function CmeRecordListPage() {
                           <span className="text-slate-400 text-xs">—</span>
                         )}
                       </td>
-                      {isHrManager && !isCurrentCycleLocked && (
-                        <td>
-                          <div className="flex items-center gap-3 text-xs">
-                            <button
-                              type="button"
-                              onClick={() => handleStartEdit(rec)}
-                              className="text-slate-800 hover:text-teal-700 underline font-medium cursor-pointer bg-transparent border-0 p-0"
-                            >
-                              Sửa
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void handleDeleteRecord(rec)}
-                              className="text-slate-800 hover:text-red-600 underline font-medium cursor-pointer bg-transparent border-0 p-0"
-                            >
-                              Xóa
-                            </button>
-                          </div>
-                        </td>
-                      )}
+                      {/* Trạng thái xác minh */}
+                      <td>
+                        {rec.verified ? (
+                          <span
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200"
+                            title={rec.verifiedByName ? `Duyệt bởi: ${rec.verifiedByName}` : 'Đã xác minh'}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Đã xác minh
+                          </span>
+                        ) : (
+                          <span
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200"
+                            title="Bản nộp từ nhân viên, đang chờ HR thẩm định minh chứng"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Chờ thẩm định
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Thao tác */}
+                      <td>
+                        <div className="flex items-center gap-2.5 text-xs flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedDetailRecord(rec)}
+                            className="text-teal-700 hover:text-teal-900 font-medium underline cursor-pointer bg-transparent border-0 p-0"
+                          >
+                            Chi tiết
+                          </button>
+                          {isHrManager && !rec.verified && (
+                            <>
+                              <button
+                                type="button"
+                                disabled={verifyingRecordId === rec.cmeId}
+                                onClick={() => void handleVerifyCmeRecord(rec, true)}
+                                className="text-emerald-700 hover:text-emerald-900 font-bold underline cursor-pointer bg-transparent border-0 p-0"
+                                title="Phê duyệt khóa đào tạo CME này"
+                              >
+                                {verifyingRecordId === rec.cmeId ? 'Đang duyệt...' : 'Phê duyệt'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleDeleteRecord(rec)}
+                                className="text-red-600 hover:text-red-800 font-medium underline cursor-pointer bg-transparent border-0 p-0"
+                                title="Từ chối và xóa bản ghi này"
+                              >
+                                Từ chối
+                              </button>
+                            </>
+                          )}
+                          {isHrManager && rec.verified && !isCurrentCycleLocked && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleStartEdit(rec)}
+                                className="text-slate-800 hover:text-teal-700 underline font-medium cursor-pointer bg-transparent border-0 p-0"
+                              >
+                                Sửa
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void handleDeleteRecord(rec)}
+                                className="text-slate-800 hover:text-red-600 underline font-medium cursor-pointer bg-transparent border-0 p-0"
+                              >
+                                Xóa
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -1364,6 +1612,16 @@ export default function CmeRecordListPage() {
             </div>
           </form>
         </Modal>
+      )}
+
+      {/* Modal chi tiết & Thẩm định hồ sơ CME */}
+      {selectedDetailRecord && (
+        <CmeRecordDetailModal
+          record={selectedDetailRecord}
+          onClose={() => setSelectedDetailRecord(null)}
+          onToggleVerify={isHrManager ? (rec) => void handleVerifyCmeRecord(rec, !rec.verified) : undefined}
+          busy={verifyingRecordId === selectedDetailRecord.cmeId}
+        />
       )}
 
       {/* Modal for "+ New record" (Create new progress tracking table & archive previous) */}

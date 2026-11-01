@@ -23,9 +23,6 @@ public sealed class UserService(IUserRepository users, IEmployeeRepository emplo
     public async Task<AccountDto> CreateAsync(SaveAccountRequest request, bool bootstrap, CancellationToken ct)
     {
         Validate(request, true);
-        // Provision HR management before any personnel profiles exist, without granting HR access to admin.
-        if (!bootstrap && request.EmployeeId is null && request.Role != Vnc.HRMS.Security.AccountRoles.HrManager)
-            throw new AppException(400, "Vui lòng chọn nhân viên. HR Manager có thể được tạo trước hồ sơ nhân viên.");
         await using var transaction = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var employee = request.EmployeeId is Guid employeeId ? await employees.FindAsync(employeeId, ct) : null;
         if (request.EmployeeId is not null && employee is not { Status: "active" }) throw new AppException(400, "Nhân viên không tồn tại hoặc đã ngừng hoạt động.");
@@ -76,8 +73,6 @@ public sealed class UserService(IUserRepository users, IEmployeeRepository emplo
                 users.Remove(reserved);
             }
         }
-        if (request.EmployeeId is null && request.Role is not ("admin" or "hr_manager"))
-            throw new AppException(400, "Vai trò này cần liên kết với hồ sơ nhân viên.");
         if (user.Role == "admin" && user.AccountStatus == "active" && user.IsProvisioned && (request.Role != "admin" || request.Status != "active")
             && !await users.HasActiveAdminAsync(id, ct)) throw new AppException(409, "Phải giữ ít nhất một quản trị viên đang hoạt động.");
         if (employeeChanged || user.Role != request.Role || user.AccountStatus != request.Status || !string.IsNullOrEmpty(request.Password)) user.SecurityVersion++;

@@ -1,4 +1,7 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Vnc.HRMS.Common.Exceptions;
 using Vnc.HRMS.DTOs.Certificates;
@@ -52,20 +55,29 @@ public static class CertificateCategoryHelper
 
 public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) : ICertificateService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
     private sealed class DegreeMeta
     {
         public string? DegreeType { get; set; }
         public string? Major { get; set; }
         public string? Notes { get; set; }
+        public string? RejectionReason { get; set; }
     }
 
     private sealed class CertificateMeta
     {
         public string? ProfessionalDegree { get; set; }
         public string? IssuanceMethod { get; set; }
+        public string? Scope { get; set; }
+        public string? RejectionReason { get; set; }
     }
 
-    private static (string? degreeType, string? major, string? verificationStatus, string? notes, string? professionalDegree, string? issuanceMethod)
+    private static (string? degreeType, string? major, string? verificationStatus, string? notes, string? professionalDegree, string? issuanceMethod, string? scope, string? rejectionReason)
         ExtractMetadata(string category, string? scopeOfPractice, string? status)
     {
         string? degreeType = null;
@@ -74,6 +86,8 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
         string? notes = null;
         string? professionalDegree = null;
         string? issuanceMethod = null;
+        string? scope = null;
+        string? rejectionReason = null;
 
         if (category == "degree")
         {
@@ -81,21 +95,28 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
             if (!string.IsNullOrWhiteSpace(scopeOfPractice))
             {
                 var trimmed = scopeOfPractice.Trim();
-                if (trimmed.StartsWith('{') && trimmed.EndsWith('}'))
+                if (trimmed.StartsWith('{'))
                 {
                     try
                     {
-                        var parsed = JsonSerializer.Deserialize<DegreeMeta>(trimmed);
+                        var parsed = JsonSerializer.Deserialize<DegreeMeta>(trimmed, JsonOptions);
                         if (parsed != null)
                         {
                             degreeType = parsed.DegreeType;
                             major = parsed.Major;
                             notes = parsed.Notes;
+                            rejectionReason = parsed.RejectionReason;
                         }
                     }
-                    catch { }
+                    catch
+                    {
+                        var matchMajor = Regex.Match(trimmed, @"""Major""\s*:\s*""([^""]+)""");
+                        if (matchMajor.Success) major = matchMajor.Groups[1].Value;
+                        var matchDegree = Regex.Match(trimmed, @"""DegreeType""\s*:\s*""([^""]+)""");
+                        if (matchDegree.Success) degreeType = matchDegree.Groups[1].Value;
+                    }
                 }
-                if (major == null && degreeType == null)
+                else
                 {
                     major = scopeOfPractice;
                 }
@@ -106,57 +127,88 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
             if (!string.IsNullOrWhiteSpace(scopeOfPractice))
             {
                 var trimmed = scopeOfPractice.Trim();
-                if (trimmed.StartsWith('{') && trimmed.EndsWith('}'))
+                if (trimmed.StartsWith('{'))
                 {
                     try
                     {
-                        var parsed = JsonSerializer.Deserialize<CertificateMeta>(trimmed);
+                        var parsed = JsonSerializer.Deserialize<CertificateMeta>(trimmed, JsonOptions);
                         if (parsed != null)
                         {
-                            professionalDegree = parsed.ProfessionalDegree;
+                            var prof = !string.IsNullOrWhiteSpace(parsed.ProfessionalDegree)
+                                ? parsed.ProfessionalDegree
+                                : parsed.Scope;
+                            professionalDegree = prof;
+                            scope = prof;
                             issuanceMethod = parsed.IssuanceMethod;
+                            rejectionReason = parsed.RejectionReason;
                         }
                     }
-                    catch { }
+                    catch
+                    {
+                        var matchProf = Regex.Match(trimmed, @"""(?:ProfessionalDegree|Scope)""\s*:\s*""([^""]+)""");
+                        if (matchProf.Success)
+                        {
+                            professionalDegree = matchProf.Groups[1].Value;
+                            scope = professionalDegree;
+                        }
+                        var matchMethod = Regex.Match(trimmed, @"""IssuanceMethod""\s*:\s*""([^""]+)""");
+                        if (matchMethod.Success)
+                        {
+                            issuanceMethod = matchMethod.Groups[1].Value;
+                        }
+                        var matchReason = Regex.Match(trimmed, @"""RejectionReason""\s*:\s*""([^""]+)""");
+                        if (matchReason.Success)
+                        {
+                            rejectionReason = matchReason.Groups[1].Value;
+                        }
+                    }
                 }
-                if (professionalDegree == null)
+                else
                 {
                     professionalDegree = scopeOfPractice;
+                    scope = scopeOfPractice;
                 }
             }
         }
 
-        return (degreeType, major, verificationStatus, notes, professionalDegree, issuanceMethod);
+        return (degreeType, major, verificationStatus, notes, professionalDegree, issuanceMethod, scope, rejectionReason);
     }
 
-    private static string? BuildScopeOfPractice(string category, string? degreeType, string? major, string? notes, string? professionalDegree, string? issuanceMethod, string? rawScope)
+    private static string? BuildScopeOfPractice(string category, string? degreeType, string? major, string? notes, string? professionalDegree, string? issuanceMethod, string? rawScope, string? rejectionReason = null)
     {
         if (category == "degree")
         {
-            if (!string.IsNullOrWhiteSpace(degreeType) || !string.IsNullOrWhiteSpace(major) || !string.IsNullOrWhiteSpace(notes))
+            if (!string.IsNullOrWhiteSpace(degreeType) || !string.IsNullOrWhiteSpace(major) || !string.IsNullOrWhiteSpace(notes) || !string.IsNullOrWhiteSpace(rejectionReason))
             {
                 var json = JsonSerializer.Serialize(new DegreeMeta
                 {
                     DegreeType = degreeType?.Trim(),
                     Major = major?.Trim(),
-                    Notes = notes?.Trim()
-                });
+                    Notes = notes?.Trim(),
+                    RejectionReason = rejectionReason?.Trim()
+                }, JsonOptions);
                 return json.Length > 200 ? json[..200] : json;
             }
             return string.IsNullOrWhiteSpace(rawScope) ? null : (rawScope.Length > 200 ? rawScope[..200] : rawScope.Trim());
         }
         else
         {
-            if (!string.IsNullOrWhiteSpace(professionalDegree) || !string.IsNullOrWhiteSpace(issuanceMethod))
+            var prof = !string.IsNullOrWhiteSpace(professionalDegree)
+                ? professionalDegree.Trim()
+                : rawScope?.Trim();
+
+            if (!string.IsNullOrWhiteSpace(prof) || !string.IsNullOrWhiteSpace(issuanceMethod) || !string.IsNullOrWhiteSpace(rejectionReason))
             {
                 var json = JsonSerializer.Serialize(new CertificateMeta
                 {
-                    ProfessionalDegree = professionalDegree?.Trim(),
-                    IssuanceMethod = issuanceMethod?.Trim()
-                });
+                    ProfessionalDegree = prof,
+                    Scope = prof,
+                    IssuanceMethod = issuanceMethod?.Trim(),
+                    RejectionReason = rejectionReason?.Trim()
+                }, JsonOptions);
                 return json.Length > 200 ? json[..200] : json;
             }
-            return string.IsNullOrWhiteSpace(rawScope) ? null : (rawScope.Length > 200 ? rawScope[..200] : rawScope.Trim());
+            return string.IsNullOrWhiteSpace(prof) ? null : (prof.Length > 200 ? prof[..200] : prof);
         }
     }
 
@@ -197,11 +249,11 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
     {
         var query = await (
             from cert in db.Certificates.AsNoTracking()
-            where cert.StaffId == staffId
             join staff in db.Staff.AsNoTracking() on cert.StaffId equals staff.StaffId
             join dept in db.Departments.AsNoTracking() on cert.DepartmentId equals dept.DepartmentId into depts
             from dept in depts.DefaultIfEmpty()
-            orderby cert.CreatedAt descending, cert.IssueDate descending
+            where cert.StaffId == staffId
+            orderby cert.IssueDate descending, cert.CreatedAt descending
             select new
             {
                 cert.CertificateId,
@@ -228,7 +280,7 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
         return query.Select(c =>
         {
             var (cat, catLabel, cleanName) = CertificateCategoryHelper.Parse(c.CertificateType);
-            var (degType, major, verStatus, notes, profDeg, method) = ExtractMetadata(cat, c.ScopeOfPractice, c.Status);
+            var (degType, major, verStatus, notes, profDeg, method, scope, rejectionReason) = ExtractMetadata(cat, c.ScopeOfPractice, c.Status);
             return new CertificateDto(
                 c.CertificateId,
                 c.StaffId,
@@ -243,7 +295,7 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
                 c.IssuingAuthority,
                 c.IssueDate,
                 c.ExpiryDate,
-                c.ScopeOfPractice,
+                scope,
                 c.CmeCycleMonths,
                 c.CmeRequiredCredits,
                 c.Status,
@@ -255,7 +307,8 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
                 verStatus,
                 notes,
                 profDeg,
-                method
+                method,
+                rejectionReason
             );
         }).ToArray();
     }
@@ -264,10 +317,10 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
     {
         var item = await (
             from cert in db.Certificates.AsNoTracking()
-            where cert.CertificateId == id
             join staff in db.Staff.AsNoTracking() on cert.StaffId equals staff.StaffId
             join dept in db.Departments.AsNoTracking() on cert.DepartmentId equals dept.DepartmentId into depts
             from dept in depts.DefaultIfEmpty()
+            where cert.CertificateId == id
             select new
             {
                 cert.CertificateId,
@@ -292,7 +345,7 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
         ).SingleOrDefaultAsync(ct) ?? throw new AppException(404, "Không tìm thấy chứng chỉ.");
 
         var (cat, catLabel, cleanName) = CertificateCategoryHelper.Parse(item.CertificateType);
-        var (degType, major, verStatus, notes, profDeg, method) = ExtractMetadata(cat, item.ScopeOfPractice, item.Status);
+        var (degType, major, verStatus, notes, profDeg, method, scope, rejectionReason) = ExtractMetadata(cat, item.ScopeOfPractice, item.Status);
         return new CertificateDto(
             item.CertificateId,
             item.StaffId,
@@ -307,7 +360,7 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
             item.IssuingAuthority,
             item.IssueDate,
             item.ExpiryDate,
-            item.ScopeOfPractice,
+            scope,
             item.CmeCycleMonths,
             item.CmeRequiredCredits,
             item.Status,
@@ -319,7 +372,8 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
             verStatus,
             notes,
             profDeg,
-            method
+            method,
+            rejectionReason
         );
     }
 
@@ -346,7 +400,7 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
             certNumber = request.CertificateNumber.Trim();
             var exists = await db.Certificates.AnyAsync(c => c.CertificateNumber == certNumber, ct);
             if (exists)
-                throw new AppException(400, $"Số hiệu '{certNumber}' đã tồn tại trong hệ thống.");
+                throw new AppException(400, $"Số hiệu '{certNumber}' đã được sử dụng.");
         }
 
         var formattedType = CertificateCategoryHelper.Format(cat, request.CertificateType);
@@ -470,5 +524,142 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
 
         db.Certificates.Remove(entity);
         await unitOfWork.SaveChangesAsync(ct);
+    }
+
+    public async Task<CertificateDto[]> ListPendingCertificatesAsync(CancellationToken ct = default)
+    {
+        var pendingStatuses = new[] { "unverified", "pending" };
+        var query = await (
+            from cert in db.Certificates.AsNoTracking()
+            join staff in db.Staff.AsNoTracking() on cert.StaffId equals staff.StaffId
+            join dept in db.Departments.AsNoTracking() on cert.DepartmentId equals dept.DepartmentId into depts
+            from dept in depts.DefaultIfEmpty()
+            where pendingStatuses.Contains((cert.Status ?? "active").ToLower())
+            orderby cert.CreatedAt descending
+            select new
+            {
+                cert.CertificateId,
+                cert.StaffId,
+                staff.StaffCode,
+                staff.FullName,
+                cert.DepartmentId,
+                DepartmentName = dept != null ? dept.Name : null,
+                cert.CertificateNumber,
+                cert.CertificateType,
+                cert.IssuingAuthority,
+                cert.IssueDate,
+                cert.ExpiryDate,
+                cert.ScopeOfPractice,
+                cert.CmeCycleMonths,
+                cert.CmeRequiredCredits,
+                Status = cert.Status ?? "unverified",
+                cert.FileUrl,
+                cert.CreatedAt,
+                cert.UpdatedAt
+            }
+        ).ToArrayAsync(ct);
+
+        return query.Select(c =>
+        {
+            var (cat, catLabel, cleanName) = CertificateCategoryHelper.Parse(c.CertificateType);
+            var (degType, major, verStatus, notes, profDeg, method, scope, rejectionReason) = ExtractMetadata(cat, c.ScopeOfPractice, c.Status);
+            return new CertificateDto(
+                c.CertificateId,
+                c.StaffId,
+                c.StaffCode,
+                c.FullName,
+                c.DepartmentId,
+                c.DepartmentName,
+                c.CertificateNumber,
+                cat,
+                catLabel,
+                cleanName,
+                c.IssuingAuthority,
+                c.IssueDate,
+                c.ExpiryDate,
+                scope,
+                c.CmeCycleMonths,
+                c.CmeRequiredCredits,
+                c.Status,
+                c.FileUrl,
+                c.CreatedAt,
+                c.UpdatedAt,
+                degType,
+                major,
+                verStatus,
+                notes,
+                profDeg,
+                method,
+                rejectionReason
+            );
+        }).ToArray();
+    }
+
+    public async Task<CertificateDto> ReviewAsync(Guid id, ReviewCertificateRequest request, Guid? reviewerId, CancellationToken ct = default)
+    {
+        var entity = await db.Certificates.SingleOrDefaultAsync(c => c.CertificateId == id, ct)
+            ?? throw new AppException(404, "Không tìm thấy chứng chỉ hoặc bằng cấp.");
+
+        var action = request.Action.Trim().ToLowerInvariant();
+        if (action != "approve" && action != "reject")
+        {
+            throw new AppException(400, "Hành động thẩm định không hợp lệ. Chỉ chấp nhận 'approve' hoặc 'reject'.");
+        }
+
+        var (cat, _, _) = CertificateCategoryHelper.Parse(entity.CertificateType);
+        var isDegree = cat == "degree";
+
+        var (degreeType, major, _, notes, professionalDegree, issuanceMethod, scope, _) =
+            ExtractMetadata(cat, entity.ScopeOfPractice, entity.Status);
+
+        if (action == "approve")
+        {
+            entity.Status = isDegree ? "verified" : "active";
+            // Xóa lý do từ chối nếu có
+            entity.ScopeOfPractice = BuildScopeOfPractice(
+                cat, degreeType, major, notes, professionalDegree, issuanceMethod, scope, null);
+
+            // Nếu là chứng chỉ hành nghề có định mức CME và chưa có chu kỳ nào, tự tạo chu kỳ #1
+            if (!isDegree && ((entity.CmeRequiredCredits ?? 0) > 0 || (entity.CmeCycleMonths ?? 0) > 0))
+            {
+                var hasCycle = await db.CmeCycles.AnyAsync(cy => cy.CertificateId == entity.CertificateId, ct);
+                if (!hasCycle)
+                {
+                    var start = entity.IssueDate ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+                    var months = entity.CmeCycleMonths is > 0 ? entity.CmeCycleMonths.Value : 24;
+                    var end = start.AddMonths(months);
+                    var reqCredits = entity.CmeRequiredCredits is > 0 ? entity.CmeRequiredCredits.Value : 24m;
+
+                    var cycle = new CmeCycle
+                    {
+                        CycleId = Guid.NewGuid(),
+                        CertificateId = entity.CertificateId,
+                        CycleNumber = 1,
+                        CycleStart = start,
+                        CycleEnd = end,
+                        RequiredCredits = reqCredits,
+                        EarnedCredits = 0,
+                        Status = "active"
+                    };
+                    db.CmeCycles.Add(cycle);
+                }
+            }
+        }
+        else // reject
+        {
+            if (string.IsNullOrWhiteSpace(request.RejectionReason))
+            {
+                throw new AppException(400, "Vui lòng nhập lý do từ chối hồ sơ.");
+            }
+
+            entity.Status = "rejected";
+            entity.ScopeOfPractice = BuildScopeOfPractice(
+                cat, degreeType, major, notes, professionalDegree, issuanceMethod, scope, request.RejectionReason.Trim());
+        }
+
+        entity.UpdatedAt = DateTime.UtcNow;
+        await unitOfWork.SaveChangesAsync(ct);
+
+        return await GetAsync(entity.CertificateId, ct);
     }
 }

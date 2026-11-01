@@ -22,6 +22,8 @@ import CompensationPage from '../pages/payroll/CompensationPage';
 import PayrollPeriodsPage from '../pages/payroll/PayrollPeriodsPage';
 import PayrollPeriodDetailPage from '../pages/payroll/PayrollPeriodDetailPage';
 import ProfilePage from '../pages/me/ProfilePage';
+import MyCertificateListPage from '../pages/me/MyCertificateListPage';
+import MyCmeListPage from '../pages/me/MyCmeListPage';
 import MyLeaveRequestsPage from '../pages/me/MyLeaveRequestsPage';
 import LeaveRequestFormPage from '../pages/me/LeaveRequestFormPage';
 import ProtectedRoute from './ProtectedRoute';
@@ -56,6 +58,8 @@ export default function AppRoutes() {
           </Route>
           <Route element={<ProtectedRoute roles={['hr_manager', 'hr_staff', 'accountant', 'department_head', 'employee']} />}>
             <Route path="/me/profile" element={<ProfilePage />} />
+            <Route path="/me/certificates" element={<MyCertificateListPage />} />
+            <Route path="/me/cme-records" element={<MyCmeListPage />} />
             <Route path="/me/leave-requests" element={<MyLeaveRequestsPage />} />
             <Route path="/me/leave-requests/new" element={<LeaveRequestFormPage />} />
             <Route path="/me/leave-requests/:id/edit" element={<LeaveRequestFormPage />} />

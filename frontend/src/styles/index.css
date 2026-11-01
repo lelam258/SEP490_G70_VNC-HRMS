@@ -3,11 +3,34 @@
 @import "./auth.css";
 @import "./certificates.css";
 
-html, body, #root { margin: 0; min-height: 100%; }
+html, body, #root { margin: 0; min-height: 100%; max-width: 100vw; overflow-x: hidden; }
 body { background: #f5f7fa; }
 a { text-decoration: none; }
 .vnc .nav-item { text-decoration: none; }
-.vnc .workspace-main { min-width: 0; }
+.vnc .workspace-main { min-width: 0; max-width: 100%; overflow-x: hidden; }
+.vnc.workspace { overflow-x: hidden; max-width: 100vw; }
+
+/* Scoped CME Table Compact Styles (Zero Overflow, Compact Rows) */
+.vnc .cme-table {
+  table-layout: fixed;
+  width: 100% !important;
+  white-space: normal !important;
+}
+.vnc .cme-table th,
+.vnc .cme-table td {
+  padding: 7px 10px !important;
+  font-size: 11px !important;
+  white-space: normal !important;
+  word-break: break-word;
+}
+.vnc .cme-table th:first-child,
+.vnc .cme-table td:first-child {
+  padding-left: 12px !important;
+}
+.vnc .cme-table th:last-child,
+.vnc .cme-table td:last-child {
+  padding-right: 12px !important;
+}
 
 /* Let the document own vertical scrolling; short pages fit the workspace. */
 .vnc .workspace-main { min-height: 100dvh; }
