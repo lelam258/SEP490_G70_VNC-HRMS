@@ -32,3 +32,8 @@ export interface CreateLeaveRequestInput {
   reason: string;
   attachment?: File | null;
 }
+
+export interface UpdateLeaveRequestInput extends CreateLeaveRequestInput {
+  /** Drop the current attachment when no new file is chosen. */
+  removeAttachment?: boolean;
+}

@@ -7,9 +7,6 @@ export const authApi = {
     const { data } = await publicClient.post<Session>('/auth/login', { login, password });
     useAuthStore.getState().setSession(data); return data;
   },
-  async register(input: { employeeCode: string; username: string; email: string; password: string }) {
-    return (await publicClient.post<{ message: string }>('/auth/register', input)).data;
-  },
   async forgotPassword(email: string) {
     return (await publicClient.post<RecoveryChallenge>('/auth/forgot-password', { email })).data;
   },

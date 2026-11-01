@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
+import { useEffect, useState } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Icon from '../components/ui/Icon';
 import { useAuthStore } from '../store/useAuthStore';
 import { useAppStore } from '../store/useAppStore';
@@ -9,7 +9,6 @@ import { initials } from '../utils/format';
 
 export default function AppLayout() {
   const user = useAuthStore(state => state.session?.user);
-  if (!user) return null;
 
   const sidebarOpen = useAppStore(state => state.sidebarOpen);
   const toggleSidebar = useAppStore(state => state.toggleSidebar);
@@ -17,6 +16,7 @@ export default function AppLayout() {
   const [error, setError] = useState('');
   const location = useLocation();
   const navigate = useNavigate();
+  useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }, [location.pathname]);
   const navClass = ({ isActive }: { isActive: boolean }) => `nav-item ${isActive ? 'selected' : ''}`;
   const title = location.pathname.startsWith('/accounts')
     ? 'Quản lý tài khoản'
@@ -54,6 +54,8 @@ export default function AppLayout() {
       setBusy(false);
     }
   }
+
+  if (!user) return null;
 
   return (
     <div className="vnc workspace">

@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using Vnc.HRMS.Common.Exceptions;
 using Vnc.HRMS.DTOs.SelfService;
 using Vnc.HRMS.Repositories.Interfaces;
@@ -14,6 +16,7 @@ public sealed class SelfServiceProfileService(
     IAuditLogHelper auditHelper) : ISelfServiceProfileService
 {
     private const string NotFoundStaffMessage = "Tài khoản chưa liên kết hồ sơ nhân viên. Vui lòng liên hệ bộ phận nhân sự.";
+    private const string DuplicateIdCardMessage = "Số CCCD đã được sử dụng.";
 
     public async Task<UserProfileDto> GetProfileAsync(Guid userId, CancellationToken ct)
     {
@@ -48,7 +51,7 @@ public sealed class SelfServiceProfileService(
             var isDuplicate = await repository.IsIdCardInUseAsync(idCardNumberToken, staff.StaffId, ct);
             if (isDuplicate)
             {
-                throw new AppException(409, "Số CCCD đã được sử dụng.", "idCardNumber");
+                throw new AppException(409, DuplicateIdCardMessage, "idCardNumber");
             }
             newIdCardNumber = idCardNumberToken;
         }
@@ -101,7 +104,16 @@ public sealed class SelfServiceProfileService(
 
             auditHelper.Log("update", "Staff", staff.StaffId, oldValues, newValues);
 
-            await unitOfWork.SaveChangesAsync(ct);
+            try
+            {
+                await unitOfWork.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is SqlException { Number: 2601 or 2627 }
+                && staff.IdCardNumber is not null && oldValues.ContainsKey("IdCardNumber"))
+            {
+                // Another profile saved the same CCCD between the duplicate check above and this save.
+                throw new AppException(409, DuplicateIdCardMessage, "idCardNumber");
+            }
             await tx.CommitAsync(ct);
         }
 

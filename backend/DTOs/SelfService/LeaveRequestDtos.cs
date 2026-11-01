@@ -13,6 +13,18 @@ public sealed record CreateLeaveRequestInput
     public IFormFile? Attachment { get; init; }
 }
 
+public sealed record UpdateLeaveRequestInput
+{
+    public string LeaveType { get; init; } = string.Empty;
+    public DateOnly StartDate { get; init; }
+    public DateOnly EndDate { get; init; }
+    public string Reason { get; init; } = string.Empty;
+    /// <summary>A new file replaces the current attachment.</summary>
+    public IFormFile? Attachment { get; init; }
+    /// <summary>Removes the current attachment when no new file is sent.</summary>
+    public bool RemoveAttachment { get; init; }
+}
+
 public sealed record LeaveRequestSummaryDto(
     Guid RequestId,
     string LeaveType,

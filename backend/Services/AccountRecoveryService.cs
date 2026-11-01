@@ -7,7 +7,6 @@ using Vnc.HRMS.Common.Exceptions;
 using Vnc.HRMS.Common.Utils;
 using Vnc.HRMS.Configurations;
 using Vnc.HRMS.DTOs.Auth;
-using Vnc.HRMS.DTOs.Users;
 using Vnc.HRMS.Integrations.Interfaces;
 using Vnc.HRMS.Models.Auth;
 using Vnc.HRMS.Repositories.Interfaces;
@@ -15,20 +14,11 @@ using Vnc.HRMS.Services.Interfaces;
 
 namespace Vnc.HRMS.Services;
 
-public sealed class AccountRecoveryService(IAuthRepository auth, IUserRepository users, Vnc.HRMS.Contracts.IEmployeeDirectory employees,
-    IUserService accounts, IPasswordHasher<User> hasher, IEmailService email, IOptions<OtpOptions> otpOptions,
+public sealed class AccountRecoveryService(IAuthRepository auth, IUserRepository users, IPasswordHasher<User> hasher, IEmailService email, IOptions<OtpOptions> otpOptions,
     IOptions<JwtOptions> jwtOptions, ILogger<AccountRecoveryService> logger) : IAccountRecoveryService
 {
     private const string GenericMessage = "Nếu email khớp với tài khoản đang hoạt động, bạn sẽ nhận được mã OTP đặt lại mật khẩu. Vui lòng kiểm tra cả thư mục thư rác.";
     private const string InvalidOtp = "Mã OTP không đúng, đã hết hạn, đã sử dụng hoặc vượt số lần nhập cho phép. Vui lòng kiểm tra mã hoặc yêu cầu OTP mới.";
-
-    public async Task RegisterAsync(RegistrationRequest request, CancellationToken ct)
-    {
-        var employee = await employees.FindForRegistrationAsync(request.EmployeeCode, request.Email, ct)
-            ?? throw new AppException(400, "Mã nhân viên và email không khớp hồ sơ đang hoạt động. Vui lòng liên hệ quản trị viên.");
-        await accounts.CreateAsync(new SaveAccountRequest(employee.StaffId, request.Username, employee.Email, employee.FullName,
-            "employee", "active", request.Password, null), false, ct);
-    }
 
     public async Task<RecoveryChallengeResponse> ForgotAsync(ForgotPasswordRequest request, CancellationToken ct)
     {

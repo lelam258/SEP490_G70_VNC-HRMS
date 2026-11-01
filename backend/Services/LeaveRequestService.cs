@@ -1,4 +1,5 @@
 using System.Data;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Vnc.HRMS.Common.Exceptions;
@@ -69,27 +70,7 @@ public sealed class LeaveRequestService(
         var totalDays = LeaveRules.CountWorkingDays(input.StartDate, input.EndDate);
         var reason = LeaveRules.ValidateAndNormalizeReason(input.Reason);
 
-        string? attachmentUrl = null;
-        if (input.Attachment != null && input.Attachment.Length > 0)
-        {
-            // Requirement 7: Block > 10 MB or catch AppException from FileService and re-throw MSG14
-            if (input.Attachment.Length > 10 * 1024 * 1024)
-            {
-                throw new AppException(400, Msg14);
-            }
-
-            try
-            {
-                await using var stream = input.Attachment.OpenReadStream();
-                var uploadResult = await fileService.UploadAsync(
-                    stream, input.Attachment.FileName, input.Attachment.ContentType, input.Attachment.Length, ct);
-                attachmentUrl = uploadResult.Url;
-            }
-            catch (AppException)
-            {
-                throw new AppException(400, Msg14);
-            }
-        }
+        var attachmentUrl = await UploadAttachmentAsync(input.Attachment, ct);
 
         // Requirement 6: Serializable transaction for overlap check + insert
         await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
@@ -139,6 +120,96 @@ public sealed class LeaveRequestService(
         return result!;
     }
 
+    public async Task<LeaveRequestDetailDto> UpdateLeaveRequestAsync(
+        Guid userId, Guid requestId, UpdateLeaveRequestInput input, CancellationToken ct)
+    {
+        var staff = await repository.FindStaffByUserIdAsync(userId, ct)
+            ?? throw new AppException(404, NotFoundStaffMessage);
+
+        if (!string.Equals(staff.Status, "active", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new AppException(400, "Nhân viên không ở trạng thái hoạt động nên không thể sửa đơn nghỉ phép.");
+        }
+
+        // Same field rules as creating a request.
+        if (!await repository.IsValidLeaveTypeAsync(input.LeaveType, ct))
+        {
+            throw new AppException(400, "Loại nghỉ phép không hợp lệ.");
+        }
+        var leaveType = input.LeaveType.Trim().ToLowerInvariant();
+        var totalDays = LeaveRules.CountWorkingDays(input.StartDate, input.EndDate);
+        var reason = LeaveRules.ValidateAndNormalizeReason(input.Reason);
+
+        // Serializable from the read on, so an approval cannot slip in between the pending check and the save.
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+
+        var leaveRequest = await repository.FindLeaveRequestByIdAsync(requestId, ct);
+        if (leaveRequest is null || leaveRequest.StaffId != staff.StaffId)
+        {
+            throw new AppException(404, "Không tìm thấy đơn nghỉ phép.");
+        }
+
+        if (!string.Equals(leaveRequest.Status, "pending", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new AppException(409, "Chỉ có thể sửa đơn ở trạng thái chờ duyệt.");
+        }
+
+        var hasOverlap = await repository.HasOverlappingLeaveAsync(staff.StaffId, input.StartDate, input.EndDate, requestId, ct);
+        if (hasOverlap)
+        {
+            throw new AppException(409, "Bạn đã có đơn nghỉ phép trong khoảng thời gian này.");
+        }
+
+        var attachmentUrl = input.Attachment is { Length: > 0 }
+            ? await UploadAttachmentAsync(input.Attachment, ct)
+            : input.RemoveAttachment ? null : leaveRequest.AttachmentUrl;
+
+        var oldSnapshot = new
+        {
+            leaveRequest.LeaveType,
+            leaveRequest.StartDate,
+            leaveRequest.EndDate,
+            leaveRequest.TotalDays,
+            leaveRequest.Reason,
+            leaveRequest.AttachmentUrl
+        };
+
+        var changed = leaveRequest.LeaveType != leaveType
+            || leaveRequest.StartDate != input.StartDate
+            || leaveRequest.EndDate != input.EndDate
+            || leaveRequest.TotalDays != totalDays
+            || leaveRequest.Reason != reason
+            || leaveRequest.AttachmentUrl != attachmentUrl;
+
+        if (changed)
+        {
+            leaveRequest.LeaveType = leaveType;
+            leaveRequest.StartDate = input.StartDate;
+            leaveRequest.EndDate = input.EndDate;
+            leaveRequest.TotalDays = totalDays;
+            leaveRequest.Reason = reason;
+            leaveRequest.AttachmentUrl = attachmentUrl;
+            leaveRequest.UpdatedAt = DateTime.UtcNow;
+
+            var newSnapshot = new
+            {
+                leaveRequest.LeaveType,
+                leaveRequest.StartDate,
+                leaveRequest.EndDate,
+                leaveRequest.TotalDays,
+                leaveRequest.Reason,
+                leaveRequest.AttachmentUrl
+            };
+            auditHelper.Log("update", "LeaveRequest", leaveRequest.RequestId, oldSnapshot, newSnapshot);
+
+            await SaveChangesWithDeadlockHandlingAsync(ct);
+        }
+        await tx.CommitAsync(ct);
+
+        var result = await repository.GetLeaveRequestDetailAsync(requestId, ct);
+        return result!;
+    }
+
     public async Task<LeaveRequestDetailDto> WithdrawLeaveRequestAsync(Guid userId, Guid requestId, CancellationToken ct)
     {
         var staff = await repository.FindStaffByUserIdAsync(userId, ct)
@@ -166,6 +237,30 @@ public sealed class LeaveRequestService(
 
         var result = await repository.GetLeaveRequestDetailAsync(requestId, ct);
         return result!;
+    }
+
+    /// <summary>Uploads an optional attachment and returns its URL; any invalid file is reported as MSG14.</summary>
+    private async Task<string?> UploadAttachmentAsync(IFormFile? attachment, CancellationToken ct)
+    {
+        if (attachment is null || attachment.Length == 0) return null;
+
+        // Requirement 7: Block > 10 MB or catch AppException from FileService and re-throw MSG14
+        if (attachment.Length > 10 * 1024 * 1024)
+        {
+            throw new AppException(400, Msg14);
+        }
+
+        try
+        {
+            await using var stream = attachment.OpenReadStream();
+            var uploadResult = await fileService.UploadAsync(
+                stream, attachment.FileName, attachment.ContentType, attachment.Length, ct);
+            return uploadResult.Url;
+        }
+        catch (AppException)
+        {
+            throw new AppException(400, Msg14);
+        }
     }
 
     private async Task SaveChangesWithDeadlockHandlingAsync(CancellationToken ct)

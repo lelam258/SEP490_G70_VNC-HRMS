@@ -1,7 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from '../layouts/AppLayout';
 import LoginPage from '../pages/auth/LoginPage';
-import RegisterPage from '../pages/auth/RegisterPage';
 import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from '../pages/auth/ResetPasswordPage';
 import ChangePasswordPage from '../pages/auth/ChangePasswordPage';
@@ -23,14 +22,13 @@ import PayrollPeriodsPage from '../pages/payroll/PayrollPeriodsPage';
 import PayrollPeriodDetailPage from '../pages/payroll/PayrollPeriodDetailPage';
 import ProfilePage from '../pages/me/ProfilePage';
 import MyLeaveRequestsPage from '../pages/me/MyLeaveRequestsPage';
-import LeaveRequestNewPage from '../pages/me/LeaveRequestNewPage';
+import LeaveRequestFormPage from '../pages/me/LeaveRequestFormPage';
 import ProtectedRoute from './ProtectedRoute';
 
 export default function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route element={<ProtectedRoute />}>
@@ -55,7 +53,8 @@ export default function AppRoutes() {
           <Route element={<ProtectedRoute roles={['hr_manager', 'hr_staff', 'accountant', 'department_head', 'employee']} />}>
             <Route path="/me/profile" element={<ProfilePage />} />
             <Route path="/me/leave-requests" element={<MyLeaveRequestsPage />} />
-            <Route path="/me/leave-requests/new" element={<LeaveRequestNewPage />} />
+            <Route path="/me/leave-requests/new" element={<LeaveRequestFormPage />} />
+            <Route path="/me/leave-requests/:id/edit" element={<LeaveRequestFormPage />} />
           </Route>
           <Route element={<ProtectedRoute roles={['accountant']} />}>
             <Route path="/payroll/parameters" element={<PayrollParameterPage />} />

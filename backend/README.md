@@ -17,7 +17,7 @@ Swagger: http://localhost:5100/swagger. Những lần chạy sau chỉ cần `do
 
 ## Database 2.0
 
-36 bảng nghiệp vụ dùng `dbo`; thêm bảng OTP nên có 37 bảng ứng dụng. Mật khẩu nằm trong `dbo.users`, mỗi `dbo.staff` liên kết một tài khoản qua `user_id NOT NULL`. Tài khoản dự trữ được tạo cùng hồ sơ nhân viên, chưa được phép đăng nhập cho tới khi được cấp tài khoản hoặc đăng ký hợp lệ.
+36 bảng nghiệp vụ dùng `dbo`; thêm bảng OTP nên có 37 bảng ứng dụng. Mật khẩu nằm trong `dbo.users`, mỗi `dbo.staff` liên kết một tài khoản qua `user_id NOT NULL`. Tài khoản dự trữ được tạo cùng hồ sơ nhân viên, chưa được phép đăng nhập cho tới khi được quản trị viên cấp tài khoản. Hệ thống không hỗ trợ tự đăng ký.
 
 Giữ các cột kỹ thuật phục vụ email đăng nhập, phân quyền, bảo vệ phiên và cập nhật đồng thời. Chi tiết chuyển dữ liệu, khác biệt với SQL tham chiếu và cách làm việc nhóm nằm trong [MIGRATION.md](../docs/MIGRATION.md).
 

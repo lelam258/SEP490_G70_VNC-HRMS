@@ -8,6 +8,15 @@ namespace Vnc.HRMS.Services;
 
 public sealed class DepartmentService(IDepartmentRepository departments, IUnitOfWork unitOfWork) : IDepartmentService
 {
+    public async Task<DepartmentDto> SetStatusAsync(Guid id, string status, CancellationToken ct)
+    {
+        if (status is not ("active" or "inactive")) throw new AppException(400, "Trạng thái khoa/phòng không hợp lệ.");
+        var department = await departments.FindAsync(id, ct) ?? throw new AppException(404, "Không tìm thấy khoa/phòng.");
+        department.Status = status;
+        await unitOfWork.SaveChangesAsync(ct);
+        return await GetAsync(id, ct);
+    }
+
     public Task<DepartmentDto[]> ListAsync(CancellationToken ct) => departments.ListAsync(ct);
     public async Task<DepartmentDto> GetAsync(Guid id, CancellationToken ct)
     {

@@ -12,6 +12,9 @@ public sealed class DepartmentsController(IDepartmentService departments) : Cont
     [HttpGet("{id:guid}")] public Task<DepartmentDto> Get(Guid id, CancellationToken ct) => departments.GetAsync(id, ct);
     [HttpPut("{id:guid}")]
     public Task<DepartmentDto> Update(Guid id, UpdateDepartmentRequest request, CancellationToken ct) => departments.UpdateAsync(id, request, ct);
+    [HttpPatch("{id:guid}/status")]
+    public Task<DepartmentDto> SetStatus(Guid id, DepartmentStatusRequest request, CancellationToken ct)
+        => departments.SetStatusAsync(id, request.Status, ct);
     [HttpPost]
     public async Task<ActionResult<DepartmentDto>> Create(CreateDepartmentRequest request, CancellationToken ct)
     {

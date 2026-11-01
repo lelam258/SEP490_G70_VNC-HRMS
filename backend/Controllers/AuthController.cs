@@ -44,13 +44,6 @@ public sealed class AuthController(IAuthService auth, IAccountRecoveryService re
         DeleteCookie(); return NoContent();
     }
 
-    [HttpPost("register"), EnableRateLimiting("registration")]
-    public async Task<IActionResult> Register(RegistrationRequest request, CancellationToken ct)
-    {
-        await recovery.RegisterAsync(request, ct);
-        return StatusCode(201, new { message = "Đăng ký thành công. Bạn có thể đăng nhập ngay bằng tài khoản nhân viên vừa tạo." });
-    }
-
     [HttpPost("forgot-password"), EnableRateLimiting("recovery")]
     public async Task<ActionResult<RecoveryChallengeResponse>> ForgotPassword(ForgotPasswordRequest request, CancellationToken ct)
         => Accepted(await recovery.ForgotAsync(request, ct));

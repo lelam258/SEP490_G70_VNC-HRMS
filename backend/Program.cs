@@ -20,7 +20,7 @@ builder.Services.AddRateLimiter(options => {
         if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retry)) context.HttpContext.Response.Headers.RetryAfter = ((int)Math.Ceiling(retry.TotalSeconds)).ToString();
         await context.HttpContext.Response.WriteAsJsonAsync(new { message = "Bạn thao tác quá nhiều lần. Vui lòng đợi rồi thử lại." }, ct);
     };
-    foreach (var name in new[] { "recovery", "registration", "login" }) {
+    foreach (var name in new[] { "recovery", "login" }) {
         var limit = name == "login" ? 30 : 5;
         var window = name == "login" ? TimeSpan.FromMinutes(1) : TimeSpan.FromMinutes(15);
         options.AddPolicy(name, context => RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown",

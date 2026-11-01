@@ -1,17 +1,31 @@
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import Alert from '../../components/ui/Alert';
 import Icon from '../../components/ui/Icon';
 import { leaveApi } from '../../services/leaveApi';
-import type { LeaveType } from '../../types/leave';
+import type { LeaveRequestDetail, LeaveType } from '../../types/leave';
 import { calculateWorkingDays, getTodayInVietnam } from '../../utils/leaveRules';
 
 const MSG14 = 'Tệp đính kèm không hợp lệ. Vui lòng chọn tệp PDF, JPG hoặc PNG và dung lượng không vượt quá 10 MB.';
 
-export default function LeaveRequestNewPage() {
+/** Original file name of a stored file URL: its last path segment without the "<timestamp>_<id>_" storage prefix. */
+function fileNameFromUrl(url: string): string {
+  const stored = decodeURIComponent(url.split('?')[0].split('/').pop() || url);
+  return stored.replace(/^\d+_[0-9a-f]{32}_/i, '');
+}
+
+/** Creates a leave request, or edits a pending one when the route has an id. */
+export default function LeaveRequestFormPage() {
   const navigate = useNavigate();
+  const { id: requestId } = useParams<{ id: string }>();
+  const isEdit = Boolean(requestId);
   const todayStr = getTodayInVietnam();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Edit mode: the request as loaded, and whether its current attachment is being dropped.
+  const [original, setOriginal] = useState<LeaveRequestDetail | null>(null);
+  const [removeExistingAttachment, setRemoveExistingAttachment] = useState(false);
+  const [notEditable, setNotEditable] = useState('');
 
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [leaveType, setLeaveType] = useState('annual');
@@ -28,21 +42,33 @@ export default function LeaveRequestNewPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    async function loadTypes() {
+    async function load() {
       try {
-        const types = await leaveApi.getLeaveTypes();
+        const [types, detail] = await Promise.all([
+          leaveApi.getLeaveTypes(),
+          requestId ? leaveApi.getLeaveRequestDetail(requestId) : Promise.resolve(null),
+        ]);
         setLeaveTypes(types);
-        if (types.length > 0) {
+        if (detail) {
+          setOriginal(detail);
+          setLeaveType(detail.leaveType);
+          setStartDate(detail.startDate);
+          setEndDate(detail.endDate);
+          setReason(detail.reason || '');
+          if (detail.status !== 'pending') {
+            setNotEditable('Chỉ có thể sửa đơn ở trạng thái chờ duyệt.');
+          }
+        } else if (types.length > 0) {
           setLeaveType(types[0].code);
         }
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Không tải được danh mục loại nghỉ.');
+        setError(err instanceof Error ? err.message : 'Không tải được dữ liệu đơn nghỉ phép.');
       } finally {
         setLoadingTypes(false);
       }
     }
-    void loadTypes();
-  }, []);
+    void load();
+  }, [requestId]);
 
   // Recalculate working days whenever startDate or endDate changes
   useEffect(() => {
@@ -94,9 +120,21 @@ export default function LeaveRequestNewPage() {
     }
   };
 
+  const isDirty = useMemo(() => {
+    if (!original) return true;
+    return (
+      leaveType !== original.leaveType ||
+      startDate !== original.startDate ||
+      endDate !== original.endDate ||
+      reason.trim() !== (original.reason || '').trim() ||
+      attachment !== null ||
+      removeExistingAttachment
+    );
+  }, [original, leaveType, startDate, endDate, reason, attachment, removeExistingAttachment]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (submitting) return; // Prevent double submit
+    if (submitting || notEditable) return; // Prevent double submit
     setError('');
 
     if (daysError || !workingDays || workingDays <= 0) {
@@ -112,19 +150,21 @@ export default function LeaveRequestNewPage() {
 
     setSubmitting(true);
     try {
-      await leaveApi.createLeaveRequest({
-        leaveType,
-        startDate,
-        endDate,
-        reason: trimmedReason,
-        attachment,
-      });
+      const input = { leaveType, startDate, endDate, reason: trimmedReason, attachment };
+      if (requestId) {
+        await leaveApi.updateLeaveRequest(requestId, {
+          ...input,
+          removeAttachment: removeExistingAttachment && !attachment,
+        });
+      } else {
+        await leaveApi.createLeaveRequest(input);
+      }
 
       navigate('/me/leave-requests', {
-        state: { notice: 'Gửi đơn nghỉ phép thành công.' },
+        state: { notice: isEdit ? 'Cập nhật đơn nghỉ phép thành công.' : 'Gửi đơn nghỉ phép thành công.' },
       });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Không thể tạo đơn nghỉ phép.');
+      setError(err instanceof Error ? err.message : isEdit ? 'Không thể cập nhật đơn nghỉ phép.' : 'Không thể tạo đơn nghỉ phép.');
     } finally {
       setSubmitting(false);
     }
@@ -132,16 +172,21 @@ export default function LeaveRequestNewPage() {
 
   const reasonLength = reason.trim().length;
   const isReasonValid = reasonLength >= 10 && reasonLength <= 500;
-  const isSubmitDisabled = submitting || !!daysError || !workingDays || !isReasonValid;
+  const isSubmitDisabled = submitting || !!notEditable || !isDirty || !!daysError || !workingDays || !isReasonValid;
+  const existingAttachmentUrl = !attachment && !removeExistingAttachment ? original?.attachmentUrl ?? null : null;
   const selectedType = leaveTypes.find((t) => t.code === leaveType);
 
   return (
     <div className="panel leave-request-form-container" style={{ maxWidth: '680px', margin: '0 auto', padding: '1.5rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '1px solid var(--color-border, #e5e7eb)', paddingBottom: '1rem' }}>
         <div>
-          <h1 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>Tạo đơn nghỉ phép mới</h1>
+          <h1 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>
+            {isEdit ? 'Sửa đơn nghỉ phép' : 'Tạo đơn nghỉ phép mới'}
+          </h1>
           <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted, #6b7280)' }}>
-            Điền thông tin khoảng thời gian và lý do nghỉ phép
+            {isEdit
+              ? 'Chỉ sửa được khi đơn còn chờ duyệt'
+              : 'Điền thông tin khoảng thời gian và lý do nghỉ phép'}
           </p>
         </div>
         <button
@@ -155,6 +200,7 @@ export default function LeaveRequestNewPage() {
       </div>
 
       {error && <Alert variant="error">{error}</Alert>}
+      {notEditable && <Alert variant="error">{notEditable}</Alert>}
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         <div className="field">
@@ -293,7 +339,48 @@ export default function LeaveRequestNewPage() {
             disabled={submitting}
             style={{ display: 'none' }}
           />
-          {!attachment ? (
+          {existingAttachmentUrl ? (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '10px',
+              background: '#f8fafb',
+              border: '1px solid #d9e3e8',
+              borderRadius: '6px',
+              padding: '7px 12px',
+              maxWidth: '100%',
+            }}>
+              <Icon name="file" size={16} />
+              <a
+                href={existingAttachmentUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={{ fontSize: '12px', fontWeight: 500, color: '#294656', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}
+                title={fileNameFromUrl(existingAttachmentUrl)}
+              >
+                {fileNameFromUrl(existingAttachmentUrl)}
+              </a>
+              <button
+                type="button"
+                className="button secondary small"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={submitting}
+                style={{ minHeight: '28px', padding: '2px 10px', fontSize: '11px' }}
+              >
+                Thay tệp
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setRemoveExistingAttachment(true)}
+                disabled={submitting}
+                title="Xóa tệp đính kèm"
+                style={{ width: '24px', height: '24px', padding: '2px', color: '#cf7c66' }}
+              >
+                <Icon name="close" size={14} />
+              </button>
+            </div>
+          ) : !attachment ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
               <button
                 type="button"
@@ -307,6 +394,17 @@ export default function LeaveRequestNewPage() {
               <span style={{ fontSize: '12px', color: '#748793' }}>
                 Hỗ trợ PDF, JPG, PNG (tối đa 10 MB)
               </span>
+              {removeExistingAttachment && (
+                <button
+                  type="button"
+                  className="button secondary small"
+                  onClick={() => setRemoveExistingAttachment(false)}
+                  disabled={submitting}
+                  style={{ minHeight: '28px', padding: '2px 10px', fontSize: '11px' }}
+                >
+                  Hoàn tác xóa tệp cũ
+                </button>
+              )}
             </div>
           ) : (
             <div style={{
@@ -358,8 +456,10 @@ export default function LeaveRequestNewPage() {
             {submitting ? (
               <>
                 <span className="vnc-spinner" aria-hidden="true" />
-                <span>Đang gửi đơn...</span>
+                <span>{isEdit ? 'Đang lưu...' : 'Đang gửi đơn...'}</span>
               </>
+            ) : isEdit ? (
+              'Lưu thay đổi'
             ) : (
               'Gửi đơn nghỉ phép'
             )}

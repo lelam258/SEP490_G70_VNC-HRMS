@@ -22,11 +22,5 @@ public sealed class EmployeeRepository(AppDbContext db) : IEmployeeRepository
                                                                    select new EmployeeDto(employee.StaffId, employee.StaffCode, employee.FullName, employee.DepartmentId,
                                                                        department == null ? "Chưa phân khoa" : department.Name, employee.Email, employee.Status, employee.DateJoined, employee.AvatarUrl)).ToArrayAsync(ct);
     public Task<Staff?> FindAsync(Guid id, CancellationToken ct) => db.Staff.SingleOrDefaultAsync(x => x.StaffId == id, ct);
-    public Task<Staff?> FindForRegistrationAsync(string code, string email, CancellationToken ct)
-    {
-        var normalizedCode = code.Trim().ToUpperInvariant();
-        var address = email.Trim().ToLowerInvariant();
-        return db.Staff.AsNoTracking().SingleOrDefaultAsync(x => x.StaffCode == normalizedCode && x.Email == address && x.Status == "active", ct);
-    }
     public void Add(Staff employee) => db.Staff.Add(employee);
 }
