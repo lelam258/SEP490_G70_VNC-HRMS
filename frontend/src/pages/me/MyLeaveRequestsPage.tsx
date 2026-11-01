@@ -194,6 +194,16 @@ export default function MyLeaveRequestsPage() {
           {r.status === 'pending' && (
             <button
               type="button"
+              className="button small secondary"
+              onClick={() => navigate(`/me/leave-requests/${r.requestId}/edit`)}
+              title="Sửa đơn"
+            >
+              <Icon name="edit" size={14} /> Sửa
+            </button>
+          )}
+          {r.status === 'pending' && (
+            <button
+              type="button"
               className="button small danger"
               onClick={() => {
                 setWithdrawingRequest(r);
@@ -528,6 +538,15 @@ export default function MyLeaveRequestsPage() {
                       }}
                     >
                       Thu hồi đơn này
+                    </button>
+                  )}
+                  {selectedDetail.status === 'pending' && (
+                    <button
+                      type="button"
+                      className="button secondary small"
+                      onClick={() => navigate(`/me/leave-requests/${selectedDetail.requestId}/edit`)}
+                    >
+                      <Icon name="edit" size={14} /> Sửa đơn
                     </button>
                   )}
                   <button

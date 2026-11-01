@@ -43,6 +43,12 @@ public sealed class MyLeaveRequestsController(ILeaveRequestService leaveService)
         return CreatedAtAction(nameof(GetLeaveRequestDetail), new { id = result.RequestId }, result);
     }
 
+    [HttpPut("{id:guid}")]
+    [RequestSizeLimit(15 * 1024 * 1024)]
+    public Task<LeaveRequestDetailDto> UpdateLeaveRequest(
+        Guid id, [FromForm] UpdateLeaveRequestInput input, CancellationToken ct)
+        => leaveService.UpdateLeaveRequestAsync(GetCurrentUserId(), id, input, ct);
+
     [HttpPost("{id:guid}/withdraw")]
     public Task<LeaveRequestDetailDto> WithdrawLeaveRequest(Guid id, CancellationToken ct)
         => leaveService.WithdrawLeaveRequestAsync(GetCurrentUserId(), id, ct);

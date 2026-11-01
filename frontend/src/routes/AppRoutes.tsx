@@ -22,7 +22,7 @@ import PayrollPeriodsPage from '../pages/payroll/PayrollPeriodsPage';
 import PayrollPeriodDetailPage from '../pages/payroll/PayrollPeriodDetailPage';
 import ProfilePage from '../pages/me/ProfilePage';
 import MyLeaveRequestsPage from '../pages/me/MyLeaveRequestsPage';
-import LeaveRequestNewPage from '../pages/me/LeaveRequestNewPage';
+import LeaveRequestFormPage from '../pages/me/LeaveRequestFormPage';
 import ProtectedRoute from './ProtectedRoute';
 
 export default function AppRoutes() {
@@ -53,7 +53,8 @@ export default function AppRoutes() {
           <Route element={<ProtectedRoute roles={['hr_manager', 'hr_staff', 'accountant', 'department_head', 'employee']} />}>
             <Route path="/me/profile" element={<ProfilePage />} />
             <Route path="/me/leave-requests" element={<MyLeaveRequestsPage />} />
-            <Route path="/me/leave-requests/new" element={<LeaveRequestNewPage />} />
+            <Route path="/me/leave-requests/new" element={<LeaveRequestFormPage />} />
+            <Route path="/me/leave-requests/:id/edit" element={<LeaveRequestFormPage />} />
           </Route>
           <Route element={<ProtectedRoute roles={['accountant']} />}>
             <Route path="/payroll/parameters" element={<PayrollParameterPage />} />
