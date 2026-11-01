@@ -8,5 +8,6 @@ public interface ILeaveRequestService
     Task<List<LeaveRequestSummaryDto>> ListMyLeaveRequestsAsync(Guid userId, string? status, CancellationToken ct);
     Task<LeaveRequestDetailDto> GetLeaveRequestDetailAsync(Guid userId, Guid requestId, CancellationToken ct);
     Task<LeaveRequestDetailDto> CreateLeaveRequestAsync(Guid userId, CreateLeaveRequestInput input, CancellationToken ct);
+    Task<LeaveRequestDetailDto> UpdateLeaveRequestAsync(Guid userId, Guid requestId, UpdateLeaveRequestInput input, CancellationToken ct);
     Task<LeaveRequestDetailDto> WithdrawLeaveRequestAsync(Guid userId, Guid requestId, CancellationToken ct);
 }
