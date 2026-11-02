@@ -1,6 +1,7 @@
 export function roleHome(role: string): string {
   if (role === 'admin') return '/accounts';
   if (role === 'hr_manager') return '/employees';
+  if (role === 'hr_staff') return '/schedules';
   if (role === 'accountant') return '/payroll/parameters';
   if (role === 'department_head') return '/compliance';
   return '/';
@@ -13,7 +14,7 @@ export function loginDestination(role: string, from: unknown): string {
   if (url.origin !== 'https://vnc.local') return roleHome(role);
   const path = url.pathname;
   const isSelfService = role !== 'admin' && (path === '/me/profile' || path === '/me/certificates' || path === '/me/cme-records' || path === '/me/leave-requests' || path === '/me/leave-requests/new');
-  const permitted = path === '/' || path === '/change-password'
+  const permitted = path === '/' || path === '/change-password' || path === '/schedules'
     || (role === 'admin' && (path === '/accounts' || path.startsWith('/accounts/') || path === '/compliance'))
     || (role === 'department_head' && path === '/compliance')
     || (role === 'hr_manager' && (path === '/employees' || path.startsWith('/employees/') || ['/departments', '/organization', '/compliance', '/certificates', '/cme-records'].includes(path) || path.startsWith('/certificates/') || path.startsWith('/cme-records/')))

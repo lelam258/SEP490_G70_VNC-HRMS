@@ -27,6 +27,7 @@ import MyCmeListPage from '../pages/me/MyCmeListPage';
 import MyLeaveRequestsPage from '../pages/me/MyLeaveRequestsPage';
 import LeaveRequestFormPage from '../pages/me/LeaveRequestFormPage';
 import ProtectedRoute from './ProtectedRoute';
+import SchedulesPage from '../pages/SchedulesPage';
 
 export default function AppRoutes() {
   return (
@@ -38,6 +39,7 @@ export default function AppRoutes() {
         <Route element={<AppLayout />}>
           <Route index element={<DashboardPage />} />
           <Route path="/change-password" element={<ChangePasswordPage />} />
+          <Route path="/schedules" element={<SchedulesPage />} />
           <Route element={<ProtectedRoute roles={['admin']} />}>
             <Route path="/accounts" element={<AccountListPage />} />
             <Route path="/accounts/new" element={<AccountCreatePage />} />

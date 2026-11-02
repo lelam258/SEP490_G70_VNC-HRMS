@@ -104,7 +104,7 @@ public sealed class EmployeeService(IEmployeeRepository employees, IDepartmentRe
             throw new AppException(400, "Mã nhân viên và họ tên là bắt buộc.");
         if (request.Status is not ("active" or "inactive"))
             throw new AppException(400, "Trạng thái nhân viên không hợp lệ.");
-        if (request.DepartmentId is Guid departmentId && await departments.FindAsync(departmentId, ct) is not { Status: "active" })
+        if (request.DepartmentId != employee.DepartmentId && request.DepartmentId is Guid departmentId && await departments.FindAsync(departmentId, ct) is not { Status: "active" })
             throw new AppException(400, "Phòng ban không tồn tại hoặc đã ngừng hoạt động.");
 
         employee.StaffCode = request.Code.Trim().ToUpperInvariant();

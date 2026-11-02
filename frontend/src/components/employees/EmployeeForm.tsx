@@ -1,31 +1,34 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { employeeApi, type EmployeeInput, type UnlinkedAccount } from '../../services/employeeApi';
 import type { Department } from '../../services/departmentApi';
-import { roleLabels, type Role } from '../../types/accounts';
+import { roleLabels, type Role, type Employee } from '../../types/accounts';
 import Alert from '../ui/Alert';
 
 export default function EmployeeForm({
+  employee,
   departments,
   onSave,
   onClose,
   busy,
   error,
 }: {
+  employee?: Employee;
   departments: Department[];
   onSave: (value: EmployeeInput) => Promise<void>;
   onClose: () => void;
   busy: boolean;
   error: string;
 }) {
-  const [code, setCode] = useState('');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [departmentId, setDepartmentId] = useState('');
+  const [code, setCode] = useState(employee?.code || '');
+  const [name, setName] = useState(employee?.name || '');
+  const [email, setEmail] = useState(employee?.email || '');
+  const [departmentId, setDepartmentId] = useState(employee?.departmentId || '');
   const [userId, setUserId] = useState('');
   const [unlinkedAccounts, setUnlinkedAccounts] = useState<UnlinkedAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
 
   useEffect(() => {
+    if (employee) return;
     let active = true;
     async function fetchUnlinked() {
       setLoadingAccounts(true);
@@ -42,7 +45,7 @@ export default function EmployeeForm({
     return () => {
       active = false;
     };
-  }, []);
+  }, [employee]);
 
   const selectedAccount = unlinkedAccounts.find(a => a.userId === userId);
 
@@ -72,7 +75,7 @@ export default function EmployeeForm({
     <form onSubmit={submit}>
       <div className="form-section">
         {/* Dropdown to link pre-created Admin accounts */}
-        <div style={{ marginBottom: 16, padding: '12px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+        {!employee && <div style={{ marginBottom: 16, padding: '12px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
           <label htmlFor="unlinked-account-select" style={{ fontWeight: 600, display: 'block', marginBottom: 6, fontSize: 13, color: '#334155' }}>
             Liên kết tài khoản do Quản trị viên (Admin) tạo trước:
           </label>
@@ -102,7 +105,7 @@ export default function EmployeeForm({
               Có <strong>{unlinkedAccounts.length}</strong> tài khoản do Admin cấp trước đang chờ lập hồ sơ nhân sự.
             </p>
           ) : null}
-        </div>
+        </div>}
 
         <div className="form-grid">
           <div>
@@ -154,7 +157,7 @@ export default function EmployeeForm({
             >
               <option value="">Chưa phân khoa</option>
               {departments
-                .filter(d => d.status === 'active')
+                .filter(d => d.status === 'active' || d.id === employee?.departmentId)
                 .map(d => (
                   <option key={d.id} value={d.id}>
                     {d.name}

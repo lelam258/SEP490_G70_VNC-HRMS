@@ -18,7 +18,7 @@ export default function AppLayout() {
   const navigate = useNavigate();
   useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }, [location.pathname]);
   const navClass = ({ isActive }: { isActive: boolean }) => `nav-item ${isActive ? 'selected' : ''}`;
-  const title = location.pathname.startsWith('/accounts')
+  const title = location.pathname.startsWith('/schedules') ? 'Lịch làm việc' : location.pathname.startsWith('/accounts')
     ? 'Quản lý tài khoản'
     : location.pathname.startsWith('/employees')
     ? 'Nhân viên'
@@ -80,6 +80,7 @@ export default function AppLayout() {
               <Icon name="building" />
               Trang chủ
             </NavLink>
+            <NavLink to="/schedules" className={navClass}><Icon name="users" />Lịch làm việc</NavLink>
             {user.role === 'admin' && (
               <NavLink to="/accounts" className={navClass}>
                 <Icon name="users" />
