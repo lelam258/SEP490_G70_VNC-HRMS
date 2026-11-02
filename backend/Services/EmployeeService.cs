@@ -10,6 +10,21 @@ public sealed class EmployeeService(IEmployeeRepository employees, IDepartmentRe
     Microsoft.AspNetCore.Identity.IPasswordHasher<Vnc.HRMS.Models.Users.User> hasher, IUnitOfWork unitOfWork) : IEmployeeService
 {
     public Task<EmployeeDto[]> ListAsync(CancellationToken ct) => employees.ListAsync(ct);
+    public async Task<EmployeeDto> UpdateAsync(Guid id, UpdateEmployeeRequest request, CancellationToken ct)
+    {
+        var employee = await employees.FindAsync(id, ct) ?? throw new AppException(404, "Không tìm thấy nhân viên.");
+        if (string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Name))
+            throw new AppException(400, "Mã nhân viên và họ tên là bắt buộc.");
+        if (request.DepartmentId != employee.DepartmentId && request.DepartmentId is Guid departmentId
+            && await departments.FindAsync(departmentId, ct) is not { Status: "active" })
+            throw new AppException(400, "Khoa/phòng không tồn tại hoặc đã ngừng hoạt động.");
+        employee.StaffCode = request.Code.Trim().ToUpperInvariant();
+        employee.FullName = request.Name.Trim();
+        employee.Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLowerInvariant();
+        employee.DepartmentId = request.DepartmentId;
+        await unitOfWork.SaveChangesAsync(ct);
+        return await GetAsync(id, ct);
+    }
     public async Task<EmployeeDto> GetAsync(Guid id, CancellationToken ct)
     {
         var employee = await employees.FindAsync(id, ct) ?? throw new AppException(404, "Không tìm thấy nhân viên.");

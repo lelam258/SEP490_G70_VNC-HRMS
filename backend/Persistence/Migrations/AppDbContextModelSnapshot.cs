@@ -2351,6 +2351,179 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.ToTable("procedure_slips", "dbo");
                 });
 
+            modelBuilder.Entity("Vnc.HRMS.Models.ScheduleAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ActualEndAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("Cancelled")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("ConfirmedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ConfirmedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CoverageId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("EndNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("EndRecordedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("EndRecordedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("PatientConfirmed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PatientEvidence")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Shift")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("StaffId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TransferConsent")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("WeekId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CoverageId");
+
+                    b.HasIndex("WeekId");
+
+                    b.HasIndex("StaffId", "Date", "Shift", "CoverageId")
+                        .IsUnique()
+                        .HasFilter("[Cancelled] = 0");
+
+                    b.ToTable("ScheduleAssignments");
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.ScheduleChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Detail")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<Guid>("WeekId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WeekId");
+
+                    b.ToTable("ScheduleChanges");
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.ScheduleCoverage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DepartmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("FacilityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("FacilityId", "DepartmentId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("ScheduleCoverage");
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.ScheduleFacility", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ScheduleFacilities");
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.ScheduleWeek", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DepartmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("Monday")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("Published")
+                        .HasColumnType("bit");
+
+                    b.Property<byte[]>("Version")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DepartmentId", "Monday")
+                        .IsUnique();
+
+                    b.ToTable("ScheduleWeeks");
+                });
+
             modelBuilder.Entity("Vnc.HRMS.Models.StaffAllowance", b =>
                 {
                     b.Property<Guid>("StaffAllowanceId")
@@ -2945,6 +3118,60 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.HasOne("Vnc.HRMS.Models.ProcedureService", null)
                         .WithMany()
                         .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.ScheduleAssignment", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.ScheduleCoverage", null)
+                        .WithMany()
+                        .HasForeignKey("CoverageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Vnc.HRMS.Models.ScheduleWeek", null)
+                        .WithMany()
+                        .HasForeignKey("WeekId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.ScheduleChange", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.ScheduleWeek", null)
+                        .WithMany()
+                        .HasForeignKey("WeekId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.ScheduleCoverage", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.Organization.Department", null)
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Vnc.HRMS.Models.ScheduleFacility", null)
+                        .WithMany()
+                        .HasForeignKey("FacilityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.ScheduleWeek", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.Organization.Department", null)
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

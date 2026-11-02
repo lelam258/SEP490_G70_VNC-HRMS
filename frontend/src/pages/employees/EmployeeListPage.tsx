@@ -6,18 +6,26 @@ import Alert from '../../components/ui/Alert';
 import Modal from '../../components/ui/Modal';
 import DataTable from '../../components/ui/DataTable';
 import EmployeeForm from '../../components/employees/EmployeeForm';
+import Icon from '../../components/ui/Icon';
+import Pagination from '../../components/ui/Pagination';
+import usePagination from '../../hooks/usePagination';
+import { initials, normalize } from '../../utils/format';
 
 export default function EmployeeListPage() {
   const [employees, setEmployees] = useState<Employee[]>([]); const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [notice, setNotice] = useState('');
   const [open, setOpen] = useState(false); const [saving, setSaving] = useState(false); const [saveError, setSaveError] = useState('');
+  const [editing, setEditing] = useState<Employee>();
   const [search, setSearch] = useState(''); const [departmentId, setDepartmentId] = useState(''); const [status, setStatus] = useState('');
   const filtered = useMemo(() => {
-    const normalize = (value: string) => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[đĐ]/g, 'd').toLowerCase();
     const term = normalize(search.trim());
     return employees.filter(employee => (!term || normalize(`${employee.code} ${employee.name} ${employee.email || ''}`).includes(term))
       && (!departmentId || employee.departmentId === departmentId) && (!status || employee.status === status));
   }, [employees, search, departmentId, status]);
+  const pagination = usePagination(filtered);
+  const hasFilters = !!(search || departmentId || status);
+  function resetFilters() { setSearch(''); setDepartmentId(''); setStatus(''); pagination.resetPage(); }
+  function edit(employee?: Employee) { setEditing(employee); setSaveError(''); setOpen(true); }
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try { const [staff, teams] = await Promise.all([employeeApi.list(), departmentApi.list()]); setEmployees(staff); setDepartments(teams); }
@@ -27,19 +35,27 @@ export default function EmployeeListPage() {
   useEffect(() => { void load(); }, [load]);
   async function save(value: EmployeeInput) {
     setSaving(true); setSaveError('');
-    try { await employeeApi.create(value); setOpen(false); setNotice('Đã thêm hồ sơ nhân viên.'); await load(); }
+    try { if (editing) await employeeApi.update(editing.id, value); else await employeeApi.create(value); setOpen(false); setNotice(editing ? 'Đã cập nhật hồ sơ và khoa/phòng nhân viên.' : 'Đã thêm hồ sơ nhân viên.'); await load(); }
     catch (cause) { setSaveError(cause instanceof Error ? cause.message : 'Không lưu được hồ sơ.'); }
     finally { setSaving(false); }
   }
-  return <section><div className="page-heading"><div><span className="eyebrow">ĐỘI NGŨ VNC CLINIC</span><h1>Nhân viên</h1><p className="muted">Tạo hồ sơ nhân viên trước khi cấp tài khoản.</p></div>
-    <button className="button primary" disabled={loading || !!error} onClick={() => { setSaveError(''); setOpen(true); }}>Thêm nhân viên</button></div>
-    {error && <Alert>{error}</Alert>}{notice && <Alert variant="success">{notice}</Alert>}
-    <section className="panel"><div className="list-heading"><h2>Danh sách nhân viên <span className="count-badge">{employees.length}</span></h2><button className="text-button" disabled={loading} onClick={() => void load()}>Làm mới</button></div>
-      <div className="filter-bar"><input aria-label="Tìm hồ sơ nhân viên" placeholder="Mã nhân viên, họ tên hoặc email" value={search} onChange={e => setSearch(e.target.value)} />
-        <select aria-label="Lọc khoa/phòng" value={departmentId} onChange={e => setDepartmentId(e.target.value)}><option value="">Tất cả khoa/phòng</option>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
-        <select aria-label="Lọc trạng thái nhân viên" value={status} onChange={e => setStatus(e.target.value)}><option value="">Tất cả trạng thái</option><option value="active">Hoạt động</option><option value="inactive">Ngừng hoạt động</option></select></div>
-      {loading ? <p className="loading-state" role="status">Đang tải dữ liệu…</p> : <DataTable rows={filtered} rowKey={e => e.id} emptyMessage="Không có hồ sơ phù hợp."
-        columns={[{ key: 'code', label: 'Mã nhân viên', render: e => e.code }, { key: 'name', label: 'Họ tên', render: e => e.name }, { key: 'email', label: 'Email', render: e => e.email || 'Chưa có' }, { key: 'department', label: 'Khoa/phòng', render: e => e.department }]} />}</section>
-    {open && <Modal title="Thêm nhân viên" busy={saving} onClose={() => setOpen(false)}><EmployeeForm departments={departments} onSave={save} onClose={() => setOpen(false)} busy={saving} error={saveError} /></Modal>}
+  return <section className="directory-page" aria-labelledby="employee-page-title"><header className="directory-heading"><div><span className="eyebrow">QUẢN LÝ NHÂN SỰ</span><h1 id="employee-page-title">Nhân viên</h1><p>Quản lý hồ sơ và khoa/phòng của đội ngũ phòng khám.</p></div>
+    <button className="button primary" disabled={loading || saving || !!error} onClick={() => edit()}><Icon name="plus" size={17} />Thêm nhân viên</button></header>
+    {error && <Alert>{error}</Alert>}{notice && <Alert variant="success">{notice}<button className="icon-button" aria-label="Đóng thông báo" onClick={() => setNotice('')}><Icon name="close" size={15} /></button></Alert>}
+    <section className="directory-panel" aria-label="Danh sách nhân viên" aria-busy={loading}><div className="directory-panel-heading"><div><h2>Danh sách nhân viên <span>{loading ? '—' : employees.length}</span></h2><p>{loading ? 'Đang tải hồ sơ' : `${employees.filter(e => e.status === 'active').length} đang làm việc · ${employees.filter(e => !e.departmentId).length} chưa phân khoa`}</p></div><button className="directory-refresh" disabled={loading || saving} onClick={() => void load()}><Icon name="refresh" size={15} />Làm mới</button></div>
+      <div className="directory-filters"><label className="directory-search" htmlFor="employee-search">Tìm nhân viên<span><Icon name="search" size={17} /><input id="employee-search" type="search" placeholder="Họ tên, mã nhân viên hoặc email…" value={search} onChange={e => { setSearch(e.target.value); pagination.resetPage(); }} /></span></label>
+        <label htmlFor="employee-filter-department">Khoa/phòng<select id="employee-filter-department" value={departmentId} onChange={e => { setDepartmentId(e.target.value); pagination.resetPage(); }}><option value="">Tất cả khoa/phòng</option>{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
+        <label htmlFor="employee-filter-status">Trạng thái<select id="employee-filter-status" value={status} onChange={e => { setStatus(e.target.value); pagination.resetPage(); }}><option value="">Tất cả trạng thái</option><option value="active">Đang làm việc</option><option value="inactive">Ngừng hoạt động</option></select></label></div>
+      {hasFilters && <div className="directory-filter-summary"><span><strong>{filtered.length}</strong> hồ sơ phù hợp</span><button type="button" onClick={resetFilters}>Xóa bộ lọc<Icon name="close" size={13} /></button></div>}
+      <div className="directory-table">{loading ? <p className="directory-loading" role="status">Đang tải danh sách nhân viên…</p> : <DataTable rows={pagination.visible} rowKey={e => e.id} caption="Danh sách hồ sơ nhân viên" emptyMessage="Không có hồ sơ phù hợp."
+        emptyState={<div className="directory-empty"><span><Icon name="users" size={28} /></span><h3>{hasFilters ? 'Không tìm thấy nhân viên' : 'Chưa có hồ sơ nhân viên'}</h3><p>{hasFilters ? 'Thử từ khóa khác hoặc thay đổi khoa/phòng, trạng thái.' : 'Thêm hồ sơ đầu tiên để bắt đầu quản lý đội ngũ.'}</p>{hasFilters && <button type="button" className="button" onClick={resetFilters}>Xóa bộ lọc</button>}</div>}
+        columns={[{ key: 'person', label: 'Nhân viên', className: 'directory-col-person', render: e => <div className="directory-person"><span className={`directory-avatar tone-${employees.indexOf(e) % 4}`}>{initials(e.name)}</span><div><strong>{e.name}</strong><small>{e.code}</small></div></div> },
+          { key: 'department', label: 'Khoa/phòng', className: 'directory-col-department', render: e => <span className={e.departmentId ? 'directory-department' : 'directory-secondary'}>{e.department || 'Chưa phân khoa'}</span> },
+          { key: 'email', label: 'Email', className: 'directory-col-email', render: e => e.email ? <span>{e.email}</span> : <span className="directory-secondary">Chưa cập nhật</span> },
+          { key: 'status', label: 'Trạng thái', className: 'directory-col-status', render: e => <span className={`directory-status ${e.status === 'active' ? 'active' : 'inactive'}`}><i />{e.status === 'active' ? 'Đang làm việc' : e.status === 'inactive' ? 'Ngừng hoạt động' : e.status}</span> },
+          { key: 'actions', label: 'Thao tác', className: 'directory-col-actions', render: e => <button className="directory-action" aria-label={`Sửa hồ sơ ${e.name}`} disabled={saving || !!error} onClick={() => edit(e)}><Icon name="edit" size={15} />Chỉnh sửa</button> }]} />}</div>
+      <Pagination total={filtered.length} page={pagination.page} pageSize={pagination.pageSize} label="nhân viên" disabled={loading || saving} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
+    </section>
+    {open && <Modal className="directory-dialog" title={editing ? 'Chỉnh sửa nhân viên' : 'Thêm nhân viên'} busy={saving} onClose={() => setOpen(false)}><EmployeeForm employee={editing} departments={departments} onSave={save} onClose={() => setOpen(false)} busy={saving} error={saveError} /></Modal>}
   </section>;
 }

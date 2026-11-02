@@ -13,6 +13,7 @@ import DepartmentPage from '../pages/departments/DepartmentPage';
 import DashboardPage from '../pages/DashboardPage';
 import NotFoundPage from '../pages/NotFoundPage';
 import ProtectedRoute from './ProtectedRoute';
+import SchedulesPage from '../pages/SchedulesPage';
 
 export default function AppRoutes() {
   return <Routes>
@@ -20,6 +21,7 @@ export default function AppRoutes() {
     <Route path="/forgot-password" element={<ForgotPasswordPage />} /><Route path="/reset-password" element={<ResetPasswordPage />} />
     <Route element={<ProtectedRoute />}><Route element={<AppLayout />}>
       <Route index element={<DashboardPage />} /><Route path="/change-password" element={<ChangePasswordPage />} />
+      <Route path="/schedules" element={<SchedulesPage />} />
       <Route element={<ProtectedRoute roles={['admin']} />}>
         <Route path="/accounts" element={<AccountListPage />} /><Route path="/accounts/new" element={<AccountCreatePage />} />
         <Route path="/accounts/:id" element={<AccountDetailPage />} /><Route path="/accounts/:id/edit" element={<AccountEditPage />} />

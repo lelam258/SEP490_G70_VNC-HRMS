@@ -13,7 +13,7 @@ export default function AppLayout() {
   const location = useLocation(); const navigate = useNavigate();
   useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }, [location.pathname]);
   const navClass = ({ isActive }: { isActive: boolean }) => `nav-item ${isActive ? 'selected' : ''}`;
-  const title = location.pathname.startsWith('/accounts') ? 'Quản lý tài khoản' : location.pathname.startsWith('/employees') ? 'Nhân viên' : location.pathname.startsWith('/departments') ? 'Khoa/phòng' : location.pathname === '/change-password' ? 'Đổi mật khẩu' : 'Trang chủ';
+  const title = location.pathname.startsWith('/schedules') ? 'Lịch làm việc' : location.pathname.startsWith('/accounts') ? 'Quản lý tài khoản' : location.pathname.startsWith('/employees') ? 'Nhân viên' : location.pathname.startsWith('/departments') ? 'Khoa/phòng' : location.pathname === '/change-password' ? 'Đổi mật khẩu' : 'Trang chủ';
   async function logout() {
     setBusy(true); setError('');
     try { await authApi.logout(); navigate('/login', { replace: true }); }
@@ -24,6 +24,7 @@ export default function AppLayout() {
   return <div className="vnc workspace">
     {sidebarOpen && <aside className="sidebar"><div className="brand"><span className="brand-mark">✚</span><div>VNC <span>CLINIC</span><small>QUẢN LÝ NHÂN SỰ</small></div></div>
       <div className="workspace-label">KHÔNG GIAN LÀM VIỆC</div><nav aria-label="Điều hướng chính"><NavLink to="/" end className={navClass}><Icon name="building" />Trang chủ</NavLink>
+      <NavLink to="/schedules" className={navClass}><Icon name="users" />Lịch làm việc</NavLink>
       {user.role === 'admin' && <NavLink to="/accounts" className={navClass}><Icon name="users" />Quản lý tài khoản</NavLink>}
       {user.role === 'hr_manager' && <><NavLink to="/employees" className={navClass}><Icon name="users" />Nhân viên</NavLink><NavLink to="/departments" className={navClass}><Icon name="building" />Khoa/phòng</NavLink></>}
       <NavLink to="/change-password" className={navClass}><Icon name="lock" />Đổi mật khẩu</NavLink></nav>

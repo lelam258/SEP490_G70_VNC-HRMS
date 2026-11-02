@@ -5,4 +5,5 @@ export type EmployeeInput = { code: string; name: string; email: string | null; 
 export const employeeApi = {
   async list() { return (await axiosClient.get<Employee[]>('/employees')).data; },
   async create(input: EmployeeInput) { return (await axiosClient.post<Employee>('/employees', input)).data; },
+  async update(id: string, input: EmployeeInput) { return (await axiosClient.put<Employee>(`/employees/${id}`, input)).data; },
 };

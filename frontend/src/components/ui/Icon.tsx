@@ -9,6 +9,8 @@ const paths = {
   logout: 'M9 21H3V3h6 M9 12h12 M17 8l4 4-4 4',
   shield: 'M12 3l8 3v6c0 5-8 9-8 9s-8-4-8-9V6z M8 12l3 3 5-6', close: 'M6 6l12 12 M6 18L18 6',
   mail: 'M3 5h18v14H3z M3 5l9 8 9-8', clock: 'M12 8v4l3 2 M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0',
+  refresh: 'M20 7v5h-5 M4 17v-5h5 M6.1 7a7 7 0 0 1 11.5-1L20 9 M4 15l2.4 3A7 7 0 0 0 17.9 17',
+  power: 'M12 2v10 M5.64 5.64a9 9 0 1 0 12.72 0',
 };
 export default function Icon({ name, size = 20 }: { name: keyof typeof paths; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]} /></svg>;

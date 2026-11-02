@@ -5,4 +5,5 @@ public interface IEmployeeService
     Task<EmployeeDto[]> ListAsync(CancellationToken ct);
     Task<EmployeeDto> GetAsync(Guid id, CancellationToken ct);
     Task<EmployeeDto> CreateAsync(CreateEmployeeRequest request, CancellationToken ct);
+    Task<EmployeeDto> UpdateAsync(Guid id, UpdateEmployeeRequest request, CancellationToken ct);
 }
