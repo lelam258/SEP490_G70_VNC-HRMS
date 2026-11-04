@@ -12,6 +12,10 @@ import EmployeeListPage from '../pages/employees/EmployeeListPage';
 import EmployeeDetailPage from '../pages/employees/EmployeeDetailPage';
 import EmployeeEditPage from '../pages/employees/EmployeeEditPage';
 import DepartmentPage from '../pages/departments/DepartmentPage';
+import ContractListPage from '../pages/contracts/ContractListPage';
+import ContractCreatePage from '../pages/contracts/ContractCreatePage';
+import ContractDetailPage from '../pages/contracts/ContractDetailPage';
+import ContractEditPage from '../pages/contracts/ContractEditPage';
 import CertificateListPage from '../pages/certificates/CertificateListPage';
 import CmeRecordListPage from '../pages/cme/CmeRecordListPage';
 import ComplianceDashboardPage from '../pages/compliance/ComplianceDashboardPage';
@@ -54,6 +58,10 @@ export default function AppRoutes() {
             <Route path="/employees/:id" element={<EmployeeDetailPage />} />
             <Route path="/employees/:id/edit" element={<EmployeeEditPage />} />
             <Route path="/departments" element={<DepartmentPage />} />
+            <Route path="/contracts" element={<ContractListPage />} />
+            <Route path="/contracts/new" element={<ContractCreatePage />} />
+            <Route path="/contracts/:id" element={<ContractDetailPage />} />
+            <Route path="/contracts/:id/edit" element={<ContractEditPage />} />
             <Route path="/certificates" element={<CertificateListPage />} />
             <Route path="/cme-records" element={<CmeRecordListPage />} />
             <Route path="/organization" element={<Navigate to="/employees" replace />} />
