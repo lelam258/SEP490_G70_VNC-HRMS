@@ -60,6 +60,9 @@ export interface ProcedureSlipListItem {
   indicatingStaffId?: string | null;
   indicatingStaffCode?: string | null;
   indicatingStaffName?: string | null;
+  performingStaffId?: string | null;
+  performingStaffCode?: string | null;
+  performingStaffName?: string | null;
   participantCount: number;
   totalCommissionAmount: number;
   status: ProcedureSlipStatus;

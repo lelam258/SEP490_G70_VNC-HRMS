@@ -4,15 +4,14 @@ import Alert from '../../components/ui/Alert';
 import DataTable, { type Column } from '../../components/ui/DataTable';
 import ProcedureReviewModal from '../../components/payroll/ProcedureReviewModal';
 import { procedureSlipApi } from '../../services/procedureSlipApi';
+import { useAuthStore } from '../../store/useAuthStore';
 import type {
   ProcedureAssignmentItem,
-  ProcedureSlipAuditItem,
   ProcedureSlipDetail,
 } from '../../types/procedureSlip';
 import { formatDateOnly, formatVnd } from '../../utils/format';
 import { formatVietnamDateTime } from '../../utils/leaveRules';
 import {
-  AUDIT_ACTION_LABELS,
   formatRuleFormula,
   getProcedureStatusBadgeClass,
   PROCEDURE_ROLE_LABELS,
@@ -23,6 +22,9 @@ import {
 export default function ProcedureDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.session?.user);
+  const role = user?.role || 'employee';
+  const isReviewerRole = role === 'hr_staff' || role === 'accountant';
 
   const [detail, setDetail] = useState<ProcedureSlipDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -120,37 +122,6 @@ export default function ProcedureDetailPage() {
     },
   ];
 
-  const auditColumns: Column<ProcedureSlipAuditItem>[] = [
-    {
-      key: 'createdAt',
-      label: 'Thời gian',
-      render: (r) => (
-        <span className="text-xs text-slate-600 font-mono">{formatVietnamDateTime(r.createdAt)}</span>
-      ),
-    },
-    {
-      key: 'action',
-      label: 'Bước thực hiện',
-      render: (r) => (
-        <span className="text-xs font-semibold text-slate-800">
-          {AUDIT_ACTION_LABELS[r.action] || r.action}
-        </span>
-      ),
-    },
-    {
-      key: 'actorFullName',
-      label: 'Người thực hiện',
-      render: (r) => (
-        <span className="text-xs text-slate-700">{r.actorFullName || r.username || 'Hệ thống'}</span>
-      ),
-    },
-    {
-      key: 'detail',
-      label: 'Ghi chú / Nội dung',
-      render: (r) => <span className="text-xs text-slate-600">{r.detail || '—'}</span>,
-    },
-  ];
-
   if (loading) {
     return (
       <div className="p-8 text-center text-slate-500">
@@ -163,12 +134,29 @@ export default function ProcedureDetailPage() {
     return (
       <div className="space-y-4">
         <Alert variant="error">{error || 'Không tìm thấy phiếu thủ thuật.'}</Alert>
-        <button type="button" className="button" onClick={() => navigate('/procedures')}>
+        <button
+          type="button"
+          className="button"
+          onClick={() => navigate(role === 'accountant' ? '/payroll/procedures' : '/procedures')}
+        >
           ← Quay lại danh sách
         </button>
       </div>
     );
   }
+
+  const creatorLabel =
+    detail.indicatingStaffName || detail.recordedByName || 'Nhân viên y tế';
+  const performingAssignment =
+    detail.assignments.find((a) => a.role === 'performing') || detail.assignments[0];
+  const performingLabel =
+    detail.performingStaffName ||
+    performingAssignment?.staffName ||
+    'Chưa xác định';
+  const performingCode =
+    detail.performingStaffCode || performingAssignment?.staffCode || null;
+
+  const canShowEditButton = detail.canEdit && !isReviewerRole;
 
   return (
     <div className="space-y-6">
@@ -178,7 +166,7 @@ export default function ProcedureDetailPage() {
           <div className="flex items-center gap-2 mb-1">
             <button
               type="button"
-              onClick={() => navigate('/procedures')}
+              onClick={() => navigate(role === 'accountant' ? '/payroll/procedures' : '/procedures')}
               className="text-xs font-medium text-sky-700 hover:underline cursor-pointer"
             >
               ← Danh sách phiếu thủ thuật
@@ -210,7 +198,7 @@ export default function ProcedureDetailPage() {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 flex-wrap">
-          {detail.canEdit && (
+          {canShowEditButton && (
             <button
               type="button"
               onClick={() => navigate(`/procedures/${detail.slipId}/edit`)}
@@ -220,7 +208,7 @@ export default function ProcedureDetailPage() {
             </button>
           )}
 
-          {detail.canHrCheck && (
+          {detail.canHrCheck && role === 'hr_staff' && (
             <>
               <button
                 type="button"
@@ -231,7 +219,7 @@ export default function ProcedureDetailPage() {
                 }}
                 className="button primary bg-emerald-600 hover:bg-emerald-700 text-white"
               >
-                ✓ HR Duyệt đạt (Chuyển Kế toán)
+                ✓ Duyệt đạt (Chuyển Kế toán)
               </button>
               <button
                 type="button"
@@ -242,12 +230,12 @@ export default function ProcedureDetailPage() {
                 }}
                 className="button bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100"
               >
-                ✕ HR Từ chối
+                ✕ Từ chối phiếu
               </button>
             </>
           )}
 
-          {detail.canAccountantVerify && (
+          {detail.canAccountantVerify && role === 'accountant' && (
             <>
               <button
                 type="button"
@@ -258,7 +246,7 @@ export default function ProcedureDetailPage() {
                 }}
                 className="button primary bg-emerald-600 hover:bg-emerald-700 text-white"
               >
-                ✓ Kế toán Xác minh (Verify)
+                ✓ Xác minh hợp lệ (Verify)
               </button>
               <button
                 type="button"
@@ -269,7 +257,7 @@ export default function ProcedureDetailPage() {
                 }}
                 className="button bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100"
               >
-                ✕ Kế toán Từ chối
+                ✕ Từ chối phiếu
               </button>
             </>
           )}
@@ -283,13 +271,14 @@ export default function ProcedureDetailPage() {
         <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 text-rose-900 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <div className="font-bold text-sm text-rose-800">
-              ⚠ Phiếu thủ thuật đã bị từ chối và trả về cho Nhân viên y tế
+              ⚠ Phiếu thủ thuật đã bị từ chối
             </div>
             <div className="text-sm mt-1">
-              <strong>Lý do:</strong> {detail.rejectedReason || 'Không đạt yêu cầu đối soát.'}
+              <strong>Lý do từ chối:</strong>{' '}
+              {detail.rejectedReason || 'Không đạt yêu cầu đối soát.'}
             </div>
           </div>
-          {detail.canEdit && (
+          {canShowEditButton && (
             <button
               type="button"
               onClick={() => navigate(`/procedures/${detail.slipId}/edit`)}
@@ -301,53 +290,122 @@ export default function ProcedureDetailPage() {
         </div>
       )}
 
-      {/* Sơ đồ tiến trình phê duyệt 2 cấp (Swimlane Workflow Tracker) */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">
-          Quy trình ghi nhận & kiểm duyệt 2 cấp (Medical Staff → HR Staff → Accountant → System)
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Sơ đồ Quy trình ghi nhận & Luân chuyển 3 bước (Đã bỏ bước Hệ thống) */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-3">
+          <div>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-600">
+              Quy trình ghi nhận & Luân chuyển phiếu (Medical Staff → HR Staff → Accountant)
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Theo dõi chi tiết phiếu được lập từ ai, chuyển sang ai kiểm duyệt và kết quả đánh giá.
+            </p>
+          </div>
+          <div className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-slate-700">
+            Luồng chuyển:{' '}
+            <strong className="text-slate-900">{creatorLabel}</strong>
+            {' → '}
+            <strong className="text-sky-700">
+              {detail.hrCheckedByName || 'Phòng Nhân sự (HR)'}
+            </strong>
+            {' → '}
+            <strong className="text-emerald-700">
+              {detail.verifiedByName || 'Phòng Kế toán'}
+            </strong>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Bước 1: Medical Staff */}
-          <div className="p-3.5 rounded-lg border border-emerald-200 bg-emerald-50/40">
-            <div className="text-xs font-bold text-emerald-800">1. Medical Staff (Lập phiếu)</div>
-            <div className="text-xs text-slate-700 mt-1">
-              Người lập: <strong>{detail.recordedByName || 'Nhân viên y tế'}</strong>
+          <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/40">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-emerald-800">
+                1. Người lập / Bác sĩ chỉ định
+              </span>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">
+                Đã khởi tạo
+              </span>
             </div>
-            <div className="text-[11px] text-slate-500 mt-0.5">
-              Lúc: {formatVietnamDateTime(detail.createdAt)}
+            <div className="text-sm font-semibold text-slate-900 mt-2">
+              {creatorLabel}
+            </div>
+            <div className="text-xs text-slate-600 mt-1">
+              Chuyển sang: <strong>Nhân sự (HR Staff)</strong>
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1">
+              Thời gian lập: {formatVietnamDateTime(detail.createdAt)}
             </div>
           </div>
 
           {/* Bước 2: HR Staff Check */}
           <div
-            className={`p-3.5 rounded-lg border ${
-              detail.status === 'hr_checked' || detail.status === 'verified' || detail.hrCheckedAt
+            className={`p-4 rounded-xl border ${
+              detail.status === 'hr_checked' || detail.status === 'verified'
                 ? 'border-emerald-200 bg-emerald-50/40'
                 : detail.status === 'rejected' && detail.rejectedReason?.startsWith('[HR')
                 ? 'border-rose-200 bg-rose-50/50'
                 : 'border-amber-200 bg-amber-50/40'
             }`}
           >
-            <div className="text-xs font-bold text-slate-800">2. HR Staff (Kiểm tra quy chế)</div>
-            {detail.hrCheckedAt || detail.status === 'hr_checked' || detail.status === 'verified' ? (
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800">
+                2. Nhân sự kiểm tra (HR Staff)
+              </span>
+              <span
+                className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
+                  detail.status === 'hr_checked' || detail.status === 'verified'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : detail.status === 'rejected' && detail.rejectedReason?.startsWith('[HR')
+                    ? 'bg-rose-100 text-rose-800'
+                    : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {detail.status === 'hr_checked' || detail.status === 'verified'
+                  ? 'Đã duyệt đạt'
+                  : detail.status === 'rejected' && detail.rejectedReason?.startsWith('[HR')
+                  ? 'Từ chối'
+                  : 'Chờ kiểm tra'}
+              </span>
+            </div>
+
+            {detail.status === 'hr_checked' || detail.status === 'verified' ? (
               <>
-                <div className="text-xs text-emerald-700 font-medium mt-1">
-                  ✓ Đạt yêu cầu ({detail.hrCheckedByName || 'HR'})
+                <div className="text-sm font-semibold text-emerald-800 mt-2">
+                  ✓ Người duyệt: {detail.hrCheckedByName || 'Nhân viên HR'}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">
-                  {detail.hrCheckNote || 'Đúng phân công & định mức'}
+                <div className="text-xs text-slate-600 mt-1">
+                  Nhận từ: <strong>{creatorLabel}</strong> → Chuyển sang: <strong>Kế toán</strong>
                 </div>
+                {detail.hrCheckedAt && (
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    Lúc: {formatVietnamDateTime(detail.hrCheckedAt)}
+                  </div>
+                )}
+                {detail.hrCheckNote && (
+                  <div className="text-xs text-slate-600 mt-1 italic">
+                    Ghi chú: &ldquo;{detail.hrCheckNote}&rdquo;
+                  </div>
+                )}
               </>
             ) : detail.status === 'rejected' && detail.rejectedReason?.startsWith('[HR') ? (
-              <div className="text-xs text-rose-700 font-medium mt-1">{detail.rejectedReason}</div>
+              <>
+                <div className="text-sm font-semibold text-rose-800 mt-2">
+                  ✕ Người từ chối: {detail.hrCheckedByName || 'Nhân viên HR'}
+                </div>
+                <div className="text-xs text-rose-700 font-medium mt-1">
+                  {detail.rejectedReason}
+                </div>
+              </>
             ) : (
-              <div className="text-xs text-amber-700 mt-1">Đang chờ Nhân sự kiểm tra...</div>
+              <div className="text-xs text-amber-800 mt-2">
+                Phiếu từ <strong>{creatorLabel}</strong> đang chờ Nhân sự kiểm tra kíp thực hiện & quy tắc hoa hồng.
+              </div>
             )}
           </div>
 
           {/* Bước 3: Accountant Verify */}
           <div
-            className={`p-3.5 rounded-lg border ${
+            className={`p-4 rounded-xl border ${
               detail.status === 'verified'
                 ? 'border-emerald-200 bg-emerald-50/40'
                 : detail.status === 'rejected' && detail.rejectedReason?.startsWith('[Kế toán')
@@ -357,43 +415,67 @@ export default function ProcedureDetailPage() {
                 : 'border-slate-200 bg-slate-50'
             }`}
           >
-            <div className="text-xs font-bold text-slate-800">3. Accountant (Xác minh viện phí)</div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800">
+                3. Kế toán xác minh (Accountant)
+              </span>
+              <span
+                className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
+                  detail.status === 'verified'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : detail.status === 'rejected' && detail.rejectedReason?.startsWith('[Kế toán')
+                    ? 'bg-rose-100 text-rose-800'
+                    : detail.status === 'hr_checked'
+                    ? 'bg-sky-100 text-sky-800'
+                    : 'bg-slate-200 text-slate-600'
+                }`}
+              >
+                {detail.status === 'verified'
+                  ? 'Đã xác minh'
+                  : detail.status === 'rejected' && detail.rejectedReason?.startsWith('[Kế toán')
+                  ? 'Từ chối'
+                  : detail.status === 'hr_checked'
+                  ? 'Chờ xác minh'
+                  : 'Chưa đến bước'}
+              </span>
+            </div>
+
             {detail.status === 'verified' ? (
               <>
-                <div className="text-xs text-emerald-700 font-medium mt-1">
-                  ✓ Đã xác minh ({detail.verifiedByName || 'Kế toán'})
+                <div className="text-sm font-semibold text-emerald-800 mt-2">
+                  ✓ Người xác minh: {detail.verifiedByName || 'Kế toán'}
+                </div>
+                <div className="text-xs text-slate-600 mt-1">
+                  Nhận từ HR: <strong>{detail.hrCheckedByName || 'Nhân viên HR'}</strong>
                 </div>
                 <div className="text-[11px] text-slate-500 mt-0.5">
                   Lúc: {formatVietnamDateTime(detail.verifiedAt)}
                 </div>
+                {detail.verifyNote && (
+                  <div className="text-xs text-slate-600 mt-1 italic">
+                    Ghi chú: &ldquo;{detail.verifyNote}&rdquo;
+                  </div>
+                )}
               </>
             ) : detail.status === 'rejected' && detail.rejectedReason?.startsWith('[Kế toán') ? (
-              <div className="text-xs text-rose-700 font-medium mt-1">{detail.rejectedReason}</div>
+              <>
+                <div className="text-sm font-semibold text-rose-800 mt-2">
+                  ✕ Người từ chối: {detail.verifiedByName || 'Kế toán'}
+                </div>
+                <div className="text-xs text-slate-600 mt-0.5">
+                  Nhận từ HR: <strong>{detail.hrCheckedByName || 'Nhân viên HR'}</strong>
+                </div>
+                <div className="text-xs text-rose-700 font-medium mt-1">
+                  {detail.rejectedReason}
+                </div>
+              </>
             ) : detail.status === 'hr_checked' ? (
-              <div className="text-xs text-sky-700 font-medium mt-1">
-                Đang chờ Kế toán đối soát & xác minh...
+              <div className="text-xs text-sky-800 mt-2">
+                Đã được <strong>{detail.hrCheckedByName || 'HR Staff'}</strong> kiểm tra đạt và chuyển sang chờ Kế toán xác minh.
               </div>
             ) : (
-              <div className="text-xs text-slate-400 mt-1">Chờ hoàn tất bước HR kiểm tra</div>
-            )}
-          </div>
-
-          {/* Bước 4: Monthly Commission */}
-          <div
-            className={`p-3.5 rounded-lg border ${
-              detail.status === 'verified'
-                ? 'border-emerald-200 bg-emerald-50/40'
-                : 'border-slate-200 bg-slate-50'
-            }`}
-          >
-            <div className="text-xs font-bold text-slate-800">4. System (Tính hoa hồng tháng)</div>
-            {detail.status === 'verified' ? (
-              <div className="text-xs text-emerald-700 font-medium mt-1">
-                ✓ Đủ điều kiện tính vào kỳ lương {detail.procedureDate.slice(0, 7)}
-              </div>
-            ) : (
-              <div className="text-xs text-slate-400 mt-1">
-                Chỉ tổng hợp các phiếu đã ở trạng thái Verified
+              <div className="text-xs text-slate-400 mt-2">
+                Chờ hoàn tất bước Nhân sự (HR Staff) kiểm tra trước.
               </div>
             )}
           </div>
@@ -404,7 +486,7 @@ export default function ProcedureDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
           <h2 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2.5">
-            Thông tin ca thủ thuật & Bệnh nhân
+            Thông tin ca thủ thuật & Nhân sự chính
           </h2>
           <dl className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
             <div>
@@ -431,14 +513,20 @@ export default function ProcedureDetailPage() {
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-slate-500">Bác sĩ chỉ định</dt>
-              <dd className="font-medium text-slate-900 mt-0.5">
-                {detail.indicatingStaffName
-                  ? `${detail.indicatingStaffName} (${detail.indicatingStaffCode})`
-                  : '—'}
+              <dt className="text-xs text-slate-500">Bác sĩ chỉ định (Người lập)</dt>
+              <dd className="font-semibold text-slate-900 mt-0.5">
+                {creatorLabel}
+                {detail.indicatingStaffCode ? ` (${detail.indicatingStaffCode})` : ''}
               </dd>
             </div>
             <div>
+              <dt className="text-xs text-slate-500">Người thực hiện chính</dt>
+              <dd className="font-semibold text-sky-800 mt-0.5">
+                {performingLabel}
+                {performingCode ? ` (${performingCode})` : ''}
+              </dd>
+            </div>
+            <div className="col-span-2">
               <dt className="text-xs text-slate-500">Thời lượng & Khung giờ</dt>
               <dd className="font-medium text-slate-900 mt-0.5">
                 {detail.durationHours ? `${detail.durationHours} giờ` : 'Theo ca chuẩn'} •{' '}
@@ -499,7 +587,7 @@ export default function ProcedureDetailPage() {
       </div>
 
       {/* Bảng Kíp thực hiện & Phân bổ hoa hồng */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
+      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4 procedure-table-wrap">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-base font-bold text-slate-900">
@@ -522,19 +610,6 @@ export default function ProcedureDetailPage() {
           rows={detail.assignments}
           rowKey={(r) => r.assignmentId}
           emptyMessage="Chưa có nhân sự nào trong kíp thực hiện."
-        />
-      </div>
-
-      {/* Lịch sử kiểm duyệt & Audit Trail */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3">
-        <h2 className="text-base font-bold text-slate-900">
-          Nhật ký tạo & Kiểm duyệt phiếu (Audit History)
-        </h2>
-        <DataTable<ProcedureSlipAuditItem>
-          columns={auditColumns}
-          rows={detail.auditHistory}
-          rowKey={(r) => r.logId}
-          emptyMessage="Chưa có nhật ký thay đổi."
         />
       </div>
 

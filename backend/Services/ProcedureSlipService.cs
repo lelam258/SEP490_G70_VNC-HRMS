@@ -382,23 +382,59 @@ public sealed partial class ProcedureSlipService(
                 .ToListAsync(ct))
                 .ToDictionary(x => x.SlipId, x => (x.Count, x.TotalCommission));
 
-        // Load latest HR check audit logs for these slips
-        var hrLogs = slipIds.Count == 0
-            ? new Dictionary<Guid, (Guid? UserId, string? Username, DateTime? CreatedAt)>()
-            : (await db.AuditLogs.AsNoTracking()
-                .Where(l => l.EntityType == "ProcedureSlip" && l.EntityId.HasValue && slipIds.Contains(l.EntityId.Value) && l.Action == "hr_check_approve")
-                .OrderByDescending(l => l.CreatedAt)
+        var performingStaffBySlip = slipIds.Count == 0
+            ? new Dictionary<Guid, (Guid? StaffId, string? StaffCode, string? StaffName)>()
+            : (await (
+                from a in db.ProcedureAssignments.AsNoTracking()
+                where slipIds.Contains(a.SlipId)
+                join s in db.Staff.AsNoTracking() on a.StaffId equals s.StaffId into staffJoin
+                from s in staffJoin.DefaultIfEmpty()
+                select new
+                {
+                    a.SlipId,
+                    a.StaffId,
+                    a.Role,
+                    StaffCode = s != null ? s.StaffCode : null,
+                    StaffName = s != null ? s.FullName : null
+                })
                 .ToListAsync(ct))
-                .GroupBy(l => l.EntityId!.Value)
+                .GroupBy(x => x.SlipId)
+                .ToDictionary(g => g.Key, g =>
+                {
+                    var perf = g.FirstOrDefault(x => string.Equals(x.Role, "performing", StringComparison.OrdinalIgnoreCase))
+                        ?? g.First();
+                    return (StaffId: (Guid?)perf.StaffId, StaffCode: (string?)perf.StaffCode, StaffName: (string?)perf.StaffName);
+                });
+
+        // Load latest HR check audit logs for these slips (both approve and reject)
+        var hrLogs = slipIds.Count == 0
+            ? new Dictionary<Guid, (Guid? UserId, string? ActorName, DateTime? CreatedAt)>()
+            : (await (
+                from l in db.AuditLogs.AsNoTracking()
+                where l.EntityType == "ProcedureSlip" && l.EntityId.HasValue && slipIds.Contains(l.EntityId.Value) &&
+                      (l.Action == "hr_check_approve" || l.Action == "hr_check_reject")
+                join u in db.Users.AsNoTracking() on l.UserId equals u.UserId into userJoin
+                from u in userJoin.DefaultIfEmpty()
+                orderby l.CreatedAt descending
+                select new
+                {
+                    SlipId = l.EntityId!.Value,
+                    l.UserId,
+                    ActorName = u != null ? (u.FullName ?? u.Username) : l.Username,
+                    l.CreatedAt
+                })
+                .ToListAsync(ct))
+                .GroupBy(x => x.SlipId)
                 .ToDictionary(g => g.Key, g =>
                 {
                     var latest = g.First();
-                    return (latest.UserId, latest.Username, latest.CreatedAt);
+                    return (UserId: latest.UserId, ActorName: (string?)latest.ActorName, CreatedAt: latest.CreatedAt);
                 });
 
         var allMapped = rawRows.Select(r =>
         {
             assignmentStats.TryGetValue(r.Slip.SlipId, out var stat);
+            performingStaffBySlip.TryGetValue(r.Slip.SlipId, out var perfStaff);
             hrLogs.TryGetValue(r.Slip.SlipId, out var hrLog);
             var charged = r.Slip.ChargedAmount ?? 0m;
             var directCost = r.Slip.DirectCost ?? 0m;
@@ -425,13 +461,16 @@ public sealed partial class ProcedureSlipService(
                 r.Slip.IndicatingStaffId,
                 r.IndicatingStaffCode,
                 r.IndicatingStaffName,
+                perfStaff.StaffId,
+                perfStaff.StaffCode,
+                perfStaff.StaffName,
                 stat.Count,
                 stat.TotalCommission,
                 normStatus,
                 r.Slip.RecordedBy,
                 r.RecordedByName,
                 hrLog.UserId,
-                hrLog.Username,
+                hrLog.ActorName,
                 hrLog.CreatedAt,
                 r.Slip.VerifiedBy,
                 r.VerifiedByName,
@@ -654,13 +693,13 @@ public sealed partial class ProcedureSlipService(
         string? hrCheckNote = null;
         string? verifyNote = null;
 
-        var latestHrApprove = rawLogs.FirstOrDefault(x => x.Log.Action == "hr_check_approve");
-        if (latestHrApprove != null)
+        var latestHrLog = rawLogs.FirstOrDefault(x => x.Log.Action == "hr_check_approve" || x.Log.Action == "hr_check_reject");
+        if (latestHrLog != null)
         {
-            hrCheckedBy = latestHrApprove.Log.UserId;
-            hrCheckedByName = latestHrApprove.ActorFullName;
-            hrCheckedAt = latestHrApprove.Log.CreatedAt;
-            hrCheckNote = ExtractNoteFromJson(latestHrApprove.Log.NewValue);
+            hrCheckedBy = latestHrLog.Log.UserId;
+            hrCheckedByName = latestHrLog.ActorFullName;
+            hrCheckedAt = latestHrLog.Log.CreatedAt;
+            hrCheckNote = ExtractNoteFromJson(latestHrLog.Log.NewValue);
         }
 
         var latestAccVerify = rawLogs.FirstOrDefault(x => x.Log.Action == "accountant_verify_approve");
@@ -707,11 +746,18 @@ public sealed partial class ProcedureSlipService(
             }
         }
 
-        bool canEdit = !isLocked && (normStatus == "pending" || normStatus == "rejected");
+        bool canEdit = !isLocked &&
+                       (normStatus == "pending" || normStatus == "rejected") &&
+                       currentUserRole != AccountRoles.HrStaff &&
+                       currentUserRole != AccountRoles.Accountant &&
+                       row.Slip.RecordedBy == currentUserId;
         bool canHrCheck = !isLocked && normStatus == "pending" &&
                           currentUserRole == AccountRoles.HrStaff;
-        bool canAccountantVerify = !isLocked && (normStatus == "hr_checked" || normStatus == "pending") &&
+        bool canAccountantVerify = !isLocked && normStatus == "hr_checked" &&
                                    currentUserRole == AccountRoles.Accountant;
+
+        var primaryPerforming = assignments.FirstOrDefault(x => string.Equals(x.Role, "performing", StringComparison.OrdinalIgnoreCase))
+            ?? assignments.FirstOrDefault();
 
         return new ProcedureSlipDetailDto(
             row.Slip.SlipId,
@@ -734,6 +780,9 @@ public sealed partial class ProcedureSlipService(
             row.Slip.IndicatingStaffId,
             row.IndicatingStaffCode,
             row.IndicatingStaffName,
+            primaryPerforming?.StaffId,
+            primaryPerforming?.StaffCode,
+            primaryPerforming?.StaffName,
             assignments.Count,
             assignments.Sum(x => x.CommissionAmount),
             normStatus,
@@ -975,6 +1024,11 @@ public sealed partial class ProcedureSlipService(
     public async Task<ProcedureSlipDetailDto> CreateSlipAsync(
         Guid currentUserId, string currentUserRole, SaveProcedureSlipRequest request, CancellationToken ct)
     {
+        if (currentUserRole == AccountRoles.HrStaff || currentUserRole == AccountRoles.Accountant)
+        {
+            throw new AppException(403, "Nhân sự và Kế toán chỉ thực hiện kiểm duyệt phiếu thủ thuật, không lập phiếu mới.");
+        }
+
         await ValidateAndEnsureUnlockedMonthAsync(request.ProcedureDate, ct);
 
         PayrollParameterRules.EnsureMoney(request.ChargedAmount, "Số tiền thu viện phí");
@@ -1110,18 +1164,23 @@ public sealed partial class ProcedureSlipService(
     public async Task<ProcedureSlipDetailDto> UpdateSlipAsync(
         Guid currentUserId, string currentUserRole, Guid slipId, SaveProcedureSlipRequest request, CancellationToken ct)
     {
+        if (currentUserRole == AccountRoles.HrStaff || currentUserRole == AccountRoles.Accountant)
+        {
+            throw new AppException(403, "Nhân sự và Kế toán chỉ thực hiện xem và kiểm duyệt phiếu thủ thuật, không có quyền chỉnh sửa phiếu.");
+        }
+
         var slip = await db.ProcedureSlips.FirstOrDefaultAsync(s => s.SlipId == slipId, ct)
             ?? throw new AppException(404, "Không tìm thấy phiếu thủ thuật y tế.");
 
-        var currentStatus = NormalizeSlipStatus(slip.Status);
-        if (currentStatus == "verified")
+        if (slip.RecordedBy != currentUserId)
         {
-            throw new AppException(409, "Phiếu thủ thuật đã được Kế toán xác minh (Verified) nên không thể chỉnh sửa.");
+            throw new AppException(403, "Chỉ người tạo phiếu mới có quyền chỉnh sửa phiếu thủ thuật.");
         }
 
-        if (currentStatus == "hr_checked" && currentUserRole != AccountRoles.HrStaff)
+        var currentStatus = NormalizeSlipStatus(slip.Status);
+        if (currentStatus == "verified" || currentStatus == "hr_checked")
         {
-            throw new AppException(409, "Phiếu đã qua bước Nhân sự kiểm tra. Chỉ Nhân viên Nhân sự (HR Staff) mới có thể điều chỉnh trước khi Kế toán duyệt.");
+            throw new AppException(409, "Phiếu thủ thuật đã qua kiểm duyệt nên không thể chỉnh sửa.");
         }
 
         await ValidateAndEnsureUnlockedMonthAsync(slip.ProcedureDate, ct);

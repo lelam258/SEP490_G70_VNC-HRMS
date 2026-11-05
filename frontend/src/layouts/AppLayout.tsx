@@ -85,7 +85,7 @@ export default function AppLayout() {
               Trang chủ
             </NavLink>
             <NavLink to="/schedules" className={navClass}><Icon name="users" />Lịch làm việc</NavLink>
-            {user.role !== 'admin' && (
+            {user.role !== 'admin' && user.role !== 'accountant' && (
               <NavLink to="/procedures" className={navClass}><Icon name="fileText" />Phiếu thủ thuật</NavLink>
             )}
             {user.role === 'admin' && (
@@ -142,7 +142,14 @@ export default function AppLayout() {
                   <Icon name="calendar" />
                   Kỳ tính lương
                 </NavLink>
-                <NavLink to="/payroll/procedures" className={navClass}>
+                <NavLink
+                  to="/payroll/procedures"
+                  className={({ isActive }) =>
+                    `nav-item ${
+                      isActive || location.pathname.startsWith('/procedures/') ? 'selected' : ''
+                    }`
+                  }
+                >
                   <Icon name="fileText" />
                   Quản lý phiếu thủ thuật
                 </NavLink>

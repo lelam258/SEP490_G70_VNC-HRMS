@@ -71,15 +71,17 @@ export default function AppRoutes() {
           </Route>
           <Route element={<ProtectedRoute roles={['hr_manager', 'hr_staff', 'accountant', 'department_head', 'employee']} />}>
             <Route path="/procedures" element={<ProcedureListPage />} />
-            <Route path="/procedures/new" element={<ProcedureFormPage />} />
             <Route path="/procedures/:id" element={<ProcedureDetailPage />} />
-            <Route path="/procedures/:id/edit" element={<ProcedureFormPage />} />
             <Route path="/me/profile" element={<ProfilePage />} />
             <Route path="/me/certificates" element={<MyCertificateListPage />} />
             <Route path="/me/cme-records" element={<MyCmeListPage />} />
             <Route path="/me/leave-requests" element={<MyLeaveRequestsPage />} />
             <Route path="/me/leave-requests/new" element={<LeaveRequestFormPage />} />
             <Route path="/me/leave-requests/:id/edit" element={<LeaveRequestFormPage />} />
+          </Route>
+          <Route element={<ProtectedRoute roles={['hr_manager', 'department_head', 'employee']} />}>
+            <Route path="/procedures/new" element={<ProcedureFormPage />} />
+            <Route path="/procedures/:id/edit" element={<ProcedureFormPage />} />
           </Route>
           <Route element={<ProtectedRoute roles={['accountant']} />}>
             <Route path="/payroll/parameters" element={<PayrollParameterPage />} />
