@@ -24,6 +24,8 @@ export default function AppLayout() {
     ? 'Nhân viên'
     : location.pathname.startsWith('/departments')
     ? 'Khoa/phòng'
+    : location.pathname.startsWith('/contracts')
+    ? 'Hợp đồng lao động'
     : location.pathname.startsWith('/compliance')
     ? 'Compliance Dashboard'
     : location.pathname.startsWith('/certificates')
@@ -97,6 +99,10 @@ export default function AppLayout() {
                 <NavLink to="/employees" className={navClass}>
                   <Icon name="users" />
                   Nhân viên
+                </NavLink>
+                <NavLink to="/contracts" className={navClass}>
+                  <Icon name="fileText" />
+                  Hợp đồng
                 </NavLink>
                 <NavLink to="/departments" className={navClass}>
                   <Icon name="building" />

@@ -51,6 +51,11 @@
 .vnc .directory-secondary { color:#9aa9b3; font-size:11px; }
 .vnc .directory-status { display:inline-flex; align-items:center; gap:6px; padding:4px 8px; font-size:11px; font-weight:500; line-height:17px; border-radius:5px; background:#f0f3f5; color:#7c8e9c; white-space:nowrap; }
 .vnc .directory-status.active { background:#edf8f2; color:#388969; }
+.vnc .directory-status.expiring { background:#fdf4e7; color:#b07a2f; }
+.vnc .directory-status.expired { background:#fdf0ef; color:#b2564f; }
+.vnc .directory-status.upcoming { background:#eef3fb; color:#4e7fbc; }
+.vnc .directory-contracts .directory-filters { grid-template-columns:minmax(220px,1.6fr) repeat(3, minmax(140px,1fr)); }
+.vnc .directory-table .directory-col-code .directory-person-link { white-space:nowrap; }
 .vnc .directory-status i { width:5px; height:5px; border-radius:50%; background:currentColor; flex-shrink:0; }
 .vnc .directory-actions { display:flex; justify-content:flex-end; align-items:center; gap:7px; }
 .vnc .directory-action { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:31px; padding:5px 9px; border:1px solid #dfe9e7; border-radius:6px; background:white; color:#3a7e76; font-size:11px; font-weight:600; white-space:nowrap; }
@@ -98,7 +103,7 @@
   .vnc .directory-panel-heading h2 { font-size:14px; }
   .vnc .directory-panel-heading p { font-size:10px; }
   .vnc .directory-refresh { font-size:0; gap:0; width:33px; padding:7px; }
-  .vnc .directory-filters, .vnc .directory-departments .directory-filters { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; padding:0 16px 18px; }
+  .vnc .directory-filters, .vnc .directory-departments .directory-filters, .vnc .directory-contracts .directory-filters { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; padding:0 16px 18px; }
   .vnc .directory-departments .directory-filters .directory-search { grid-column:1/-1; }
   .vnc .directory-departments .directory-filters > label:last-child { grid-column:1/-1; }
   .vnc .directory-filter-summary { padding-inline:16px; }
