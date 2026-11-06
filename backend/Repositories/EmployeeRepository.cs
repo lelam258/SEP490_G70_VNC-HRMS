@@ -22,6 +22,11 @@ public sealed class EmployeeRepository(AppDbContext db) : IEmployeeRepository
                                                                    select new EmployeeDto(employee.StaffId, employee.StaffCode, employee.FullName, employee.DepartmentId,
                                                                        department == null ? "Chưa phân khoa" : department.Name, employee.Email, employee.Status, employee.DateJoined, employee.AvatarUrl)).ToArrayAsync(ct);
     public Task<Staff?> FindAsync(Guid id, CancellationToken ct) => db.Staff.SingleOrDefaultAsync(x => x.StaffId == id, ct);
-    public Task<bool> ExistsCodeAsync(string code, CancellationToken ct) => db.Staff.AnyAsync(x => x.StaffCode == code, ct);
+    public Task<bool> ExistsCodeAsync(string code, CancellationToken ct, Guid? excludeId = null)
+        => db.Staff.AnyAsync(x => x.StaffId != excludeId && x.StaffCode == code, ct);
+    public Task<bool> EmailExistsAsync(string email, Guid? excludeId, CancellationToken ct)
+        => db.Staff.AnyAsync(x => x.StaffId != excludeId && x.Email == email, ct);
+    public Task<bool> IdCardExistsAsync(string idCard, Guid? excludeId, CancellationToken ct)
+        => db.Staff.AnyAsync(x => x.StaffId != excludeId && x.IdCardNumber == idCard, ct);
     public void Add(Staff employee) => db.Staff.Add(employee);
 }

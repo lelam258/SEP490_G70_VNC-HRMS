@@ -35,107 +35,10 @@ public sealed partial class ProcedureSlipService(
         };
     }
 
-    private static readonly (string Code, string Name, string Category, decimal BasePrice)[] SampleProcedures =
-    [
-        ("TT-MAU-01", "Nội soi dạ dày - tá tràng có gây mê", "Thủ thuật Nội soi", 1_500_000m),
-        ("TT-MAU-02", "Tiểu phẫu cắt u phần mềm dưới da", "Tiểu phẫu Ngoại khoa", 2_200_000m),
-        ("TT-MAU-03", "Siêu âm Doppler tim mạch chuyên sâu", "Chẩn đoán hình ảnh", 850_000m)
-    ];
-
-    private async Task EnsureSampleProcedureServicesAsync(Guid currentUserId, CancellationToken ct)
-    {
-        var sampleCodes = SampleProcedures.Select(x => x.Code).ToList();
-        var existingServices = await db.ProcedureServices
-            .Where(s => sampleCodes.Contains(s.ServiceCode))
-            .ToListAsync(ct);
-
-        bool changed = false;
-        foreach (var sample in SampleProcedures)
-        {
-            var svc = existingServices.FirstOrDefault(s =>
-                string.Equals(s.ServiceCode, sample.Code, StringComparison.OrdinalIgnoreCase));
-
-            if (svc == null)
-            {
-                svc = new ProcedureService
-                {
-                    ServiceId = Guid.NewGuid(),
-                    ServiceCode = sample.Code,
-                    ServiceName = sample.Name,
-                    Category = sample.Category,
-                    BasePrice = sample.BasePrice,
-                    Status = "active"
-                };
-                db.ProcedureServices.Add(svc);
-                existingServices.Add(svc);
-                changed = true;
-            }
-            else if (svc.Status != "active")
-            {
-                svc.Status = "active";
-                changed = true;
-            }
-        }
-
-        if (changed)
-        {
-            await unitOfWork.SaveChangesAsync(ct);
-        }
-
-        var serviceIds = existingServices.Select(x => x.ServiceId).ToList();
-        var existingRuleServiceIds = await db.CommissionRules.AsNoTracking()
-            .Where(r => r.ServiceId.HasValue && serviceIds.Contains(r.ServiceId.Value) && r.Status == "active")
-            .Select(r => r.ServiceId!.Value)
-            .Distinct()
-            .ToListAsync(ct);
-
-        var defaultRolePercents = new (string Role, decimal Percent)[]
-        {
-            ("performing", 15m),
-            ("assisting", 7m),
-            ("indicating", 5m),
-            ("lab", 4m),
-            ("typist", 2m)
-        };
-
-        bool rulesAdded = false;
-        foreach (var svc in existingServices)
-        {
-            if (existingRuleServiceIds.Contains(svc.ServiceId)) continue;
-
-            foreach (var rp in defaultRolePercents)
-            {
-                db.CommissionRules.Add(new CommissionRule
-                {
-                    RuleId = Guid.NewGuid(),
-                    ServiceId = svc.ServiceId,
-                    ServiceCategory = svc.Category,
-                    Role = rp.Role,
-                    TimeCondition = "all",
-                    ValueType = "percent_service",
-                    CommissionValue = rp.Percent,
-                    EffectiveFrom = new DateOnly(2020, 1, 1),
-                    Status = "active",
-                    CreatedBy = currentUserId,
-                    CreatedAt = DateTime.UtcNow
-                });
-            }
-            rulesAdded = true;
-        }
-
-        if (rulesAdded)
-        {
-            await unitOfWork.SaveChangesAsync(ct);
-        }
-    }
-
     public async Task<ProcedureLookupsDto> GetLookupsAsync(Guid currentUserId, CancellationToken ct)
     {
-        await EnsureSampleProcedureServicesAsync(currentUserId, ct);
-
-        var sampleCodes = SampleProcedures.Select(x => x.Code).ToList();
         var services = await db.ProcedureServices.AsNoTracking()
-            .Where(s => sampleCodes.Contains(s.ServiceCode) && (s.Status == "active" || s.Status == null))
+            .Where(s => s.Status == "active" || s.Status == null)
             .OrderBy(s => s.ServiceCode)
             .Select(s => new ProcedureServiceOptionDto(
                 s.ServiceId,
@@ -830,7 +733,7 @@ public sealed partial class ProcedureSlipService(
         PreviewProcedureCommissionRequest request, CancellationToken ct)
     {
         var service = await db.ProcedureServices.AsNoTracking()
-            .FirstOrDefaultAsync(s => s.ServiceId == request.ServiceId, ct)
+            .FirstOrDefaultAsync(s => s.ServiceId == request.ServiceId && (s.Status == "active" || s.Status == null), ct)
             ?? throw new AppException(404, "Không tìm thấy dịch vụ thủ thuật.");
 
         return await CalculateAssignmentsCommissionAsync(
@@ -854,7 +757,19 @@ public sealed partial class ProcedureSlipService(
         IReadOnlyList<SaveProcedureAssignmentInput> inputs,
         CancellationToken ct)
     {
-        if (inputs.Count == 0) return [];
+        PayrollParameterRules.EnsureMoney(chargedAmount, "Số tiền thu viện phí");
+        PayrollParameterRules.EnsureMoney(directCost, "Chi phí trực tiếp");
+        if (durationHours.HasValue && (durationHours.Value <= 0 || durationHours.Value > 48))
+            throw new AppException(400, "Thời lượng thực hiện phải lớn hơn 0 và tối đa 48 giờ.");
+        if (inputs is null || inputs.Count == 0)
+            throw new AppException(400, "Phiếu thủ thuật phải có ít nhất 1 nhân sự tham gia trong kíp thực hiện.");
+        var participants = new HashSet<(Guid StaffId, string Role)>();
+        foreach (var input in inputs)
+        {
+            var role = PayrollParameterRules.RequireOption(input.Role, PayrollParameterRules.CommissionRoles, "Vai trò thực hiện");
+            if (!participants.Add((input.StaffId, role)))
+                throw new AppException(400, "Một nhân viên không được lặp cùng vai trò trong một phiếu thủ thuật.", "assignments");
+        }
 
         var staffIds = inputs.Select(x => x.StaffId).Distinct().ToList();
         var staffMap = await (
@@ -869,7 +784,9 @@ public sealed partial class ProcedureSlipService(
                 s.FullName,
                 s.PositionId,
                 PositionName = p != null ? p.Name : null,
-                s.Status
+                s.Status,
+                s.DateJoined,
+                s.DateLeft
             }
         ).ToDictionaryAsync(x => x.StaffId, ct);
 
@@ -899,6 +816,9 @@ public sealed partial class ProcedureSlipService(
             {
                 throw new AppException(404, "Một hoặc nhiều nhân sự trong kíp thực hiện không tồn tại.");
             }
+            if (staff.Status != "active")
+                throw new AppException(400, "Nhân sự trong kíp thực hiện đã ngừng hoạt động.", "assignments");
+            EmployeeRules.EnsureWorkingPeriod(procedureDate, procedureDate, staff.DateJoined, staff.DateLeft);
 
             var role = PayrollParameterRules.RequireOption(item.Role, PayrollParameterRules.CommissionRoles, "Vai trò thực hiện");
 
@@ -1029,6 +949,8 @@ public sealed partial class ProcedureSlipService(
             throw new AppException(403, "Nhân sự và Kế toán chỉ thực hiện kiểm duyệt phiếu thủ thuật, không lập phiếu mới.");
         }
 
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+
         await ValidateAndEnsureUnlockedMonthAsync(request.ProcedureDate, ct);
 
         PayrollParameterRules.EnsureMoney(request.ChargedAmount, "Số tiền thu viện phí");
@@ -1076,8 +998,6 @@ public sealed partial class ProcedureSlipService(
             request.DurationHours,
             request.Assignments,
             ct);
-
-        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
 
         string slipNumber;
         if (!string.IsNullOrWhiteSpace(request.SlipNumber))
@@ -1169,6 +1089,8 @@ public sealed partial class ProcedureSlipService(
             throw new AppException(403, "Nhân sự và Kế toán chỉ thực hiện xem và kiểm duyệt phiếu thủ thuật, không có quyền chỉnh sửa phiếu.");
         }
 
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+
         var slip = await db.ProcedureSlips.FirstOrDefaultAsync(s => s.SlipId == slipId, ct)
             ?? throw new AppException(404, "Không tìm thấy phiếu thủ thuật y tế.");
 
@@ -1231,8 +1153,6 @@ public sealed partial class ProcedureSlipService(
             request.DurationHours,
             request.Assignments,
             ct);
-
-        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
 
         var oldSnapshot = new
         {
@@ -1318,6 +1238,8 @@ public sealed partial class ProcedureSlipService(
             throw new AppException(403, "Chỉ Nhân viên Nhân sự (HR Staff) mới có quyền kiểm tra phiếu thủ thuật đợt 1.");
         }
 
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+
         var slip = await db.ProcedureSlips.FirstOrDefaultAsync(s => s.SlipId == slipId, ct)
             ?? throw new AppException(404, "Không tìm thấy phiếu thủ thuật y tế.");
 
@@ -1334,8 +1256,6 @@ public sealed partial class ProcedureSlipService(
         {
             throw new AppException(400, "Quyết định kiểm tra chỉ được là 'approve' (Đạt) hoặc 'reject' (Từ chối).");
         }
-
-        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
 
         var assignments = await db.ProcedureAssignments.Where(a => a.SlipId == slipId).ToListAsync(ct);
         var oldStatus = slip.Status;
@@ -1399,6 +1319,8 @@ public sealed partial class ProcedureSlipService(
             throw new AppException(403, "Chỉ Kế toán (Accountant) mới có quyền xác minh tài chính phiếu thủ thuật.");
         }
 
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+
         var slip = await db.ProcedureSlips.FirstOrDefaultAsync(s => s.SlipId == slipId, ct)
             ?? throw new AppException(404, "Không tìm thấy phiếu thủ thuật y tế.");
 
@@ -1414,14 +1336,14 @@ public sealed partial class ProcedureSlipService(
         {
             throw new AppException(409, "Phiếu thủ thuật đang bị từ chối. Nhân viên y tế cần chỉnh sửa và gửi lại trước khi xác minh.");
         }
+        if (currentStatus != "hr_checked")
+            throw new AppException(409, "Phiếu thủ thuật phải được HR kiểm tra trước khi Kế toán xác minh.");
 
         var decision = request.Decision?.Trim().ToLowerInvariant();
         if (decision != "approve" && decision != "reject")
         {
             throw new AppException(400, "Quyết định xác minh chỉ được là 'approve' (Xác minh hợp lệ) hoặc 'reject' (Từ chối).");
         }
-
-        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
 
         var assignments = await db.ProcedureAssignments.Where(a => a.SlipId == slipId).ToListAsync(ct);
         var oldStatus = slip.Status;
@@ -1549,14 +1471,17 @@ public sealed partial class ProcedureSlipService(
     public async Task<CalculateMonthlyCommissionResultDto> CalculateMonthlyCommissionAsync(
         Guid currentUserId, CalculateMonthlyCommissionRequest request, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.PayMonth) || !MonthRegex.IsMatch(request.PayMonth.Trim()))
+        if (string.IsNullOrWhiteSpace(request.PayMonth) || !MonthRegex.IsMatch(request.PayMonth.Trim())
+            || PayrollParameterRules.MonthStart(request.PayMonth.Trim()) is null)
         {
             throw new AppException(400, "Định dạng tháng tính hoa hồng không hợp lệ (định dạng đúng: YYYY-MM).");
         }
 
         var payMonth = request.PayMonth.Trim();
         var monthStart = DateOnly.ParseExact(payMonth + "-01", "yyyy-MM-dd");
-        var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+        var monthEnd = new DateOnly(monthStart.Year, monthStart.Month, DateTime.DaysInMonth(monthStart.Year, monthStart.Month));
+
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
 
         var isLocked = await db.PayrollLocks.AsNoTracking()
             .AnyAsync(l => l.PayMonth == payMonth && (l.Status == "locked" || l.Status == "finalized" || l.Status == "exported"), ct);
@@ -1564,8 +1489,6 @@ public sealed partial class ProcedureSlipService(
         {
             throw new AppException(409, $"Kỳ tính lương tháng {payMonth} đã khóa, không thể chạy lại tổng hợp hoa hồng.");
         }
-
-        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
 
         var slipsQuery = db.ProcedureSlips.AsNoTracking()
             .Where(s => s.ProcedureDate >= monthStart && s.ProcedureDate <= monthEnd &&

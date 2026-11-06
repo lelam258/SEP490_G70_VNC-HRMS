@@ -13,8 +13,8 @@ function dateKey(value: Date) { return `${value.getFullYear()}-${String(value.ge
 function moveDate(date: string, days: number) { const d = new Date(`${date}T12:00:00`); d.setDate(d.getDate() + days); return dateKey(d); }
 function formatDate(date: string, year = false) { return new Date(`${date}T12:00:00`).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', ...(year ? { year: 'numeric' } : {}) }); }
 
-export default function ScheduleTimetable({ date, rows, head, closed, busy, loading = false, onDateChange, onEdit, onCancel, onConfirmPatient, onEndDuty, onInspect, onCreateSlot }: {
-  date: string; rows: ScheduleRow[]; head: boolean; closed: boolean; busy: boolean; loading?: boolean;
+export default function ScheduleTimetable({ date, rows, head, canEdit, busy, loading = false, onDateChange, onEdit, onCancel, onConfirmPatient, onEndDuty, onInspect, onCreateSlot }: {
+  date: string; rows: ScheduleRow[]; head: boolean; canEdit: boolean; busy: boolean; loading?: boolean;
   onDateChange: (date: string) => void; onEdit: (row: ScheduleRow) => void;
   onCancel: (row: ScheduleRow) => void; onConfirmPatient: (row: ScheduleRow) => void;
   onEndDuty: (row: ScheduleRow) => void;
@@ -55,7 +55,7 @@ export default function ScheduleTimetable({ date, rows, head, closed, busy, load
                 const assignment = row.assignment;
                 const status = assignment.cancelled ? 'cancelled' : row.published ? 'published' : 'draft';
                 const duty = ['noon', 'evening'].includes(assignment.shift);
-                const editable = !closed && !row.published && today >= moveDate(monday, -1) && today <= moveDate(monday, 6);
+                const editable = canEdit && !row.published;
                 const recordable = row.published && duty && new Date(`${assignment.date}T${row.start}:00+07:00`).getTime() <= Date.now();
                 const hasActions = (editable && !assignment.patientConfirmed && !assignment.actualEndAt) || (recordable && (!assignment.patientConfirmed || !assignment.actualEndAt));
                 return <article key={assignment.id} className={`schedule-event ${status}`}>

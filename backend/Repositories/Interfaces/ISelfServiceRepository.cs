@@ -13,6 +13,7 @@ public interface ISelfServiceRepository
     Task<UserProfileDto?> GetProfileByUserIdAsync(Guid userId, CancellationToken ct);
     Task<IReadOnlyList<LeaveTypeDto>> GetActiveLeaveTypesAsync(CancellationToken ct);
     Task<bool> IsValidLeaveTypeAsync(string code, CancellationToken ct);
+    Task<bool> IsActiveDepartmentAsync(Guid departmentId, CancellationToken ct);
     Task<List<LeaveRequestSummaryDto>> ListLeaveRequestsAsync(Guid staffId, string? status, CancellationToken ct);
     Task<LeaveRequest?> FindLeaveRequestByIdAsync(Guid requestId, CancellationToken ct);
     Task<LeaveRequestDetailDto?> GetLeaveRequestDetailAsync(Guid requestId, CancellationToken ct);

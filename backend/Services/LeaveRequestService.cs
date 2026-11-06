@@ -48,6 +48,7 @@ public sealed class LeaveRequestService(
 
     public async Task<LeaveRequestDetailDto> CreateLeaveRequestAsync(Guid userId, CreateLeaveRequestInput input, CancellationToken ct)
     {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var staff = await repository.FindStaffByUserIdAsync(userId, ct)
             ?? throw new AppException(404, NotFoundStaffMessage);
 
@@ -61,6 +62,9 @@ public sealed class LeaveRequestService(
         {
             throw new AppException(400, "Nhân viên chưa được phân bổ khoa/phòng để duyệt đơn.");
         }
+        if (!await repository.IsActiveDepartmentAsync(staff.DepartmentId.Value, ct))
+            throw new AppException(400, "Khoa/phòng của nhân viên đã ngừng hoạt động.");
+        EmployeeRules.EnsureWorkingPeriod(input.StartDate, input.EndDate, staff.DateJoined, staff.DateLeft);
 
         if (!await repository.IsValidLeaveTypeAsync(input.LeaveType, ct))
         {
@@ -70,16 +74,13 @@ public sealed class LeaveRequestService(
         var totalDays = LeaveRules.CountWorkingDays(input.StartDate, input.EndDate);
         var reason = LeaveRules.ValidateAndNormalizeReason(input.Reason);
 
-        var attachmentUrl = await UploadAttachmentAsync(input.Attachment, ct);
-
-        // Requirement 6: Serializable transaction for overlap check + insert
-        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
-
         var hasOverlap = await repository.HasOverlappingLeaveAsync(staff.StaffId, input.StartDate, input.EndDate, null, ct);
         if (hasOverlap)
         {
             throw new AppException(409, "Bạn đã có đơn nghỉ phép trong khoảng thời gian này.");
         }
+
+        var attachmentUrl = await UploadAttachmentAsync(input.Attachment, ct);
 
         var leaveRequest = new LeaveRequest
         {
@@ -123,6 +124,7 @@ public sealed class LeaveRequestService(
     public async Task<LeaveRequestDetailDto> UpdateLeaveRequestAsync(
         Guid userId, Guid requestId, UpdateLeaveRequestInput input, CancellationToken ct)
     {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var staff = await repository.FindStaffByUserIdAsync(userId, ct)
             ?? throw new AppException(404, NotFoundStaffMessage);
 
@@ -130,6 +132,9 @@ public sealed class LeaveRequestService(
         {
             throw new AppException(400, "Nhân viên không ở trạng thái hoạt động nên không thể sửa đơn nghỉ phép.");
         }
+        if (!staff.DepartmentId.HasValue || !await repository.IsActiveDepartmentAsync(staff.DepartmentId.Value, ct))
+            throw new AppException(400, "Nhân viên cần được phân bổ khoa/phòng đang hoạt động để sửa đơn nghỉ phép.");
+        EmployeeRules.EnsureWorkingPeriod(input.StartDate, input.EndDate, staff.DateJoined, staff.DateLeft);
 
         // Same field rules as creating a request.
         if (!await repository.IsValidLeaveTypeAsync(input.LeaveType, ct))
@@ -139,9 +144,6 @@ public sealed class LeaveRequestService(
         var leaveType = input.LeaveType.Trim().ToLowerInvariant();
         var totalDays = LeaveRules.CountWorkingDays(input.StartDate, input.EndDate);
         var reason = LeaveRules.ValidateAndNormalizeReason(input.Reason);
-
-        // Serializable from the read on, so an approval cannot slip in between the pending check and the save.
-        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
 
         var leaveRequest = await repository.FindLeaveRequestByIdAsync(requestId, ct);
         if (leaveRequest is null || leaveRequest.StaffId != staff.StaffId)
@@ -212,6 +214,8 @@ public sealed class LeaveRequestService(
 
     public async Task<LeaveRequestDetailDto> WithdrawLeaveRequestAsync(Guid userId, Guid requestId, CancellationToken ct)
     {
+        // Keep the pending check and withdrawal atomic with any future approval flow.
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var staff = await repository.FindStaffByUserIdAsync(userId, ct)
             ?? throw new AppException(404, NotFoundStaffMessage);
 
@@ -234,6 +238,8 @@ public sealed class LeaveRequestService(
         auditHelper.Log("update", "LeaveRequest", leaveRequest.RequestId, oldSnapshot, newSnapshot);
 
         await SaveChangesWithDeadlockHandlingAsync(ct);
+
+        await tx.CommitAsync(ct);
 
         var result = await repository.GetLeaveRequestDetailAsync(requestId, ct);
         return result!;

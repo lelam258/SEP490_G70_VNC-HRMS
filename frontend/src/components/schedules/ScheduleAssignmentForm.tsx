@@ -16,6 +16,7 @@ export default function ScheduleAssignmentForm({ date, options, existing, slot, 
   const [weekly, setWeekly] = useState(!existing && !slot);
   const [days, setDays] = useState([0, 1, 2, 3, 4, 5, 6]);
   const [shifts, setShifts] = useState(['morning', 'afternoon']);
+  const [validationError, setValidationError] = useState('');
   const [form, setForm] = useState({
     staffId: existing?.assignment.staffId || '', facilityId: existing?.facilityId || '',
     date: initialDate, shift: existing?.assignment.shift || slot?.shift || 'full-day',
@@ -25,6 +26,13 @@ export default function ScheduleAssignmentForm({ date, options, existing, slot, 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (busy || count === 0) return;
+    const staff = options.staff.find(s => s.id === form.staffId);
+    const dates = weekly ? days.map(day => addDays(monday, day)) : [form.date];
+    if (staff && dates.some(day => (staff.dateJoined && day < staff.dateJoined) || (staff.dateLeft && day > staff.dateLeft))) {
+      setValidationError('Ngày phân công phải nằm trong thời gian công tác của nhân viên.');
+      return;
+    }
+    setValidationError('');
     await onSave({ ...form, mode: existing ? 'edit' : weekly ? 'week' : 'day', monday, days, shifts });
   }
   return <div className="schedule-page schedule-modal-content"><form className="schedule-editor" onSubmit={event => void submit(event)}>
@@ -32,9 +40,9 @@ export default function ScheduleAssignmentForm({ date, options, existing, slot, 
       {!existing && <div className="schedule-mode" role="group" aria-label="Cách phân công"><button type="button" aria-pressed={weekly} disabled={busy} onClick={() => setWeekly(true)}>Cả tuần</button><button type="button" aria-pressed={!weekly} disabled={busy} onClick={() => setWeekly(false)}>Từng ngày</button></div>}
     </div>
     <fieldset disabled={busy} className="schedule-form-body">
-      {error && <p className="alert error" role="alert">{error}</p>}
+      {(validationError || error) && <p className="alert error" role="alert">{validationError || error}</p>}
       <div className="schedule-fields">
-        <label htmlFor="schedule-staff">Nhân viên<select id="schedule-staff" required value={form.staffId} onChange={event => setForm({ ...form, staffId: event.target.value })}><option value="">Chọn nhân viên</option>{options.staff.filter(staff => staff.departmentId).map(staff => <option key={staff.id} value={staff.id}>{staff.fullName} · {options.departments.find(d => d.id === staff.departmentId)?.name}</option>)}</select></label>
+        <label htmlFor="schedule-staff">Nhân viên<select id="schedule-staff" required value={form.staffId} onChange={event => setForm({ ...form, staffId: event.target.value })}><option value="">Chọn nhân viên</option>{options.staff.filter(staff => staff.departmentId && options.departments.find(d => d.id === staff.departmentId)?.status !== 'inactive').map(staff => <option key={staff.id} value={staff.id}>{staff.fullName} · {options.departments.find(d => d.id === staff.departmentId)?.name}</option>)}</select></label>
         <label htmlFor="schedule-facility">Cơ sở<select id="schedule-facility" required value={form.facilityId} onChange={event => setForm({ ...form, facilityId: event.target.value })}><option value="">Chọn cơ sở</option>{options.facilities.map(unit => <option key={unit.id} value={unit.id}>{unit.name}</option>)}</select></label>
         {!weekly && <><label htmlFor="schedule-date">Ngày<input id="schedule-date" type="date" required min={monday} max={addDays(monday, 6)} value={form.date} onChange={event => setForm({ ...form, date: event.target.value })} /></label>
           <label htmlFor="schedule-shift">Ca<select id="schedule-shift" value={form.shift} onChange={event => setForm({ ...form, shift: event.target.value })}>{!existing && <option value="full-day">Cả ngày · sáng + chiều</option>}{Object.entries(shiftNames).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label></>}

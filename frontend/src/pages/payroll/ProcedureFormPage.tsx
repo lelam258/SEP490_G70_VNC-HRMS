@@ -245,6 +245,11 @@ export default function ProcedureFormPage() {
       setError('Vui lòng chọn ít nhất 1 nhân sự tham gia trong kíp thực hiện.');
       return;
     }
+    const participantKeys = validAssignments.map(a => `${a.staffId}:${a.role}`);
+    if (new Set(participantKeys).size !== participantKeys.length) {
+      setError('Một nhân viên không được lặp cùng vai trò trong một phiếu thủ thuật.');
+      return;
+    }
 
     const parsedDuration = durationHours.trim() ? Number(durationHours) : null;
     if (parsedDuration !== null && (Number.isNaN(parsedDuration) || parsedDuration <= 0 || parsedDuration > 48)) {
