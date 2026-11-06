@@ -93,6 +93,50 @@ Các email và mã mẫu cần được kiểm tra chưa tồn tại trước kh
 
 ## 4. Danh mục testcase
 
+> Cập nhật theo `origin/Dev` commit `91aa3a3` ngày 2026-11-06: bổ sung test cho quản lý hợp đồng và phiếu thủ thuật. Kết quả chạy tự động mới nhất được ghi riêng tại [TEST_RESULTS_DEV_2026-11-06.md](TEST_RESULTS_DEV_2026-11-06.md). Các ca phiếu thủ thuật dưới đây mới là đặc tả, chưa được chạy.
+
+### H. Hợp đồng lao động (Inter1)
+
+| ID | Ưu tiên | Tiền điều kiện | Bước thực hiện | Kết quả mong đợi |
+|---|---|---|---|---|
+| CONTRACT-01 | Cao | HR Manager; có nhân viên active; tháng lương chưa khóa | Tạo hợp đồng không xác định thời hạn với mã viết thường, lương tháng dương và ngày bắt đầu hợp lệ | Tạo thành công; mã được chuẩn hóa; không có ngày kết thúc; lương ngày và căn cứ bảo hiểm được tính đúng; có audit log. |
+| CONTRACT-02 | Cao | HR Manager; nhân viên active | Tạo hợp đồng xác định thời hạn không có ngày kết thúc | Bị từ chối HTTP 400; không có bản ghi hợp đồng. |
+| CONTRACT-03 | Cao | HR Manager; nhân viên active | Tạo hợp đồng không xác định thời hạn có ngày kết thúc hoặc ngày kết thúc trước ngày bắt đầu | Bị từ chối HTTP 400; không lưu thay đổi. |
+| CONTRACT-04 | Cao | Nhân viên đã có hợp đồng active | Tạo hợp đồng mới trùng mã hoặc chồng thời gian hiệu lực | Bị từ chối HTTP 409; dữ liệu cũ còn nguyên. |
+| CONTRACT-05 | Cao | Có nhân viên inactive và mã nhân viên không tồn tại | Tạo hợp đồng cho từng trường hợp | Bị từ chối; không tạo hợp đồng. |
+| CONTRACT-06 | Cao | HR Manager; hợp đồng active | Thử lương bằng 0, số ngày công bằng 0 hoặc lớn hơn 31 | Bị từ chối HTTP 400; không tạo hợp đồng. |
+| CONTRACT-07 | Cao | Hợp đồng có hạn và hợp đồng vô hạn | Đọc danh sách, tìm theo mã/tên không phân biệt hoa thường và dấu, lọc trạng thái/khoa/loại | Kết quả lọc đúng; trạng thái active/upcoming/expiring/expired/inactive được hiển thị đúng; danh sách không lộ mức lương. |
+| CONTRACT-08 | Cao | Có hợp đồng hiện hữu | Mở chi tiết; thử ID không tồn tại | Chi tiết trả đủ nhân viên, điều khoản lương và bảo hiểm; ID lạ trả 404 và UI có đường quay lại. |
+| CONTRACT-09 | Cao | HR Manager; hợp đồng chưa qua kiểm duyệt | Cập nhật loại và ngày kết thúc; kiểm tra trường nhân viên/lương không gửi lại | Chỉ trường được phép thay đổi; salary history được cập nhật theo quy tắc; có audit log. |
+| CONTRACT-10 | Cao | Hợp đồng liên quan tháng payroll đã khóa | Thay ngày bắt đầu/kết thúc để tác động tháng khóa | Bị từ chối HTTP 409; hợp đồng và salary history không đổi. |
+| CONTRACT-11 | Cao | Hợp đồng có thay đổi lương đã ghi lịch sử | Rút ngắn thời hạn trước mốc thay đổi lương hoặc gia hạn hợp đồng | Trường hợp cắt qua lịch sử bị từ chối; gia hạn cập nhật khoảng thời gian salary history đang mở. |
+| CONTRACT-12 | Cao | Hợp đồng active và nhân viên HR Manager | Vô hiệu hóa hợp đồng, tạo hợp đồng thay thế; thử kích hoạt lại hợp đồng cũ gây chồng lấn | Hợp đồng được vô hiệu hóa; hợp đồng thay thế được tạo; kích hoạt gây chồng lấn bị từ chối HTTP 409. |
+| CONTRACT-13 | Cao | Không đăng nhập hoặc dùng role không phải HR Manager | Gọi GET/POST/PUT `/api/contracts` | Không đăng nhập nhận 401; role không đủ quyền nhận 403. |
+| CONTRACT-14 | Trung bình | Vite chạy; bộ fixture API hợp đồng | Kiểm tra danh sách, tìm/lọc, chi tiết, tạo, sửa, thông báo lỗi/thành công và màn hình 390px | Hành vi giao diện đúng fixture; không có lỗi runtime hoặc cuộn ngang. Ghi rõ đây là UI test giả lập API, không chứng minh kết nối DB/API thật. |
+
+### I. Phiếu thủ thuật và hoa hồng (mới trên Dev, testcase chưa chạy)
+
+Các ca cần database test có dịch vụ thủ thuật active, khoa/phòng, nhân sự, quy tắc hoa hồng, kỳ lương và tài khoản đúng role. Tất cả ghi nhận trên DB test riêng. API chính: `/api/procedure-slips`.
+
+| ID | Ưu tiên | Tiền điều kiện | Bước thực hiện | Kết quả mong đợi |
+|---|---|---|---|---|
+| PROC-01 | Cao | User được phép truy cập; dữ liệu lookup có sẵn | Gọi `GET /api/procedure-slips/lookups` | Trả dịch vụ, khoa và nhân sự active; employee nhận đúng hồ sơ cá nhân/phòng ban liên kết. |
+| PROC-02 | Cao | Tài khoản employee có hồ sơ staff | Gọi `GET /api/procedure-slips?scope=mine` và thử lọc staff khác | Chỉ trả phiếu thuộc phạm vi cá nhân được phép; không lộ phiếu người khác. |
+| PROC-03 | Cao | HR Staff hoặc HR Manager; dữ liệu lookup | Tạo phiếu hợp lệ với dịch vụ active, ngày mở kỳ, số tiền thu >0 và ít nhất một người trong kíp | Trả 201; trạng thái `pending`; dữ liệu phiếu, phân công, hoa hồng và audit được lưu. |
+| PROC-04 | Cao | HR Staff hoặc HR Manager | Tạo phiếu thiếu kíp, số tiền thu không dương, thời lượng ngoài 0.1–48 giờ, dịch vụ/khoa không hợp lệ | Bị từ chối 400/404; không tạo phiếu hoặc phân công dở dang. |
+| PROC-05 | Cao | Phiếu đã tồn tại | Tạo phiếu trùng số phiếu hoặc cập nhật phiếu không tồn tại | Số phiếu trùng bị từ chối 409; ID không tồn tại trả 404. |
+| PROC-06 | Cao | Có quy tắc hoa hồng active | Gọi `POST /api/procedure-slips/preview-commission` với các vai trò trong kíp và giờ ngoài giờ | Số tiền preview đúng theo quy tắc, phân loại nguồn; không ghi phiếu vào DB. |
+| PROC-07 | Cao | Phiếu pending do chính user tạo | Cập nhật dữ liệu hợp lệ, sau đó thử sửa phiếu do user khác tạo | Phiếu của mình cập nhật và quay về `pending` nếu đang bị từ chối; phiếu người khác trả 403. |
+| PROC-08 | Cao | Phiếu đã `hr_checked` hoặc `verified` | Thử cập nhật | Bị từ chối 409; nội dung phiếu/phân công không đổi. |
+| PROC-09 | Cao | Phiếu pending; HR Staff | Gửi quyết định kiểm tra hợp lệ, rồi thử gọi bằng role employee/accountant | HR Staff chuyển phiếu đúng trạng thái và có người duyệt/thời gian/note; role sai nhận 403. |
+| PROC-10 | Cao | Phiếu `hr_checked`; Accountant | Xác minh phiếu hợp lệ, rồi thử gọi bằng HR Staff/employee | Accountant chuyển sang `verified`; role sai nhận 403; ghi dấu người xác minh và audit. |
+| PROC-11 | Cao | Phiếu pending | HR Staff hoặc kế toán từ chối mà thiếu lý do, rồi thử từ chối có lý do | Thiếu lý do bị validation từ chối; trường hợp hợp lệ chuyển `rejected` và giữ lý do. |
+| PROC-12 | Cao | Một phiếu ở từng trạng thái | Gọi list với lọc ngày/tháng/quý/khoa/dịch vụ/nhân sự/trạng thái/ngoài giờ/từ khóa và phân trang | Tập kết quả, tổng đếm và thống kê theo khoa/kỳ khớp với các bản ghi trả về. |
+| PROC-13 | Cao | Phiếu thuộc kỳ payroll đã khóa/finalized/exported | Tạo hoặc sửa phiếu thuộc tháng bị khóa | Bị từ chối HTTP 409; không thay đổi phiếu hoặc phân công. |
+| PROC-14 | Cao | Có phiếu `verified`; accountant | Gọi `POST /api/procedure-slips/calculate-monthly-commission` theo tháng và khoa | Chỉ phiếu đã xác minh được tổng hợp; kết quả nhân sự/hoa hồng và liên kết payslip chính xác, gọi lại không nhân đôi khoản lương. |
+| PROC-15 | Cao | Role employee, department_head, HR Staff, HR Manager, accountant và admin | Gọi lookup/list/detail/create/update/review/calculate theo ma trận quyền | Đúng endpoint cho phép; admin/role không đủ quyền nhận 403; request không token nhận 401. |
+| PROC-16 | Trung bình | Có phiếu và audit lịch sử | Đọc chi tiết; lọc trạng thái/kỳ trên giao diện; mở modal review và tải lại | Chi tiết, audit, trạng thái và số tiền khớp API; hành động review hiển thị theo role/trạng thái. |
+
 ### A. Xác thực và phiên
 
 | ID | Ưu tiên | Tiền điều kiện | Bước thực hiện | Kết quả mong đợi |
