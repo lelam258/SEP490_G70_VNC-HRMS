@@ -1,6 +1,7 @@
 import { axiosClient } from './axiosClient';
 import type {
   Certificate,
+  ReviewCertificateInput,
   SaveCertificateInput,
   StaffCertificateSummary,
   UpdateCertificateInput,
@@ -9,6 +10,10 @@ import type {
 export const certificateApi = {
   async listStaffSummaries(): Promise<StaffCertificateSummary[]> {
     return (await axiosClient.get<StaffCertificateSummary[]>('/certificates/employees')).data;
+  },
+
+  async listPending(): Promise<Certificate[]> {
+    return (await axiosClient.get<Certificate[]>('/certificates/pending')).data;
   },
 
   async listByStaff(staffId: string): Promise<Certificate[]> {
@@ -25,6 +30,10 @@ export const certificateApi = {
 
   async update(id: string, input: UpdateCertificateInput): Promise<Certificate> {
     return (await axiosClient.put<Certificate>(`/certificates/${id}`, input)).data;
+  },
+
+  async review(id: string, input: ReviewCertificateInput): Promise<Certificate> {
+    return (await axiosClient.post<Certificate>(`/certificates/${id}/review`, input)).data;
   },
 
   async delete(id: string): Promise<void> {

@@ -10,6 +10,10 @@ namespace Vnc.HRMS.Controllers;
 [ApiController, Authorize(Roles = $"{AccountRoles.HrManager},{AccountRoles.Administrator}"), Route("api/cme-records")]
 public sealed class CmeRecordsController(ICmeRecordService cmeRecords) : ControllerBase
 {
+    [HttpGet("pending")]
+    public Task<CmeRecordDto[]> ListPending(CancellationToken ct) =>
+        cmeRecords.ListPendingRecordsAsync(ct);
+
     [HttpGet("employees")]
     public Task<StaffCmeSummaryDto[]> ListStaffSummaries(CancellationToken ct) =>
         cmeRecords.ListStaffSummariesAsync(ct);

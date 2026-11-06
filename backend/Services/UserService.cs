@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using System.Data;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Identity;
 using Vnc.HRMS.Common.Exceptions;
 using Vnc.HRMS.Common.Utils;
@@ -23,9 +22,6 @@ public sealed class UserService(IUserRepository users, IEmployeeRepository emplo
     public async Task<AccountDto> CreateAsync(SaveAccountRequest request, bool bootstrap, CancellationToken ct)
     {
         Validate(request, true);
-        // Provision HR management before any personnel profiles exist, without granting HR access to admin.
-        if (!bootstrap && request.EmployeeId is null && request.Role != Vnc.HRMS.Security.AccountRoles.HrManager)
-            throw new AppException(400, "Vui lòng chọn nhân viên. HR Manager có thể được tạo trước hồ sơ nhân viên.");
         await using var transaction = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var employee = request.EmployeeId is Guid employeeId ? await employees.FindAsync(employeeId, ct) : null;
         if (request.EmployeeId is not null && employee is not { Status: "active" }) throw new AppException(400, "Nhân viên không tồn tại hoặc đã ngừng hoạt động.");
@@ -33,6 +29,7 @@ public sealed class UserService(IUserRepository users, IEmployeeRepository emplo
             : await users.FindAsync(employee.UserId, ct) ?? throw new AppException(409, "Hồ sơ nhân viên chưa có liên kết tài khoản hợp lệ.");
         if (user.IsProvisioned) throw new AppException(409, "Nhân viên này đã được cấp tài khoản.");
         if (bootstrap && await users.HasProvisionedAdminAsync(ct)) throw new AppException(409, "Quản trị viên đã được khởi tạo.");
+        await ValidateLoginAvailability(user.UserId, request.Username, request.Email ?? employee?.Email, ct);
         user.Username = request.Username.Trim();
         user.NormalizedUsername = user.Username.ToUpperInvariant();
         user.Email = CleanEmail(request.Email ?? employee?.Email);
@@ -76,8 +73,7 @@ public sealed class UserService(IUserRepository users, IEmployeeRepository emplo
                 users.Remove(reserved);
             }
         }
-        if (request.EmployeeId is null && request.Role is not ("admin" or "hr_manager"))
-            throw new AppException(400, "Vai trò này cần liên kết với hồ sơ nhân viên.");
+        await ValidateLoginAvailability(id, request.Username, request.Email, ct);
         if (user.Role == "admin" && user.AccountStatus == "active" && user.IsProvisioned && (request.Role != "admin" || request.Status != "active")
             && !await users.HasActiveAdminAsync(id, ct)) throw new AppException(409, "Phải giữ ít nhất một quản trị viên đang hoạt động.");
         if (employeeChanged || user.Role != request.Role || user.AccountStatus != request.Status || !string.IsNullOrEmpty(request.Password)) user.SecurityVersion++;
@@ -98,10 +94,21 @@ public sealed class UserService(IUserRepository users, IEmployeeRepository emplo
         return await GetAsync(id, ct);
     }
 
+    private async Task ValidateLoginAvailability(Guid userId, string username, string? email, CancellationToken ct)
+    {
+        var usernameMatch = await users.FindByLoginAsync(username, ct);
+        if (usernameMatch is not null && usernameMatch.UserId != userId)
+            throw new AppException(409, "Tên đăng nhập đã được dùng làm tên đăng nhập hoặc email của tài khoản khác.");
+        if (!string.IsNullOrWhiteSpace(email)) {
+            var emailMatch = await users.FindByLoginAsync(email, ct);
+            if (emailMatch is not null && emailMatch.UserId != userId)
+                throw new AppException(409, "Email đã được dùng làm tên đăng nhập hoặc email của tài khoản khác.");
+        }
+    }
     private static void Validate(SaveAccountRequest request, bool passwordRequired)
     {
-        if (string.IsNullOrWhiteSpace(request.Username) || !Regex.IsMatch(request.Username.Trim(), @"^[a-zA-Z0-9._-]{3,50}$"))
-            throw new AppException(400, "Tên đăng nhập cần 3–50 ký tự chữ không dấu, số hoặc . _ - (không dùng @).");
+        if (!UsernamePolicy.IsValid(request.Username))
+            throw new AppException(400, "Tên đăng nhập cần 3–50 ký tự chữ không dấu, số hoặc . _ -; có thể dùng dạng email.");
         if (!Roles.Contains(request.Role) || !Statuses.Contains(request.Status)) throw new AppException(400, "Vai trò hoặc trạng thái không hợp lệ.");
         if (request.FullName?.Length > 100) throw new AppException(400, "Họ tên tối đa 100 ký tự.");
         if (request.Email?.Length > 100 || (!string.IsNullOrWhiteSpace(request.Email) && !new EmailAddressAttribute().IsValid(request.Email.Trim()))) throw new AppException(400, "Email không hợp lệ.");

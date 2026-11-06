@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Vnc.HRMS.DTOs.Employees;
 using Vnc.HRMS.DTOs.Users;
 using Vnc.HRMS.Models.Users;
 using Vnc.HRMS.Persistence;
@@ -23,6 +24,11 @@ public sealed class UserRepository(AppDbContext db) : IUserRepository
     public Task<AccountDto?> GetDetailAsync(Guid id, CancellationToken ct) => Details(db.Users.AsNoTracking().Where(x => x.UserId == id)).SingleOrDefaultAsync(ct);
     public Task<bool> HasActiveAdminAsync(Guid? exceptId, CancellationToken ct) => db.Users.AnyAsync(x => x.UserId != exceptId && x.Role == "admin" && x.AccountStatus == "active" && x.IsProvisioned, ct);
     public Task<bool> HasProvisionedAdminAsync(CancellationToken ct) => db.Users.AnyAsync(x => x.Role == "admin" && x.IsProvisioned, ct);
+    public Task<UnlinkedAccountDto[]> ListUnlinkedAccountsAsync(CancellationToken ct) =>
+        (from user in db.Users.AsNoTracking()
+         where user.IsProvisioned && user.Role != "admin" && !db.Staff.Any(s => s.UserId == user.UserId)
+         orderby user.Username
+         select new UnlinkedAccountDto(user.UserId, user.Username, user.FullName, user.Email, user.Role)).ToArrayAsync(ct);
     public void Add(User user) => db.Users.Add(user);
     public void Remove(User user) => db.Users.Remove(user);
 }
