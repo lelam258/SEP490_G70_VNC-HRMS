@@ -58,6 +58,25 @@ a { text-decoration: none; }
 .vnc .topbar-user { min-width: 0; overflow-wrap: anywhere; }
 .vnc .table-scroll { max-height: none; }
 .vnc dialog { margin: auto; max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
+.vnc dialog.vnc-modal-no-scroll,
+.vnc dialog.vnc-modal-no-scroll .vnc-modal-content {
+  overflow: hidden !important;
+  max-height: none !important;
+}
+.vnc .procedure-table-wrap .table-scroll {
+  overflow-x: hidden !important;
+}
+.vnc .procedure-table-wrap table {
+  table-layout: fixed;
+  width: 100% !important;
+  white-space: normal !important;
+}
+.vnc .procedure-table-wrap th,
+.vnc .procedure-table-wrap td {
+  white-space: normal !important;
+  word-break: break-word;
+  vertical-align: top;
+}
 html:has(dialog[open]), body:has(dialog[open]) { overflow: hidden; }
 
 @media (min-width: 601px) and (max-height: 800px) {

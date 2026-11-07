@@ -25,6 +25,9 @@ import PayrollParameterPage from '../pages/payroll/PayrollParameterPage';
 import CompensationPage from '../pages/payroll/CompensationPage';
 import PayrollPeriodsPage from '../pages/payroll/PayrollPeriodsPage';
 import PayrollPeriodDetailPage from '../pages/payroll/PayrollPeriodDetailPage';
+import ProcedureListPage from '../pages/payroll/ProcedureListPage';
+import ProcedureDetailPage from '../pages/payroll/ProcedureDetailPage';
+import ProcedureFormPage from '../pages/payroll/ProcedureFormPage';
 import ProfilePage from '../pages/me/ProfilePage';
 import MyCertificateListPage from '../pages/me/MyCertificateListPage';
 import MyCmeListPage from '../pages/me/MyCmeListPage';
@@ -67,6 +70,8 @@ export default function AppRoutes() {
             <Route path="/organization" element={<Navigate to="/employees" replace />} />
           </Route>
           <Route element={<ProtectedRoute roles={['hr_manager', 'hr_staff', 'accountant', 'department_head', 'employee']} />}>
+            <Route path="/procedures" element={<ProcedureListPage />} />
+            <Route path="/procedures/:id" element={<ProcedureDetailPage />} />
             <Route path="/me/profile" element={<ProfilePage />} />
             <Route path="/me/certificates" element={<MyCertificateListPage />} />
             <Route path="/me/cme-records" element={<MyCmeListPage />} />
@@ -74,11 +79,16 @@ export default function AppRoutes() {
             <Route path="/me/leave-requests/new" element={<LeaveRequestFormPage />} />
             <Route path="/me/leave-requests/:id/edit" element={<LeaveRequestFormPage />} />
           </Route>
+          <Route element={<ProtectedRoute roles={['hr_manager', 'department_head', 'employee']} />}>
+            <Route path="/procedures/new" element={<ProcedureFormPage />} />
+            <Route path="/procedures/:id/edit" element={<ProcedureFormPage />} />
+          </Route>
           <Route element={<ProtectedRoute roles={['accountant']} />}>
             <Route path="/payroll/parameters" element={<PayrollParameterPage />} />
             <Route path="/payroll/compensation" element={<CompensationPage />} />
             <Route path="/payroll/periods" element={<PayrollPeriodsPage />} />
             <Route path="/payroll/periods/:month" element={<PayrollPeriodDetailPage />} />
+            <Route path="/payroll/procedures" element={<ProcedureListPage />} />
           </Route>
         </Route>
       </Route>

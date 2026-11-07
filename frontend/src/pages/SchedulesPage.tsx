@@ -6,7 +6,8 @@ import Modal from '../components/ui/Modal';
 import ScheduleTimetable from '../components/schedules/ScheduleTimetable';
 import ScheduleAssignmentForm from '../components/schedules/ScheduleAssignmentForm';
 import type { ScheduleDraft, ScheduleOptions, ScheduleRow, ScheduleWeekStatus } from '../types/schedules';
-import { addDays, clinicToday, shiftNames, shortDate, weekStart } from '../utils/schedule';
+import { addDays, clinicToday, schedulePermissions, shiftNames, shortDate, weekStart } from '../utils/schedule';
+import { formatVietnamDateTime } from '../utils/leaveRules';
 
 type Editor = { date: string; existing?: ScheduleRow; slot?: { date: string; shift: string } };
 type Action = { type: 'publish' | 'reopen' | 'cancel' | 'patient' | 'end'; row?: ScheduleRow };
@@ -16,7 +17,7 @@ export default function SchedulesPage() {
   const user = useAuthStore(state => state.session?.user);
   const manager = user?.role === 'hr_staff';
   const globalReader = ['admin', 'hr_manager', 'hr_staff', 'department_head'].includes(user?.role || '');
-  const [date, setDate] = useState(clinicToday);
+  const [date, setDate] = useState(() => manager ? addDays(weekStart(clinicToday()), 7) : clinicToday());
   const monday = weekStart(date);
   const [facilityId, setFacility] = useState('');
   const [departmentId, setDepartment] = useState('');
@@ -24,6 +25,8 @@ export default function SchedulesPage() {
   const [options, setOptions] = useState<ScheduleOptions>();
   const [rows, setRows] = useState<ScheduleRow[]>([]);
   const [status, setStatus] = useState<ScheduleWeekStatus>();
+  const [clock, setClock] = useState(Date.now);
+  const [serverOffset, setServerOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -41,9 +44,8 @@ export default function SchedulesPage() {
   const ready = snapshotKey === queryKey;
   const visibleRows = ready ? rows : [];
   const currentStatus = ready && status?.monday === monday ? status : undefined;
-  const today = clinicToday();
-  const editableWeek = today >= addDays(monday, -1) && today <= addDays(monday, 6);
-  const canEdit = manager && editableWeek && !!currentStatus && !currentStatus.closed;
+  const permissions = schedulePermissions(currentStatus, clock + serverOffset);
+  const canEdit = manager && permissions.canEdit;
   const unavailable = saving || loading || !ready || !!error;
 
   const load = useCallback(async () => {
@@ -59,6 +61,9 @@ export default function SchedulesPage() {
         api.get<ScheduleWeekStatus>('/schedules/week-status', { ...config, params: { date: monday } }),
       ]);
       if (controller.signal.aborted || currentGeneration !== generation.current) return false;
+      const receivedAt = Date.now();
+      setServerOffset(Date.parse(s.data.serverNow) - receivedAt);
+      setClock(receivedAt);
       setOptions(o.data); setRows(r.data); setStatus(s.data); setSnapshotKey(queryKey);
       setNotice(current => current.includes('Chưa tải lại được lịch') ? 'Đã tải lại lịch.' : current);
       return true;
@@ -71,6 +76,10 @@ export default function SchedulesPage() {
   }, [monday, facilityId, departmentId, staffFilter, queryKey]);
   useEffect(() => { void load(); return () => request.current?.abort(); }, [load]);
   useEffect(() => { setNotice(''); }, [monday]);
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   function closeDialog() { if (saving) return; setEditor(null); setInspect(null); setAction(null); setDialogError(''); }
   function openEditor(existing?: ScheduleRow, slot?: Editor['slot']) {
@@ -79,6 +88,8 @@ export default function SchedulesPage() {
     setEditor({ date: existing?.assignment.date || slot?.date || date, existing, slot });
   }
   function openAction(type: Action['type'], row?: ScheduleRow) {
+    if (unavailable || (type === 'publish' && !permissions.canPublish)
+      || (type === 'reopen' && !permissions.canReopen) || (type === 'cancel' && !canEdit)) return;
     setDialogError(''); setInspect(null); setAction({ type, row }); setActionNote('');
     if (row) {
       const nowTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
@@ -114,10 +125,10 @@ export default function SchedulesPage() {
   const activeRows = visibleRows.filter(row => !row.assignment.cancelled);
   const actionRow = action?.row;
   return <section className="schedule-page schedule-workspace">
-    <header className="schedule-page-header"><div><span className="eyebrow">VNC · NHÂN SỰ</span><h1>Lịch làm việc</h1><p>{manager ? 'Phân công nhân viên theo tuần tại hai cơ sở' : globalReader ? 'Theo dõi lịch làm việc tại các cơ sở' : 'Lịch cá nhân đã công bố'}</p></div>
+    <header className="schedule-page-header"><div><span className="eyebrow">VNC · NHÂN SỰ</span><h1>Lịch làm việc</h1><p>{manager ? 'Lập lịch tuần kế tiếp · Chốt trước ca sáng thứ Hai' : globalReader ? 'Theo dõi lịch làm việc tại các cơ sở' : 'Lịch cá nhân đã công bố'}</p></div>
       {manager && <div className="schedule-primary-actions">{currentStatus?.closed
-        ? <button id="schedule-reopen" disabled={unavailable || !editableWeek} onClick={() => openAction('reopen')}><Icon name="edit" size={16} />Mở lại tuần</button>
-        : <button disabled={unavailable || !canEdit || !currentStatus?.assignmentCount} onClick={() => openAction('publish')}><Icon name="check" size={16} />Chốt tuần</button>}
+        ? <button id="schedule-reopen" disabled={unavailable || !permissions.canReopen} onClick={() => openAction('reopen')}><Icon name="edit" size={16} />Mở lại tuần</button>
+        : <button disabled={unavailable || !permissions.canPublish} onClick={() => openAction('publish')}><Icon name="check" size={16} />{currentStatus?.isCorrection ? 'Chốt lại tuần' : 'Chốt tuần'}</button>}
         <button id="schedule-create" className="schedule-primary-button" disabled={unavailable || !options || !canEdit} onClick={() => openEditor()}><Icon name="plus" size={17} />Phân công</button></div>}
     </header>
     {notice && <div className="alert success" role="status"><Icon name="check" size={17} /><span>{notice}</span><button className="schedule-dismiss" aria-label="Đóng thông báo" onClick={() => setNotice('')}>×</button></div>}
@@ -130,16 +141,18 @@ export default function SchedulesPage() {
       {(facilityId || departmentId || staffFilter) && <button className="schedule-clear-filters" disabled={saving} onClick={() => { setFacility(''); setDepartment(''); setStaffFilter(''); }}>Xóa lọc</button>}
     </div>
     <div className="schedule-overview"><span><strong>{loading ? '—' : activeRows.length}</strong> ca đang xem</span><span><strong>{loading ? '—' : new Set(activeRows.map(r => r.assignment.staffId)).size}</strong> nhân viên</span>{currentStatus && <span className={currentStatus.closed ? 'schedule-week-status closed' : 'schedule-week-status'}>{currentStatus.closed ? 'Đã chốt · Chỉ xem' : 'Chưa chốt'}</span>}</div>
-    {manager && !editableWeek && <p className="schedule-field-hint">Tuần chỉ xem · Có thể phân công từ Chủ nhật tuần trước đến hết tuần làm việc.</p>}
-    <ScheduleTimetable date={date} rows={visibleRows} head={manager} closed={currentStatus?.closed ?? true} busy={saving || !!error} loading={loading || (!ready && !error)} onDateChange={setDate} onInspect={row => { setInspect(row); setDialogError(''); }} onCreateSlot={canEdit ? slot => openEditor(undefined, slot) : undefined} onEdit={row => openEditor(row)} onCancel={row => openAction('cancel', row)} onConfirmPatient={row => openAction('patient', row)} onEndDuty={row => openAction('end', row)} />
-    {editor && options && <Modal className="schedule-dialog" title={editor.existing ? 'Sửa phân công' : 'Phân công làm việc'} busy={saving} onClose={closeDialog}><ScheduleAssignmentForm date={editor.date} options={options} existing={editor.existing} slot={editor.slot} busy={saving} error={dialogError} onSave={saveAssignment} onClose={closeDialog} /></Modal>}
+    {manager && currentStatus && <p className="schedule-field-hint">{currentStatus.isCorrection
+      ? `Lịch điều chỉnh đã có lý do mở lại · Được sửa và chốt lại trước ${formatVietnamDateTime(currentStatus.correctionEndsAt)} (giờ Việt Nam).`
+      : `Lập lịch từ ${formatVietnamDateTime(currentStatus.planningStartsAt)} · Phải chốt lần đầu trước ${formatVietnamDateTime(currentStatus.publishDeadline)} (giờ Việt Nam).`}</p>}
+    <ScheduleTimetable date={date} rows={visibleRows} head={manager} canEdit={canEdit} busy={saving || !!error} loading={loading || (!ready && !error)} onDateChange={setDate} onInspect={row => { setInspect(row); setDialogError(''); }} onCreateSlot={canEdit ? slot => openEditor(undefined, slot) : undefined} onEdit={row => openEditor(row)} onCancel={row => openAction('cancel', row)} onConfirmPatient={row => openAction('patient', row)} onEndDuty={row => openAction('end', row)} />
+    {editor && options && <Modal className="schedule-dialog" title={editor.existing ? 'Sửa phân công' : 'Phân công làm việc'} busy={saving} onClose={closeDialog}><ScheduleAssignmentForm date={editor.date} options={options} existing={editor.existing} slot={editor.slot} busy={saving || !canEdit} error={!canEdit ? 'Đã hết thời hạn phân công cho tuần này. Vui lòng đóng và tải lại lịch.' : dialogError} onSave={saveAssignment} onClose={closeDialog} /></Modal>}
     {inspect && <Modal className="schedule-detail-dialog" title="Chi tiết phân công" busy={saving} onClose={closeDialog}><div className="schedule-page schedule-action-body"><div className="schedule-person-heading"><span className="avatar">{inspect.fullName.split(' ').slice(-2).map(part => part[0]).join('')}</span><div><h3>{inspect.fullName}</h3><p>{inspect.assignment.cancelled ? 'Đã hủy' : inspect.published ? 'Đã chốt' : 'Nháp'}</p></div></div><dl className="schedule-detail-grid"><div><dt>Ngày · ca</dt><dd>{shortDate(inspect.assignment.date, true)} · {shiftNames[inspect.assignment.shift]}</dd></div><div><dt>Giờ dự kiến</dt><dd>{inspect.start}–{inspect.end}</dd></div><div><dt>Cơ sở</dt><dd>{inspect.facility}</dd></div><div><dt>Khoa/phòng · vị trí</dt><dd>{inspect.coverage}</dd></div>{['noon', 'evening'].includes(inspect.assignment.shift) && <><div><dt>Công trực</dt><dd>{inspect.dutyCredit ? 'Đã ghi nhận' : 'Chưa ghi nhận'}</dd></div><div><dt>Kết thúc thực tế</dt><dd>{inspect.assignment.actualEndAt ? new Date(inspect.assignment.actualEndAt).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' }) : 'Chưa ghi nhận'}</dd></div></>}{inspect.assignment.reason && <div className="wide"><dt>Lý do</dt><dd>{inspect.assignment.reason}</dd></div>}{inspect.assignment.transferConsent && <div className="wide"><dt>Xác nhận điều chuyển</dt><dd>{inspect.assignment.transferConsent}</dd></div>}</dl><div className="schedule-modal-actions"><button onClick={closeDialog}>Đóng</button>{canEdit && !inspect.assignment.cancelled && !inspect.assignment.patientConfirmed && !inspect.assignment.actualEndAt && <button className="schedule-primary-button" onClick={() => openEditor(inspect)}>Sửa phân công</button>}</div></div></Modal>}
     {action && <Modal title={actionTitles[action.type]} busy={saving} onClose={closeDialog}><div className="schedule-page schedule-action-body"><form onSubmit={event => void submitAction(event)}>
       {dialogError && <p className="alert error" role="alert">{dialogError}</p>}
-      {action.type === 'publish' ? <><p>Công bố <strong>{currentStatus?.assignmentCount} phân công</strong> trong tuần <strong>{shortDate(monday)}–{shortDate(addDays(monday, 6), true)}</strong>.</p><p>Áp dụng cho tất cả khoa/phòng và cả hai cơ sở, bao gồm các phân công ngoài bộ lọc hiện tại.</p><p className="schedule-action-warning">Sau khi chốt, nhân viên xem được lịch cá nhân. Không thể tạo, sửa hoặc hủy khi tuần đang chốt. Nếu nhập sai, HR Staff có thể mở lại tuần trong thời hạn chỉnh sửa.</p></>
+      {action.type === 'publish' ? <><p>Công bố <strong>{currentStatus?.assignmentCount} phân công</strong> trong tuần <strong>{shortDate(monday)}–{shortDate(addDays(monday, 6), true)}</strong>.</p><p>Áp dụng cho tất cả khoa/phòng và cả hai cơ sở, bao gồm các phân công ngoài bộ lọc hiện tại.</p><p className="schedule-action-warning">{currentStatus?.isCorrection ? 'Chốt lại lịch điều chỉnh đã mở bằng lý do, trước khi kết thúc tuần làm việc. ' : `Chốt lần đầu trước ${formatVietnamDateTime(currentStatus?.publishDeadline)} (giờ Việt Nam), khi ca sáng thứ Hai chưa bắt đầu. `}Sau khi chốt, nhân viên xem được lịch cá nhân. Không thể tạo, sửa hoặc hủy khi tuần đang chốt. Nếu nhập sai, HR Staff có thể mở lại tuần trong thời hạn chỉnh sửa.</p></>
         : action.type === 'reopen' ? <><p>Mở lại tuần <strong>{shortDate(monday)}–{shortDate(addDays(monday, 6), true)}</strong> cho tất cả khoa/phòng và cả hai cơ sở, kể cả ngoài bộ lọc hiện tại.</p><p className="schedule-action-warning">Lịch sẽ trở về nháp; nhân viên tạm thời không xem được lịch tuần này cho đến khi chốt lại. Các ca đã ghi nhận công hoặc kết thúc trực vẫn không được sửa/hủy.</p><label htmlFor="schedule-reopen-reason">Lý do mở lại<input id="schedule-reopen-reason" required maxLength={1000} disabled={saving} value={actionNote} onChange={event => setActionNote(event.target.value)} placeholder="Ví dụ: Chọn nhầm cơ sở khi phân công" /></label></>
         : actionRow && <><p className="schedule-action-context"><strong>{actionRow.fullName}</strong><span>{shortDate(actionRow.assignment.date, true)} · {shiftNames[actionRow.assignment.shift]} · {actionRow.facility}</span></p>{action.type === 'end' && <label htmlFor="schedule-end-time">Giờ kết thúc thực tế<input id="schedule-end-time" type="time" required disabled={saving} value={endTime} onChange={event => setEndTime(event.target.value)} /><small className="schedule-field-hint">Giờ Việt Nam. Kết thúc chưa tự tính công trực.</small></label>}<label htmlFor="schedule-action-note">{action.type === 'cancel' ? 'Lý do hủy' : action.type === 'patient' ? 'Mã phiếu khám / căn cứ xác nhận' : 'Ghi chú'}<input id="schedule-action-note" required maxLength={1000} disabled={saving} value={actionNote} onChange={event => setActionNote(event.target.value)} placeholder="Nhập nội dung" /></label></>}
-      <div className="schedule-modal-actions"><button type="button" disabled={saving} onClick={closeDialog}>Đóng</button><button type="submit" className={action.type === 'cancel' ? 'schedule-danger-button' : 'schedule-primary-button'} disabled={saving || (action.type === 'reopen' && !actionNote.trim())}>{saving ? 'Đang lưu…' : action.type === 'publish' ? 'Chốt tuần' : action.type === 'reopen' ? 'Mở lại tuần' : action.type === 'cancel' ? 'Xác nhận hủy' : 'Xác nhận'}</button></div>
+      <div className="schedule-modal-actions"><button type="button" disabled={saving} onClick={closeDialog}>Đóng</button><button type="submit" className={action.type === 'cancel' ? 'schedule-danger-button' : 'schedule-primary-button'} disabled={saving || (action.type === 'publish' && !permissions.canPublish) || (action.type === 'cancel' && !canEdit) || (action.type === 'reopen' && (!actionNote.trim() || !permissions.canReopen))}>{saving ? 'Đang lưu…' : action.type === 'publish' ? 'Chốt tuần' : action.type === 'reopen' ? 'Mở lại tuần' : action.type === 'cancel' ? 'Xác nhận hủy' : 'Xác nhận'}</button></div>
     </form></div></Modal>}
   </section>;
 }

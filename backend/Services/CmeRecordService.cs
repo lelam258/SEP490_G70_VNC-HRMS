@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Vnc.HRMS.Common.Exceptions;
 using Vnc.HRMS.DTOs.Cme;
@@ -164,6 +165,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         UpdateCmeCycleDatesRequest request,
         CancellationToken ct = default)
     {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var cert = await db.Certificates.SingleOrDefaultAsync(c => c.CertificateId == certificateId, ct)
             ?? throw new AppException(404, "Không tìm thấy chứng chỉ.");
 
@@ -171,7 +173,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         if (cat == "degree")
             throw new AppException(400, "Không áp dụng chu kỳ CME cho bằng cấp.");
 
-        if (request.CycleEnd <= request.CycleStart)
+        if (request.CycleStart == default || request.CycleEnd <= request.CycleStart)
             throw new AppException(400, "Ngày kết thúc chu kỳ phải lớn hơn ngày bắt đầu (End date must be after start date).");
 
         CmeCycle? cycle = null;
@@ -180,6 +182,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
             cycle = await db.CmeCycles.SingleOrDefaultAsync(
                 c => c.CycleId == request.CycleId.Value && c.CertificateId == certificateId,
                 ct);
+            if (cycle is null) throw new AppException(400, "Chu kỳ CME không thuộc chứng chỉ đã chọn.", "cycleId");
         }
 
         cycle ??= await db.CmeCycles
@@ -203,8 +206,8 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
                 .ToListAsync(ct);
 
             var earnedCredits = hasCmeCredits
-                ? unlinkedRecords.Sum(r => r.Credits)
-                : (unlinkedRecords.Count > 0 ? 1m : 0m);
+                ? unlinkedRecords.Where(r => r.Verified ?? true).Sum(r => r.Credits)
+                : (unlinkedRecords.Any(r => r.Verified ?? true) ? 1m : 0m);
 
             cycle = new CmeCycle
             {
@@ -236,8 +239,8 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
                 .ToListAsync(ct);
 
             var earnedCredits = hasCmeCredits
-                ? existingRecs.Sum(r => r.Credits)
-                : (existingRecs.Count > 0 ? 1m : 0m);
+                ? existingRecs.Where(r => r.Verified ?? true).Sum(r => r.Credits)
+                : (existingRecs.Any(r => r.Verified ?? true) ? 1m : 0m);
 
             cycle.CycleStart = request.CycleStart;
             cycle.CycleEnd = request.CycleEnd;
@@ -259,6 +262,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
             .MaxAsync(c => (int?)c.CycleNumber, ct) ?? cycle.CycleNumber;
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        await tx.CommitAsync(ct);
         return BuildCertificateCycleDto(cert, cycle, cycleRecords, today, cycle.CycleNumber == maxCycleNumber);
     }
 
@@ -267,6 +271,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         Guid? cycleId,
         CancellationToken ct = default)
     {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var cert = await db.Certificates.SingleOrDefaultAsync(c => c.CertificateId == certificateId, ct)
             ?? throw new AppException(404, "Không tìm thấy chứng chỉ.");
 
@@ -285,6 +290,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
             cycle = await db.CmeCycles.SingleOrDefaultAsync(
                 c => c.CycleId == cycleId.Value && c.CertificateId == certificateId,
                 ct);
+            if (cycle is null) throw new AppException(400, "Chu kỳ CME không thuộc chứng chỉ đã chọn.", "cycleId");
         }
 
         cycle ??= await db.CmeCycles
@@ -300,8 +306,8 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
                 .ToListAsync(ct);
 
             var earned = hasCmeCredits
-                ? unlinkedRecords.Sum(r => r.Credits)
-                : (unlinkedRecords.Count > 0 ? 1m : 0m);
+                ? unlinkedRecords.Where(r => r.Verified ?? true).Sum(r => r.Credits)
+                : (unlinkedRecords.Any(r => r.Verified ?? true) ? 1m : 0m);
 
             if (earned < requiredCredits)
             {
@@ -341,8 +347,8 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
                 .ToListAsync(ct);
 
             var earned = hasCmeCredits
-                ? existingRecs.Sum(r => r.Credits)
-                : (existingRecs.Count > 0 ? 1m : 0m);
+                ? existingRecs.Where(r => r.Verified ?? true).Sum(r => r.Credits)
+                : (existingRecs.Any(r => r.Verified ?? true) ? 1m : 0m);
 
             if (earned < requiredCredits)
             {
@@ -365,6 +371,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
             .Where(c => c.CertificateId == certificateId)
             .MaxAsync(c => (int?)c.CycleNumber, ct) ?? cycle.CycleNumber;
 
+        await tx.CommitAsync(ct);
         return BuildCertificateCycleDto(cert, cycle, cycleRecords, today, cycle.CycleNumber == maxCycleNumber);
     }
 
@@ -373,6 +380,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         CreateNewCmeCycleRequest? request,
         CancellationToken ct = default)
     {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var cert = await db.Certificates.SingleOrDefaultAsync(c => c.CertificateId == certificateId, ct)
             ?? throw new AppException(404, "Không tìm thấy chứng chỉ.");
 
@@ -382,6 +390,8 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
 
         if (request?.CycleStart is not null && request.CycleEnd is not null && request.CycleEnd <= request.CycleStart)
             throw new AppException(400, "Ngày kết thúc chu kỳ phải lớn hơn ngày bắt đầu.");
+        if (request?.CycleStart == default(DateOnly) || request?.CycleEnd == default(DateOnly))
+            throw new AppException(400, "Ngày bắt đầu/kết thúc chu kỳ không hợp lệ.");
 
         var hasCmeCredits = cert.CmeRequiredCredits is > 0;
         var requiredCredits = hasCmeCredits
@@ -406,8 +416,8 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
             if (firstEnd < firstStart) firstEnd = firstStart;
 
             var archivedEarned = hasCmeCredits
-                ? unlinkedRecords.Sum(r => r.Credits)
-                : 1m;
+                ? unlinkedRecords.Where(r => r.Verified ?? true).Sum(r => r.Credits)
+                : (unlinkedRecords.Any(r => r.Verified ?? true) ? 1m : 0m);
             var cycle1 = new CmeCycle
             {
                 CycleId = Guid.NewGuid(),
@@ -471,6 +481,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         db.CmeCycles.Add(newCycle);
         await unitOfWork.SaveChangesAsync(ct);
 
+        await tx.CommitAsync(ct);
         return BuildCertificateCycleDto(cert, newCycle, [], today, isCurrentCycle: true);
     }
 
@@ -763,7 +774,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
             throw new AppException(400, "Đơn vị tổ chức (Organizer) tối đa 100 ký tự.");
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
-        if (completedDate > today)
+        if (completedDate == default || completedDate > today)
             throw new AppException(400, "MSG-C07: Ngày hoàn thành không được lớn hơn ngày hiện tại (Completed date cannot be in the future).");
 
         if (hasCmeCredits && (credits <= 0 || credits > 999.5m || (credits * 2m) != Math.Floor(credits * 2m)))
@@ -772,6 +783,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
 
     public async Task<CmeRecordDto> CreateAsync(SaveCmeRecordRequest request, Guid? currentUserId, CancellationToken ct = default)
     {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var cert = await db.Certificates.AsNoTracking()
             .SingleOrDefaultAsync(c => c.CertificateId == request.CertificateId, ct)
             ?? throw new AppException(400, "Chứng chỉ không tồn tại trong hệ thống.");
@@ -781,9 +793,10 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
             throw new AppException(400, "Không thể gắn bản ghi CME vào Bằng cấp. Vui lòng chọn Chứng chỉ chuyên môn.");
 
         var hasCmeCredits = cert.CmeRequiredCredits is > 0;
-        var effectiveCredits = hasCmeCredits ? Math.Round(request.Credits, 2) : 1m;
+        var effectiveCredits = hasCmeCredits ? request.Credits : 1m;
 
         ValidateCmeFields(request.CourseName, request.Provider, request.CompletedDate, effectiveCredits, hasCmeCredits);
+        ValidateFileUrl(request.FileUrl);
 
         var cycle = await ResolveCycleAsync(cert, request.CmeCycleId, request.CompletedDate, ct);
         if (cycle is { Status: "locked" })
@@ -819,13 +832,16 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
             await RecalculateCycleCreditsAsync(cycle.CycleId, ct);
         }
 
+        await tx.CommitAsync(ct);
         return await GetAsync(entity.CmeId, ct);
     }
 
     public async Task<CmeRecordDto> UpdateAsync(Guid id, UpdateCmeRecordRequest request, Guid? currentUserId, CancellationToken ct = default)
     {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var entity = await db.CmeRecords.SingleOrDefaultAsync(r => r.CmeId == id, ct)
             ?? throw new AppException(404, "Không tìm thấy bản ghi CME.");
+        await EnsureCycleEditableAsync(entity.CmeCycleId, ct);
 
         var cert = await db.Certificates.AsNoTracking()
             .SingleOrDefaultAsync(c => c.CertificateId == request.CertificateId, ct)
@@ -836,12 +852,13 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
             throw new AppException(400, "Không thể gắn bản ghi CME vào Bằng cấp. Vui lòng chọn Chứng chỉ chuyên môn.");
 
         var hasCmeCredits = cert.CmeRequiredCredits is > 0;
-        var effectiveCredits = hasCmeCredits ? Math.Round(request.Credits, 2) : 1m;
+        var effectiveCredits = hasCmeCredits ? request.Credits : 1m;
 
         ValidateCmeFields(request.CourseName, request.Provider, request.CompletedDate, effectiveCredits, hasCmeCredits);
+        ValidateFileUrl(request.FileUrl);
 
         var oldCycleId = entity.CmeCycleId;
-        var targetCycleId = request.CmeCycleId ?? entity.CmeCycleId;
+        var targetCycleId = request.CmeCycleId ?? (request.CertificateId == entity.CertificateId ? entity.CmeCycleId : null);
         var newCycle = await ResolveCycleAsync(cert, targetCycleId, request.CompletedDate, ct);
         if (newCycle is { Status: "locked" })
         {
@@ -881,13 +898,16 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         if (entity.CmeCycleId.HasValue && entity.CmeCycleId != oldCycleId)
             await RecalculateCycleCreditsAsync(entity.CmeCycleId.Value, ct);
 
+        await tx.CommitAsync(ct);
         return await GetAsync(id, ct);
     }
 
     public async Task<CmeRecordDto> VerifyAsync(Guid id, bool verified, Guid? currentUserId, CancellationToken ct = default)
     {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var entity = await db.CmeRecords.SingleOrDefaultAsync(r => r.CmeId == id, ct)
             ?? throw new AppException(404, "Không tìm thấy bản ghi CME.");
+        await EnsureCycleEditableAsync(entity.CmeCycleId, ct);
 
         entity.Verified = verified;
         if (verified)
@@ -906,11 +926,13 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         if (entity.CmeCycleId.HasValue)
             await RecalculateCycleCreditsAsync(entity.CmeCycleId.Value, ct);
 
+        await tx.CommitAsync(ct);
         return await GetAsync(id, ct);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var entity = await db.CmeRecords.SingleOrDefaultAsync(r => r.CmeId == id, ct)
             ?? throw new AppException(404, "Không tìm thấy bản ghi CME.");
 
@@ -929,6 +951,19 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
 
         if (cycleId.HasValue)
             await RecalculateCycleCreditsAsync(cycleId.Value, ct);
+        await tx.CommitAsync(ct);
+    }
+
+    private static void ValidateFileUrl(string? fileUrl)
+    {
+        if (fileUrl?.Trim().Length > 500)
+            throw new AppException(400, "Đường dẫn minh chứng tối đa 500 ký tự.", "fileUrl");
+    }
+
+    private async Task EnsureCycleEditableAsync(Guid? cycleId, CancellationToken ct)
+    {
+        if (cycleId.HasValue && await db.CmeCycles.AnyAsync(c => c.CycleId == cycleId.Value && c.Status == "locked", ct))
+            throw new AppException(400, "Bảng tiến độ này đã được xác nhận khóa, không thể thay đổi bản ghi CME.");
     }
 
     private async Task<CmeCycle?> ResolveCycleAsync(
@@ -941,8 +976,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         {
             var explicitCycle = await db.CmeCycles
                 .SingleOrDefaultAsync(c => c.CycleId == explicitCycleId.Value && c.CertificateId == cert.CertificateId, ct);
-            if (explicitCycle != null)
-                return explicitCycle;
+            return explicitCycle ?? throw new AppException(400, "Chu kỳ CME không thuộc chứng chỉ đã chọn.", "cmeCycleId");
         }
 
         var cycles = await db.CmeCycles

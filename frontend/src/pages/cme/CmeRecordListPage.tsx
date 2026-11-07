@@ -12,27 +12,6 @@ import Modal from '../../components/ui/Modal';
 import CmeRecordDetailModal from '../../components/cme/CmeRecordDetailModal';
 
 const DEFAULT_ALERT_THRESHOLD = 180;
-const LOCKED_CYCLES_STORAGE_KEY = 'vnc_hrms_locked_cme_cycles';
-
-function loadLockedCycleKeys(): Set<string> {
-  try {
-    const raw = localStorage.getItem(LOCKED_CYCLES_STORAGE_KEY);
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? new Set(parsed) : new Set();
-  } catch {
-    return new Set();
-  }
-}
-
-function saveLockedCycleKeys(keys: Set<string>) {
-  try {
-    localStorage.setItem(LOCKED_CYCLES_STORAGE_KEY, JSON.stringify(Array.from(keys)));
-  } catch {
-    // ignore storage errors
-  }
-}
-
 function formatDateDdMmYyyy(val: string | null | undefined): string {
   if (!val) return '';
   const parts = val.slice(0, 10).split('-');
@@ -67,7 +46,6 @@ export default function CmeRecordListPage() {
   const [staffCertificates, setStaffCertificates] = useState<Certificate[]>([]);
   const [selectedCertificateId, setSelectedCertificateId] = useState<string>('');
   const [records, setRecords] = useState<CmeRecord[]>([]);
-  const [lockedCycleKeys, setLockedCycleKeys] = useState<Set<string>>(() => loadLockedCycleKeys());
 
   const [loadingInit, setLoadingInit] = useState(true);
   const [loadingStaffCme, setLoadingStaffCme] = useState(false);
@@ -290,8 +268,8 @@ export default function CmeRecordListPage() {
           })
           .sort((a, b) => (b.completedDate || '').localeCompare(a.completedDate || ''));
         const total = cHasCme
-          ? cycleRecs.reduce((sum, r) => sum + Number(r.credits || 0), 0)
-          : cycleRecs.length > 0
+          ? cycleRecs.filter(r => r.verified).reduce((sum, r) => sum + Number(r.credits || 0), 0)
+          : cycleRecs.some(r => r.verified)
           ? 1
           : 0;
         return {
@@ -306,7 +284,7 @@ export default function CmeRecordListPage() {
   // "Total in cycle": sum of credit hours (or 0 / 1 if certificate does not have CME credits)
   const totalInCycle = useMemo(() => {
     if (!hasCmeCredits) {
-      return displayedRecords.length > 0 ? 1 : 0;
+      return displayedRecords.some(r => r.verified) ? 1 : 0;
     }
     return displayedRecords.filter(r => r.verified).reduce((sum, r) => sum + Number(r.credits || 0), 0);
   }, [displayedRecords, hasCmeCredits]);
@@ -350,17 +328,9 @@ export default function CmeRecordListPage() {
     });
   }, [latestCycleByCertificate, selectedCertificateId, pendingCountByCert]);
 
-  const currentCycleLockKey = useMemo(() => {
-    if (!selectedCycle) return '';
-    return `${selectedCycle.certificateId}:${selectedCycle.cycleNumber}`;
-  }, [selectedCycle]);
-
-  // Only locked when explicitly confirmed via "Xác nhận khóa" (never auto-locked when earned >= required)
-  const isCurrentCycleLocked = useMemo(() => {
-    if (!selectedCycle) return false;
-    if (selectedCycle.cycleStatus === 'locked') return true;
-    return currentCycleLockKey ? lockedCycleKeys.has(currentCycleLockKey) : false;
-  }, [selectedCycle, currentCycleLockKey, lockedCycleKeys]);
+  const isCurrentCycleLocked = selectedCycle?.cycleStatus === 'locked';
+  const isRecordLocked = (record: CmeRecord) => cycles.some(c =>
+    c.certificateId === record.certificateId && c.cycleId === record.cmeCycleId && c.cycleStatus === 'locked');
 
   // Dynamic cycle statistics calculated from displayed records & cycle dates
   const cycleStats = useMemo(() => {
@@ -605,6 +575,10 @@ export default function CmeRecordListPage() {
   }
 
   async function handleVerifyCmeRecord(rec: CmeRecord, verified: boolean) {
+    if (isRecordLocked(rec)) {
+      setError('Bảng tiến độ đã khóa, không thể thay đổi xác minh CME.');
+      return;
+    }
     setVerifyingRecordId(rec.cmeId);
     setError('');
     setNotice('');
@@ -665,17 +639,7 @@ export default function CmeRecordListPage() {
     setError('');
     setNotice('');
     try {
-      try {
-        await cmeApi.completeCycle(selectedCycle.certificateId, selectedCycle.cycleId);
-      } catch {
-        // Fallback to local lock state if backend process has not been restarted yet
-      }
-      if (currentCycleLockKey) {
-        const nextKeys = new Set(lockedCycleKeys);
-        nextKeys.add(currentCycleLockKey);
-        setLockedCycleKeys(nextKeys);
-        saveLockedCycleKeys(nextKeys);
-      }
+      await cmeApi.completeCycle(selectedCycle.certificateId, selectedCycle.cycleId);
       resetForm();
       await loadStaffCme(selectedStaffId, selectedCertificateId);
       setNotice('Đã xác nhận khóa bảng tiến độ hiện tại thành công.');
@@ -1213,7 +1177,7 @@ export default function CmeRecordListPage() {
                           >
                             Chi tiết
                           </button>
-                          {isHrManager && !rec.verified && (
+                          {isHrManager && !rec.verified && !isRecordLocked(rec) && (
                             <>
                               <button
                                 type="button"
@@ -1619,7 +1583,7 @@ export default function CmeRecordListPage() {
         <CmeRecordDetailModal
           record={selectedDetailRecord}
           onClose={() => setSelectedDetailRecord(null)}
-          onToggleVerify={isHrManager ? (rec) => void handleVerifyCmeRecord(rec, !rec.verified) : undefined}
+          onToggleVerify={isHrManager && !isRecordLocked(selectedDetailRecord) ? (rec) => void handleVerifyCmeRecord(rec, !rec.verified) : undefined}
           busy={verifyingRecordId === selectedDetailRecord.cmeId}
         />
       )}

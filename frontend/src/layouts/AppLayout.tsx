@@ -38,6 +38,8 @@ export default function AppLayout() {
     ? 'Đãi ngộ hợp đồng'
     : location.pathname.startsWith('/payroll/periods')
     ? 'Kỳ tính lương'
+    : location.pathname.startsWith('/payroll/procedures') || location.pathname.startsWith('/procedures')
+    ? 'Phiếu thủ thuật y tế'
     : location.pathname.startsWith('/me/profile')
     ? 'Hồ sơ của tôi'
     : location.pathname.startsWith('/me/certificates')
@@ -83,6 +85,9 @@ export default function AppLayout() {
               Trang chủ
             </NavLink>
             <NavLink to="/schedules" className={navClass}><Icon name="users" />Lịch làm việc</NavLink>
+            {user.role !== 'admin' && user.role !== 'accountant' && (
+              <NavLink to="/procedures" className={navClass}><Icon name="fileText" />Phiếu thủ thuật</NavLink>
+            )}
             {user.role === 'admin' && (
               <NavLink to="/accounts" className={navClass}>
                 <Icon name="users" />
@@ -136,6 +141,17 @@ export default function AppLayout() {
                 <NavLink to="/payroll/periods" className={navClass}>
                   <Icon name="calendar" />
                   Kỳ tính lương
+                </NavLink>
+                <NavLink
+                  to="/payroll/procedures"
+                  className={({ isActive }) =>
+                    `nav-item ${
+                      isActive || location.pathname.startsWith('/procedures/') ? 'selected' : ''
+                    }`
+                  }
+                >
+                  <Icon name="fileText" />
+                  Quản lý phiếu thủ thuật
                 </NavLink>
               </>
             )}
