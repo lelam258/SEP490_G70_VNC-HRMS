@@ -112,4 +112,30 @@ public sealed class ProcedureSlipsController(IProcedureSlipService procedureSlip
         var (userId, _) = GetCurrentIdentity();
         return procedureSlipService.CalculateMonthlyCommissionAsync(userId, request, ct);
     }
+
+    [HttpGet("commission-results")]
+    [Authorize(Roles = "accountant,department_head")]
+    public Task<CommissionResultsResponseDto> GetCommissionResults(
+        [FromQuery] string payMonth,
+        [FromQuery] Guid? departmentId = null,
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        var (userId, role) = GetCurrentIdentity();
+        var filter = new GetCommissionResultsFilter(payMonth, departmentId, search, page, pageSize);
+        return procedureSlipService.GetCommissionResultsAsync(userId, role, filter, ct);
+    }
+
+    [HttpGet("commission-results/staff/{staffId:guid}")]
+    [Authorize(Roles = "accountant,department_head")]
+    public Task<StaffCommissionDetailResponseDto> GetStaffCommissionDetail(
+        Guid staffId,
+        [FromQuery] string payMonth,
+        CancellationToken ct = default)
+    {
+        var (userId, role) = GetCurrentIdentity();
+        return procedureSlipService.GetStaffCommissionDetailAsync(userId, role, staffId, payMonth, ct);
+    }
 }

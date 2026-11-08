@@ -13,4 +13,6 @@ public interface IProcedureSlipService
     Task<ProcedureSlipDetailDto> HrCheckSlipAsync(Guid currentUserId, string currentUserRole, Guid slipId, ReviewProcedureSlipRequest request, CancellationToken ct);
     Task<ProcedureSlipDetailDto> VerifySlipAsync(Guid currentUserId, string currentUserRole, Guid slipId, ReviewProcedureSlipRequest request, CancellationToken ct);
     Task<CalculateMonthlyCommissionResultDto> CalculateMonthlyCommissionAsync(Guid currentUserId, CalculateMonthlyCommissionRequest request, CancellationToken ct);
+    Task<CommissionResultsResponseDto> GetCommissionResultsAsync(Guid currentUserId, string currentUserRole, GetCommissionResultsFilter filter, CancellationToken ct);
+    Task<StaffCommissionDetailResponseDto> GetStaffCommissionDetailAsync(Guid currentUserId, string currentUserRole, Guid staffId, string payMonth, CancellationToken ct);
 }

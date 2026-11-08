@@ -264,3 +264,57 @@ public sealed record CalculateMonthlyCommissionResultDto(
     decimal TotalCommissionCalculated,
     int UpdatedPayslipCount,
     IReadOnlyList<StaffMonthlyCommissionItemDto> StaffSummaries);
+
+public sealed record GetCommissionResultsFilter(
+    string PayMonth,
+    Guid? DepartmentId = null,
+    string? Search = null,
+    int Page = 1,
+    int PageSize = 20);
+
+public sealed record CommissionResultsSummaryDto(
+    int TotalSlips,
+    int TotalStaff,
+    decimal TotalChargedAmount,
+    decimal TotalCommissionAmount,
+    int LinkedPayslipCount,
+    bool IsPayrollLocked);
+
+public sealed record CommissionResultsResponseDto(
+    string PayMonth,
+    CommissionResultsSummaryDto Summary,
+    int Total,
+    int Page,
+    int PageSize,
+    IReadOnlyList<StaffMonthlyCommissionItemDto> Items);
+
+public sealed record StaffProcedureCommissionDetailItemDto(
+    Guid SlipId,
+    string SlipNumber,
+    DateOnly ProcedureDate,
+    string? PatientCode,
+    Guid ServiceId,
+    string ServiceCode,
+    string ServiceName,
+    string Role,
+    decimal ChargedAmount,
+    decimal DirectCost,
+    bool IsAfterHours,
+    decimal CommissionAmount,
+    Guid? RuleId,
+    string? RuleSource,
+    string Status,
+    DateTime? VerifiedAt);
+
+public sealed record StaffCommissionDetailResponseDto(
+    Guid StaffId,
+    string StaffCode,
+    string StaffName,
+    Guid? DepartmentId,
+    string? DepartmentName,
+    string PayMonth,
+    int TotalSlips,
+    decimal TotalCommissionAmount,
+    Guid? PayslipId,
+    bool LinkedToPayslip,
+    IReadOnlyList<StaffProcedureCommissionDetailItemDto> Procedures);

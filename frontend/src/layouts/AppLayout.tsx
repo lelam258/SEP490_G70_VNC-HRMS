@@ -32,6 +32,8 @@ export default function AppLayout() {
     ? 'Certificate / Qualification List'
     : location.pathname.startsWith('/cme-records')
     ? 'CME Records'
+    : location.pathname.startsWith('/payroll/commission-results')
+    ? 'Kết quả hoa hồng thủ thuật'
     : location.pathname.startsWith('/payroll/parameters')
     ? 'Tham số lương'
     : location.pathname.startsWith('/payroll/compensation')
@@ -128,6 +130,12 @@ export default function AppLayout() {
                 Compliance
               </NavLink>
             )}
+            {user.role === 'department_head' && (
+              <NavLink to="/payroll/commission-results" className={navClass}>
+                <Icon name="award" />
+                Hoa hồng thủ thuật khoa
+              </NavLink>
+            )}
             {user.role === 'accountant' && (
               <>
                 <NavLink to="/payroll/parameters" className={navClass}>
@@ -152,6 +160,10 @@ export default function AppLayout() {
                 >
                   <Icon name="fileText" />
                   Quản lý phiếu thủ thuật
+                </NavLink>
+                <NavLink to="/payroll/commission-results" className={navClass}>
+                  <Icon name="award" />
+                  Kết quả hoa hồng
                 </NavLink>
               </>
             )}

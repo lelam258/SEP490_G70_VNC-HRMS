@@ -1677,4 +1677,234 @@ public sealed partial class ProcedureSlipService(
             updatedPayslipCount,
             staffSummaries.OrderByDescending(x => x.TotalCommissionAmount).ToList());
     }
+
+    public async Task<CommissionResultsResponseDto> GetCommissionResultsAsync(
+        Guid currentUserId, string currentUserRole, GetCommissionResultsFilter filter, CancellationToken ct)
+    {
+        if (currentUserRole != AccountRoles.Accountant && currentUserRole != AccountRoles.DepartmentManager)
+        {
+            throw new AppException(403, "Bạn không có quyền xem kết quả hoa hồng thủ thuật.");
+        }
+
+        if (string.IsNullOrWhiteSpace(filter.PayMonth) || !MonthRegex.IsMatch(filter.PayMonth.Trim()))
+        {
+            throw new AppException(400, "Định dạng tháng xem hoa hồng không hợp lệ (định dạng đúng: YYYY-MM).");
+        }
+
+        var payMonth = filter.PayMonth.Trim();
+        var monthStart = DateOnly.ParseExact(payMonth + "-01", "yyyy-MM-dd");
+        var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+
+        Guid? targetDeptId = null;
+        if (currentUserRole == AccountRoles.DepartmentManager)
+        {
+            var currentStaff = await db.Staff.AsNoTracking().FirstOrDefaultAsync(s => s.UserId == currentUserId, ct);
+            if (currentStaff?.DepartmentId == null)
+            {
+                return new CommissionResultsResponseDto(
+                    payMonth,
+                    new CommissionResultsSummaryDto(0, 0, 0m, 0m, 0, false),
+                    0,
+                    filter.Page,
+                    filter.PageSize,
+                    Array.Empty<StaffMonthlyCommissionItemDto>());
+            }
+            targetDeptId = currentStaff.DepartmentId;
+        }
+        else
+        {
+            targetDeptId = filter.DepartmentId;
+        }
+
+        var isLocked = await db.PayrollLocks.AsNoTracking()
+            .AnyAsync(l => l.PayMonth == payMonth && (l.Status == "locked" || l.Status == "finalized" || l.Status == "exported"), ct);
+
+        var slipsQuery = db.ProcedureSlips.AsNoTracking()
+            .Where(s => s.ProcedureDate >= monthStart && s.ProcedureDate <= monthEnd &&
+                        (s.Status == "verified" || s.Status == "approved"));
+
+        if (targetDeptId.HasValue)
+        {
+            slipsQuery = slipsQuery.Where(s => s.DepartmentId == targetDeptId.Value);
+        }
+
+        var verifiedSlips = await slipsQuery.ToListAsync(ct);
+        var verifiedSlipIds = verifiedSlips.Select(s => s.SlipId).ToList();
+
+        var assignments = verifiedSlipIds.Count == 0
+            ? new List<ProcedureAssignment>()
+            : await db.ProcedureAssignments.AsNoTracking()
+                .Where(a => verifiedSlipIds.Contains(a.SlipId))
+                .ToListAsync(ct);
+
+        var staffIds = assignments.Select(a => a.StaffId).Distinct().ToList();
+        var staffInfoMap = await (
+            from s in db.Staff.AsNoTracking()
+            where staffIds.Contains(s.StaffId)
+            join d in db.Departments.AsNoTracking() on s.DepartmentId equals d.DepartmentId into deptJoin
+            from d in deptJoin.DefaultIfEmpty()
+            select new
+            {
+                s.StaffId,
+                s.StaffCode,
+                s.FullName,
+                s.DepartmentId,
+                DepartmentName = d != null ? d.Name : null
+            }
+        ).ToDictionaryAsync(x => x.StaffId, ct);
+
+        var payslipsInMonth = await db.Payslips.AsNoTracking()
+            .Where(p => p.PayMonth == payMonth && staffIds.Contains(p.StaffId))
+            .ToDictionaryAsync(p => p.StaffId, ct);
+
+        var staffSummaries = new List<StaffMonthlyCommissionItemDto>();
+
+        foreach (var group in assignments.GroupBy(a => a.StaffId))
+        {
+            var staffId = group.Key;
+            var totalComm = group.Sum(a => a.CommissionAmount ?? 0m);
+            var distinctSlips = group.Select(a => a.SlipId).Distinct().Count();
+            var assignCount = group.Count();
+
+            staffInfoMap.TryGetValue(staffId, out var sInfo);
+            payslipsInMonth.TryGetValue(staffId, out var payslip);
+
+            staffSummaries.Add(new StaffMonthlyCommissionItemDto(
+                staffId,
+                sInfo?.StaffCode ?? "N/A",
+                sInfo?.FullName ?? "Nhân sự",
+                sInfo?.DepartmentId,
+                sInfo?.DepartmentName,
+                distinctSlips,
+                assignCount,
+                totalComm,
+                payslip?.PayslipId,
+                payslip != null));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var term = filter.Search.Trim().ToLowerInvariant();
+            staffSummaries = staffSummaries.Where(s =>
+                (s.StaffName != null && s.StaffName.ToLowerInvariant().Contains(term)) ||
+                (s.StaffCode != null && s.StaffCode.ToLowerInvariant().Contains(term))
+            ).ToList();
+        }
+
+        var totalStaff = staffSummaries.Count;
+        var totalCommission = staffSummaries.Sum(s => s.TotalCommissionAmount);
+        var linkedPayslipCount = staffSummaries.Count(s => s.LinkedToPayslip);
+        var totalCharged = verifiedSlips.Sum(s => s.ChargedAmount ?? 0m);
+
+        var summary = new CommissionResultsSummaryDto(
+            TotalSlips: verifiedSlips.Count,
+            TotalStaff: totalStaff,
+            TotalChargedAmount: totalCharged,
+            TotalCommissionAmount: totalCommission,
+            LinkedPayslipCount: linkedPayslipCount,
+            IsPayrollLocked: isLocked);
+
+        var page = Math.Max(1, filter.Page);
+        var pageSize = Math.Clamp(filter.PageSize, 1, 100);
+        var pagedItems = staffSummaries
+            .OrderByDescending(s => s.TotalCommissionAmount)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        return new CommissionResultsResponseDto(
+            payMonth,
+            summary,
+            totalStaff,
+            page,
+            pageSize,
+            pagedItems);
+    }
+
+    public async Task<StaffCommissionDetailResponseDto> GetStaffCommissionDetailAsync(
+        Guid currentUserId, string currentUserRole, Guid staffId, string payMonth, CancellationToken ct)
+    {
+        if (currentUserRole != AccountRoles.Accountant && currentUserRole != AccountRoles.DepartmentManager)
+        {
+            throw new AppException(403, "Bạn không có quyền xem chi tiết hoa hồng thủ thuật.");
+        }
+
+        if (string.IsNullOrWhiteSpace(payMonth) || !MonthRegex.IsMatch(payMonth.Trim()))
+        {
+            throw new AppException(400, "Định dạng tháng không hợp lệ (định dạng đúng: YYYY-MM).");
+        }
+
+        payMonth = payMonth.Trim();
+        var monthStart = DateOnly.ParseExact(payMonth + "-01", "yyyy-MM-dd");
+        var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+
+        var staff = await (
+            from s in db.Staff.AsNoTracking()
+            where s.StaffId == staffId
+            join d in db.Departments.AsNoTracking() on s.DepartmentId equals d.DepartmentId into deptJoin
+            from d in deptJoin.DefaultIfEmpty()
+            select new
+            {
+                s.StaffId,
+                s.StaffCode,
+                s.FullName,
+                s.DepartmentId,
+                DepartmentName = d != null ? d.Name : null
+            }
+        ).FirstOrDefaultAsync(ct) ?? throw new AppException(404, "Không tìm thấy thông tin nhân viên.");
+
+        if (currentUserRole == AccountRoles.DepartmentManager)
+        {
+            var currentStaff = await db.Staff.AsNoTracking().FirstOrDefaultAsync(s => s.UserId == currentUserId, ct);
+            if (currentStaff?.DepartmentId == null || currentStaff.DepartmentId != staff.DepartmentId)
+            {
+                throw new AppException(403, "Trưởng khoa chỉ có thể xem chi tiết hoa hồng của nhân viên thuộc khoa quản lý.");
+            }
+        }
+
+        var assignmentsWithSlips = await (
+            from a in db.ProcedureAssignments.AsNoTracking()
+            where a.StaffId == staffId
+            join slip in db.ProcedureSlips.AsNoTracking() on a.SlipId equals slip.SlipId
+            where slip.ProcedureDate >= monthStart && slip.ProcedureDate <= monthEnd &&
+                  (slip.Status == "verified" || slip.Status == "approved")
+            join svc in db.ProcedureServices.AsNoTracking() on slip.ServiceId equals svc.ServiceId into svcJoin
+            from svc in svcJoin.DefaultIfEmpty()
+            orderby slip.ProcedureDate descending, slip.SlipNumber descending
+            select new StaffProcedureCommissionDetailItemDto(
+                slip.SlipId,
+                slip.SlipNumber,
+                slip.ProcedureDate,
+                slip.PatientCode,
+                slip.ServiceId,
+                svc != null ? svc.ServiceCode : "N/A",
+                svc != null ? svc.ServiceName : "Dịch vụ thủ thuật",
+                a.Role,
+                slip.ChargedAmount ?? 0m,
+                slip.DirectCost ?? 0m,
+                slip.IsAfterHours,
+                a.CommissionAmount ?? 0m,
+                a.RuleId,
+                null,
+                slip.Status ?? "verified",
+                slip.VerifiedAt
+            )
+        ).ToListAsync(ct);
+
+        var payslip = await db.Payslips.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.PayMonth == payMonth && p.StaffId == staffId, ct);
+
+        return new StaffCommissionDetailResponseDto(
+            staff.StaffId,
+            staff.StaffCode,
+            staff.FullName,
+            staff.DepartmentId,
+            staff.DepartmentName,
+            payMonth,
+            assignmentsWithSlips.Select(x => x.SlipId).Distinct().Count(),
+            assignmentsWithSlips.Sum(x => x.CommissionAmount),
+            payslip?.PayslipId,
+            payslip != null,
+            assignmentsWithSlips);
+    }
 }

@@ -2,6 +2,8 @@ import { axiosClient } from './axiosClient';
 import type {
   CalculateMonthlyCommissionInput,
   CalculateMonthlyCommissionResult,
+  CommissionResultsFilter,
+  CommissionResultsResponse,
   PreviewAssignmentCommissionItem,
   PreviewProcedureCommissionInput,
   ProcedureLookups,
@@ -10,6 +12,7 @@ import type {
   ProcedureSlipListResponse,
   ReviewProcedureSlipInput,
   SaveProcedureSlipInput,
+  StaffCommissionDetailResponse,
 } from '../types/procedureSlip';
 
 export const procedureSlipApi = {
@@ -96,6 +99,35 @@ export const procedureSlipApi = {
     const res = await axiosClient.post<CalculateMonthlyCommissionResult>(
       '/procedure-slips/calculate-monthly-commission',
       input
+    );
+    return res.data;
+  },
+
+  getCommissionResults: async (
+    filter: CommissionResultsFilter
+  ): Promise<CommissionResultsResponse> => {
+    const params: Record<string, string | number> = {
+      payMonth: filter.payMonth,
+    };
+    if (filter.departmentId) params.departmentId = filter.departmentId;
+    if (filter.search?.trim()) params.search = filter.search.trim();
+    if (filter.page) params.page = filter.page;
+    if (filter.pageSize) params.pageSize = filter.pageSize;
+
+    const res = await axiosClient.get<CommissionResultsResponse>(
+      '/procedure-slips/commission-results',
+      { params }
+    );
+    return res.data;
+  },
+
+  getStaffCommissionDetail: async (
+    staffId: string,
+    payMonth: string
+  ): Promise<StaffCommissionDetailResponse> => {
+    const res = await axiosClient.get<StaffCommissionDetailResponse>(
+      `/procedure-slips/commission-results/staff/${staffId}`,
+      { params: { payMonth } }
     );
     return res.data;
   },

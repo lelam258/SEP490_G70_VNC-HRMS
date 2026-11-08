@@ -28,6 +28,7 @@ import PayrollPeriodDetailPage from '../pages/payroll/PayrollPeriodDetailPage';
 import ProcedureListPage from '../pages/payroll/ProcedureListPage';
 import ProcedureDetailPage from '../pages/payroll/ProcedureDetailPage';
 import ProcedureFormPage from '../pages/payroll/ProcedureFormPage';
+import CommissionResultsPage from '../pages/payroll/CommissionResultsPage';
 import ProfilePage from '../pages/me/ProfilePage';
 import MyCertificateListPage from '../pages/me/MyCertificateListPage';
 import MyCmeListPage from '../pages/me/MyCmeListPage';
@@ -82,6 +83,9 @@ export default function AppRoutes() {
           <Route element={<ProtectedRoute roles={['hr_manager', 'department_head', 'employee']} />}>
             <Route path="/procedures/new" element={<ProcedureFormPage />} />
             <Route path="/procedures/:id/edit" element={<ProcedureFormPage />} />
+          </Route>
+          <Route element={<ProtectedRoute roles={['accountant', 'department_head']} />}>
+            <Route path="/payroll/commission-results" element={<CommissionResultsPage />} />
           </Route>
           <Route element={<ProtectedRoute roles={['accountant']} />}>
             <Route path="/payroll/parameters" element={<PayrollParameterPage />} />

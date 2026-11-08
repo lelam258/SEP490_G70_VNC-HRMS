@@ -251,3 +251,62 @@ export interface CalculateMonthlyCommissionResult {
   updatedPayslipCount: number;
   staffSummaries: StaffMonthlyCommissionItem[];
 }
+
+export interface CommissionResultsFilter {
+  payMonth: string;
+  departmentId?: string | null;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface CommissionResultsSummary {
+  totalSlips: number;
+  totalStaff: number;
+  totalChargedAmount: number;
+  totalCommissionAmount: number;
+  linkedPayslipCount: number;
+  isPayrollLocked: boolean;
+}
+
+export interface CommissionResultsResponse {
+  payMonth: string;
+  summary: CommissionResultsSummary;
+  total: number;
+  page: number;
+  pageSize: number;
+  items: StaffMonthlyCommissionItem[];
+}
+
+export interface StaffProcedureCommissionDetailItem {
+  slipId: string;
+  slipNumber: string;
+  procedureDate: string;
+  patientCode?: string | null;
+  serviceId: string;
+  serviceCode: string;
+  serviceName: string;
+  role: ProcedureCommissionRole;
+  chargedAmount: number;
+  directCost: number;
+  isAfterHours: boolean;
+  commissionAmount: number;
+  ruleId?: string | null;
+  ruleSource?: string | null;
+  status: ProcedureSlipStatus;
+  verifiedAt?: string | null;
+}
+
+export interface StaffCommissionDetailResponse {
+  staffId: string;
+  staffCode: string;
+  staffName: string;
+  departmentId?: string | null;
+  departmentName?: string | null;
+  payMonth: string;
+  totalSlips: number;
+  totalCommissionAmount: number;
+  payslipId?: string | null;
+  linkedToPayslip: boolean;
+  procedures: StaffProcedureCommissionDetailItem[];
+}
