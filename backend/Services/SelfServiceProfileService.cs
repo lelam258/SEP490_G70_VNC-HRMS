@@ -135,6 +135,11 @@ public sealed class SelfServiceProfileService(
             throw new AppException(400, "Ảnh đại diện tối đa 2 MB.");
         }
 
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!((extension is ".jpg" or ".jpeg" && file.ContentType == "image/jpeg")
+            || (extension == ".png" && file.ContentType == "image/png")))
+            throw new AppException(400, "Ảnh đại diện chỉ hỗ trợ JPG hoặc PNG.");
+
         await using var stream = file.OpenReadStream();
         var uploadResult = await fileService.UploadAsync(stream, file.FileName, file.ContentType, file.Length, ct);
 

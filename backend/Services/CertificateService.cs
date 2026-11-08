@@ -1,3 +1,4 @@
+using System.Data;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -20,6 +21,10 @@ public static class CertificateCategoryHelper
             return ("certificate", "Chứng chỉ", "");
 
         rawType = rawType.Trim();
+        if (rawType.StartsWith("[degree]", StringComparison.OrdinalIgnoreCase))
+            return ("degree", "Bằng cấp", rawType[8..].Trim());
+        if (rawType.StartsWith("[certificate]", StringComparison.OrdinalIgnoreCase))
+            return ("certificate", "Chứng chỉ", rawType[13..].Trim());
         if (rawType.StartsWith("[Bằng cấp]", StringComparison.OrdinalIgnoreCase))
             return ("degree", "Bằng cấp", rawType[10..].Trim());
         if (rawType.StartsWith("[Giấy hành nghề]", StringComparison.OrdinalIgnoreCase))
@@ -49,7 +54,16 @@ public static class CertificateCategoryHelper
         };
 
         var result = $"{prefix} {clean}";
-        return result.Length > 100 ? result[..100] : result;
+        if (result.Length > 100) throw new AppException(400, "Tên văn bằng/chứng chỉ kèm phân loại tối đa 100 ký tự.", "certificateType");
+        return result;
+    }
+
+    public static string ResolveCategory(string? category, string typeName)
+    {
+        if (string.IsNullOrWhiteSpace(category)) return Parse(typeName).Category;
+        var normalized = category.Trim().ToLowerInvariant();
+        return normalized is "degree" or "certificate" ? normalized
+            : throw new AppException(400, "Phân loại chỉ được là degree hoặc certificate.", "category");
     }
 }
 
@@ -187,9 +201,9 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
                     Notes = notes?.Trim(),
                     RejectionReason = rejectionReason?.Trim()
                 }, JsonOptions);
-                return json.Length > 200 ? json[..200] : json;
+                return json;
             }
-            return string.IsNullOrWhiteSpace(rawScope) ? null : (rawScope.Length > 200 ? rawScope[..200] : rawScope.Trim());
+            return string.IsNullOrWhiteSpace(rawScope) ? null : rawScope.Trim();
         }
         else
         {
@@ -206,9 +220,9 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
                     IssuanceMethod = issuanceMethod?.Trim(),
                     RejectionReason = rejectionReason?.Trim()
                 }, JsonOptions);
-                return json.Length > 200 ? json[..200] : json;
+                return json;
             }
-            return string.IsNullOrWhiteSpace(prof) ? null : (prof.Length > 200 ? prof[..200] : prof);
+            return string.IsNullOrWhiteSpace(prof) ? null : prof;
         }
     }
 
@@ -379,14 +393,14 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
 
     public async Task<CertificateDto> CreateAsync(SaveCertificateRequest request, Guid? currentUserId, CancellationToken ct = default)
     {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var staff = await db.Staff.AsNoTracking().SingleOrDefaultAsync(s => s.StaffId == request.StaffId, ct)
             ?? throw new AppException(400, "Nhân viên không tồn tại trong hệ thống.");
 
         if (string.IsNullOrWhiteSpace(request.CertificateType))
             throw new AppException(400, "Tên văn bằng / chứng chỉ là bắt buộc.");
 
-        var (cat, _, _) = CertificateCategoryHelper.Parse(
-            !string.IsNullOrWhiteSpace(request.Category) ? $"[{request.Category}] {request.CertificateType}" : request.CertificateType);
+        var cat = CertificateCategoryHelper.ResolveCategory(request.Category, request.CertificateType);
 
         var isDegree = cat == "degree";
 
@@ -418,6 +432,10 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
             ? (string.IsNullOrWhiteSpace(request.VerificationStatus) ? (request.Status ?? "unverified") : request.VerificationStatus.Trim().ToLowerInvariant())
             : (string.IsNullOrWhiteSpace(request.Status) ? "active" : request.Status.Trim().ToLowerInvariant());
 
+        ValidateFields(cat, status, request.IssueDate, request.CmeCycleMonths, request.CmeRequiredCredits,
+            request.IssuingAuthority, request.FileUrl, scopeOfPractice);
+        await EnsureDepartmentAsync(request.DepartmentId, ct);
+
         var now = DateTime.UtcNow;
         var entity = new Certificate
         {
@@ -441,20 +459,21 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
 
         db.Certificates.Add(entity);
         await unitOfWork.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
 
         return await GetAsync(entity.CertificateId, ct);
     }
 
     public async Task<CertificateDto> UpdateAsync(Guid id, UpdateCertificateRequest request, CancellationToken ct = default)
     {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var entity = await db.Certificates.SingleOrDefaultAsync(c => c.CertificateId == id, ct)
             ?? throw new AppException(404, "Không tìm thấy chứng chỉ.");
 
         if (string.IsNullOrWhiteSpace(request.CertificateType))
             throw new AppException(400, "Tên văn bằng / chứng chỉ là bắt buộc.");
 
-        var (cat, _, _) = CertificateCategoryHelper.Parse(
-            !string.IsNullOrWhiteSpace(request.Category) ? $"[{request.Category}] {request.CertificateType}" : request.CertificateType);
+        var cat = CertificateCategoryHelper.ResolveCategory(request.Category, request.CertificateType);
 
         var isDegree = cat == "degree";
 
@@ -486,6 +505,17 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
             ? (string.IsNullOrWhiteSpace(request.VerificationStatus) ? (request.Status ?? entity.Status ?? "unverified") : request.VerificationStatus.Trim().ToLowerInvariant())
             : (string.IsNullOrWhiteSpace(request.Status) ? entity.Status ?? "active" : request.Status.Trim().ToLowerInvariant());
 
+        ValidateFields(cat, status, request.IssueDate, request.CmeCycleMonths, request.CmeRequiredCredits,
+            request.IssuingAuthority, request.FileUrl, scopeOfPractice);
+        await EnsureDepartmentAsync(request.DepartmentId, ct);
+        var oldCategory = CertificateCategoryHelper.Parse(entity.CertificateType).Category;
+        if (isDegree && (await db.CmeRecords.AnyAsync(r => r.CertificateId == id, ct)
+            || await db.CmeCycles.AnyAsync(c => c.CertificateId == id, ct)))
+            throw new AppException(409, "Chứng chỉ đã có dữ liệu CME, không thể chuyển thành bằng cấp.", "category");
+        if ((oldCategory != cat || entity.CmeCycleMonths != request.CmeCycleMonths || entity.CmeRequiredCredits != request.CmeRequiredCredits)
+            && await db.CmeCycles.AnyAsync(c => c.CertificateId == id && c.Status == "locked", ct))
+            throw new AppException(409, "Không thể đổi phân loại hoặc định mức CME khi đã có chu kỳ khóa.");
+
         entity.CertificateNumber = certNumber;
         entity.CertificateType = formattedType;
         entity.IssuingAuthority = string.IsNullOrWhiteSpace(request.IssuingAuthority) ? null : request.IssuingAuthority.Trim();
@@ -501,14 +531,18 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
         entity.UpdatedAt = DateTime.UtcNow;
 
         await unitOfWork.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
 
         return await GetAsync(id, ct);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var entity = await db.Certificates.SingleOrDefaultAsync(c => c.CertificateId == id, ct)
             ?? throw new AppException(404, "Không tìm thấy chứng chỉ.");
+        if (await db.CmeCycles.AnyAsync(c => c.CertificateId == id && c.Status == "locked", ct))
+            throw new AppException(409, "Chứng chỉ có chu kỳ CME đã khóa, không thể xóa lịch sử.");
 
         var records = await db.CmeRecords.Where(r => r.CertificateId == id).ToListAsync(ct);
         if (records.Count > 0)
@@ -524,6 +558,7 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
 
         db.Certificates.Remove(entity);
         await unitOfWork.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     public async Task<CertificateDto[]> ListPendingCertificatesAsync(CancellationToken ct = default)
@@ -597,8 +632,11 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
 
     public async Task<CertificateDto> ReviewAsync(Guid id, ReviewCertificateRequest request, Guid? reviewerId, CancellationToken ct = default)
     {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var entity = await db.Certificates.SingleOrDefaultAsync(c => c.CertificateId == id, ct)
             ?? throw new AppException(404, "Không tìm thấy chứng chỉ hoặc bằng cấp.");
+        if (entity.Status is not ("pending" or "unverified"))
+            throw new AppException(409, "Chỉ thẩm định hồ sơ đang chờ xác minh. Vui lòng tải lại danh sách.");
 
         var action = request.Action.Trim().ToLowerInvariant();
         if (action != "approve" && action != "reject")
@@ -658,8 +696,37 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
         }
 
         entity.UpdatedAt = DateTime.UtcNow;
+        if (entity.ScopeOfPractice?.Length > 200)
+            throw new AppException(400, "Lý do từ chối và thông tin chuyên môn vượt quá giới hạn lưu trữ 200 ký tự.", "rejectionReason");
         await unitOfWork.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
 
         return await GetAsync(entity.CertificateId, ct);
+    }
+
+    private async Task EnsureDepartmentAsync(Guid? departmentId, CancellationToken ct)
+    {
+        if (departmentId.HasValue && !await db.Departments.AnyAsync(d => d.DepartmentId == departmentId, ct))
+            throw new AppException(400, "Khoa/phòng không tồn tại.", "departmentId");
+    }
+
+    private static void ValidateFields(string category, string status, DateOnly? issueDate, int? months,
+        decimal? credits, string? authority, string? fileUrl, string? scope)
+    {
+        string[] statuses = category == "degree" ? ["unverified", "verified", "rejected", "pending"]
+            : ["active", "expired", "suspended", "revoked", "pending", "unverified", "rejected"];
+        if (!statuses.Contains(status)) throw new AppException(400, "Trạng thái văn bằng/chứng chỉ không hợp lệ.", "status");
+        if (category != "degree")
+        {
+            var start = issueDate ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+            var maxMonths = (9999 - start.Year) * 12 + 12 - start.Month;
+            if (months.HasValue && (months.Value <= 0 || months.Value > maxMonths))
+                throw new AppException(400, "Số tháng chu kỳ CME phải dương và tạo được ngày kết thúc hợp lệ.", "cmeCycleMonths");
+            if (credits.HasValue && (credits.Value <= 0 || credits.Value > 9999.99m))
+                throw new AppException(400, "Định mức tín chỉ CME phải lớn hơn 0 và tối đa 9999.99.", "cmeRequiredCredits");
+        }
+        if (authority?.Trim().Length > 200) throw new AppException(400, "Nơi cấp tối đa 200 ký tự.", "issuingAuthority");
+        if (fileUrl?.Trim().Length > 500) throw new AppException(400, "Đường dẫn tệp tối đa 500 ký tự.", "fileUrl");
+        if (scope?.Length > 200) throw new AppException(400, "Thông tin chuyên môn và ghi chú vượt quá giới hạn lưu trữ 200 ký tự.", "scopeOfPractice");
     }
 }

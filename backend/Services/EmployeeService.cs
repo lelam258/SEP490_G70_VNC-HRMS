@@ -1,8 +1,11 @@
+using System.Data;
 using Vnc.HRMS.Common.Exceptions;
+using Vnc.HRMS.Common.Utils;
 using Vnc.HRMS.DTOs.Employees;
 using Vnc.HRMS.Models.Employees;
 using Vnc.HRMS.Repositories.Interfaces;
 using Vnc.HRMS.Services.Interfaces;
+using Vnc.HRMS.Services.Rules;
 
 namespace Vnc.HRMS.Services;
 
@@ -40,11 +43,13 @@ public sealed class EmployeeService(IEmployeeRepository employees, IDepartmentRe
 
     public async Task<EmployeeDto> CreateAsync(CreateEmployeeRequest request, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Name))
-            throw new AppException(400, "Mã nhân viên và họ tên là bắt buộc.");
-        var staffCode = request.Code.Trim().ToUpperInvariant();
-        if (await employees.ExistsCodeAsync(staffCode, ct))
-            throw new AppException(409, "Mã nhân viên đã tồn tại.");
+        var staffCode = PayrollParameterRules.NormalizeCode(request.Code, 20);
+        var fullName = ProfileRules.ValidateAndNormalizeFullName(request.Name);
+        var email = EmployeeRules.NormalizeEmail(request.Email);
+        var joined = request.DateJoined ?? TimeHelper.TodayInVietnam();
+        EmployeeRules.EnsureEmploymentDates(joined, null);
+        await using var transaction = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+        await EnsureUniqueAsync(staffCode, email, null, null, ct);
         if (request.DepartmentId is Guid departmentId && await departments.FindAsync(departmentId, ct) is not { Status: "active" })
             throw new AppException(400, "Phòng ban không tồn tại hoặc đã ngừng hoạt động.");
 
@@ -53,15 +58,13 @@ public sealed class EmployeeService(IEmployeeRepository employees, IDepartmentRe
         {
             StaffId = Guid.NewGuid(),
             StaffCode = staffCode,
-            FullName = request.Name.Trim(),
-            Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLowerInvariant(),
+            FullName = fullName,
+            Email = email,
             DepartmentId = request.DepartmentId,
-            DateJoined = request.DateJoined ?? DateOnly.FromDateTime(now),
+            DateJoined = joined,
             CreatedAt = now,
             UpdatedAt = now
         };
-
-        await using var transaction = await unitOfWork.BeginTransactionAsync(ct);
 
         if (request.UserId is Guid userId)
         {
@@ -99,25 +102,39 @@ public sealed class EmployeeService(IEmployeeRepository employees, IDepartmentRe
 
     public async Task<EmployeeDto> UpdateAsync(Guid id, UpdateEmployeeRequest request, CancellationToken ct)
     {
+        var staffCode = PayrollParameterRules.NormalizeCode(request.Code, 20);
+        var fullName = ProfileRules.ValidateAndNormalizeFullName(request.Name);
+        var email = EmployeeRules.NormalizeEmail(request.Email);
+        var phone = string.IsNullOrWhiteSpace(request.Phone) ? null : ProfileRules.NormalizePhone(request.Phone);
+        var birth = ProfileRules.ValidateDateOfBirth(request.DateOfBirth);
+        var gender = ProfileRules.ValidateAndNormalizeGender(request.Gender);
+        var idCard = ProfileRules.ValidateAndNormalizeIdCardNumber(request.IdCardNumber);
+        if (idCard == "CLEAR") idCard = null;
+        if (request.DependentCount is < 0)
+            throw new AppException(400, "Số người phụ thuộc không được âm.", "dependentCount");
+        if (request.AvatarUrl?.Trim().Length > 500)
+            throw new AppException(400, "Đường dẫn ảnh đại diện tối đa 500 ký tự.", "avatarUrl");
+        await using var transaction = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var employee = await employees.FindAsync(id, ct) ?? throw new AppException(404, "Không tìm thấy nhân viên.");
-        if (string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Name))
-            throw new AppException(400, "Mã nhân viên và họ tên là bắt buộc.");
+        var joined = request.DateJoined ?? employee.DateJoined;
+        EmployeeRules.EnsureEmploymentDates(joined, request.DateLeft, birth);
+        await EnsureUniqueAsync(staffCode, email, idCard, id, ct);
         if (request.Status is not ("active" or "inactive"))
             throw new AppException(400, "Trạng thái nhân viên không hợp lệ.");
         if (request.DepartmentId != employee.DepartmentId && request.DepartmentId is Guid departmentId && await departments.FindAsync(departmentId, ct) is not { Status: "active" })
             throw new AppException(400, "Phòng ban không tồn tại hoặc đã ngừng hoạt động.");
 
-        employee.StaffCode = request.Code.Trim().ToUpperInvariant();
-        employee.FullName = request.Name.Trim();
-        employee.Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim().ToLowerInvariant();
-        employee.Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
-        employee.DateOfBirth = request.DateOfBirth;
-        employee.Gender = string.IsNullOrWhiteSpace(request.Gender) ? null : request.Gender.Trim();
-        employee.IdCardNumber = string.IsNullOrWhiteSpace(request.IdCardNumber) ? null : request.IdCardNumber.Trim();
+        employee.StaffCode = staffCode;
+        employee.FullName = fullName;
+        employee.Email = email;
+        employee.Phone = phone;
+        employee.DateOfBirth = birth;
+        employee.Gender = gender;
+        employee.IdCardNumber = idCard;
         employee.AvatarUrl = string.IsNullOrWhiteSpace(request.AvatarUrl) ? null : request.AvatarUrl.Trim();
         employee.DepartmentId = request.DepartmentId;
         employee.ScopeOfPractice = string.IsNullOrWhiteSpace(request.ScopeOfPractice) ? null : request.ScopeOfPractice.Trim();
-        if (request.DateJoined.HasValue) employee.DateJoined = request.DateJoined.Value;
+        employee.DateJoined = joined;
         employee.DateLeft = request.DateLeft;
         if (request.DependentCount.HasValue && request.DependentCount.Value >= 0)
             employee.DependentCount = request.DependentCount.Value;
@@ -125,6 +142,17 @@ public sealed class EmployeeService(IEmployeeRepository employees, IDepartmentRe
         employee.UpdatedAt = DateTime.UtcNow;
 
         await unitOfWork.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return await GetAsync(id, ct);
+    }
+
+    private async Task EnsureUniqueAsync(string code, string? email, string? idCard, Guid? excludeId, CancellationToken ct)
+    {
+        if (await employees.ExistsCodeAsync(code, ct, excludeId))
+            throw new AppException(409, "Mã nhân viên đã tồn tại.", "code");
+        if (email is not null && await employees.EmailExistsAsync(email, excludeId, ct))
+            throw new AppException(409, "Email đã được sử dụng bởi nhân viên khác.", "email");
+        if (idCard is not null && await employees.IdCardExistsAsync(idCard, excludeId, ct))
+            throw new AppException(409, "Số CCCD đã được sử dụng.", "idCardNumber");
     }
 }

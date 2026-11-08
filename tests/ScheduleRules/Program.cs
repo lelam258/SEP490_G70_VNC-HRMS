@@ -21,12 +21,35 @@ Check(ScheduleRules.Hours(new(2026, 12, 1), "morning").Start == new TimeOnly(7, 
 Check(ScheduleRules.Hours(new(2026, 11, 1), "evening") == (new TimeOnly(17, 0), new TimeOnly(19, 0)), "Evening duty follows clinic rules");
 Check(ScheduleRules.Monday(new(2026, 11, 1)) == new DateOnly(2026, 10, 26), "Sunday belongs to preceding Monday");
 Check(ScheduleRules.Monday(new(2027, 1, 1)) == new DateOnly(2026, 12, 28), "Week across year boundary");
-ScheduleRules.Editable(new(2026, 11, 2), new(2026, 11, 1));
-ScheduleRules.Editable(new(2026, 11, 2), new(2026, 11, 8));
-foreach (var day in new[] { new DateOnly(2026, 10, 31), new DateOnly(2026, 11, 9) }) {
-    var rejected = false; try { ScheduleRules.Editable(new(2026, 11, 2), day); } catch (AppException e) { rejected = e.StatusCode == 400; }
-    Check(rejected, $"Reject outside edit window {day}");
-}
+var planningMonday = new DateOnly(2026, 11, 9);
+var planningStart = new DateTimeOffset(2026, 11, 2, 0, 0, 0, TimeSpan.FromHours(7));
+var publishDeadline = new DateTimeOffset(2026, 11, 9, 7, 0, 0, TimeSpan.FromHours(7));
+Check(ScheduleRules.PlanningStart(planningMonday) == planningStart, "Planning opens on Monday of the preceding week");
+Check(ScheduleRules.PublishDeadline(planningMonday) == publishDeadline, "Initial summer publication closes at Monday 07:00 Vietnam time");
+Reject(() => ScheduleRules.Editable(planningMonday, planningStart.AddTicks(-1)), "Cannot plan two weeks ahead before planning opens");
+ScheduleRules.Editable(planningMonday, planningStart);
+Check(true, "Next week's assignments can be created from Monday this week");
+ScheduleRules.Editable(planningMonday, publishDeadline.AddTicks(-1));
+Check(true, "Initial publication allowed immediately before first shift");
+Reject(() => ScheduleRules.Editable(planningMonday, publishDeadline), "Initial publication rejected at exact shift start");
+Reject(() => ScheduleRules.Editable(planningMonday, publishDeadline.AddDays(1)), "Unpublished draft cannot first publish during the work week");
+ScheduleRules.Editable(planningMonday, publishDeadline.AddTicks(-1).ToUniversalTime());
+Reject(() => ScheduleRules.Editable(planningMonday, publishDeadline.ToUniversalTime()), "UTC and Vietnam enforce the same publication deadline");
+var winterMonday = new DateOnly(2026, 12, 7);
+var winterDeadline = new DateTimeOffset(2026, 12, 7, 7, 10, 0, TimeSpan.FromHours(7));
+Check(ScheduleRules.PublishDeadline(winterMonday) == winterDeadline, "Winter publication deadline follows 07:10 clinic opening");
+ScheduleRules.Editable(winterMonday, winterDeadline.AddTicks(-1));
+Reject(() => ScheduleRules.Editable(winterMonday, winterDeadline), "Winter deadline rejects exact 07:10");
+ScheduleRules.Editable(planningMonday, publishDeadline.AddHours(1), isCorrection: true);
+Check(true, "Audited reopened schedule can be corrected and republished after work starts");
+var correctionEnd = new DateTimeOffset(2026, 11, 16, 0, 0, 0, TimeSpan.FromHours(7));
+ScheduleRules.Reopenable(planningMonday, correctionEnd.AddTicks(-1));
+ScheduleRules.Editable(planningMonday, correctionEnd.AddTicks(-1), isCorrection: true);
+Reject(() => ScheduleRules.Reopenable(planningMonday, correctionEnd), "Reopening closes at Monday midnight after the work week");
+Reject(() => ScheduleRules.Editable(planningMonday, correctionEnd, isCorrection: true), "Correction cannot modify an expired week");
+Reject(() => ScheduleRules.Reopenable(planningMonday, planningStart.AddTicks(-1)), "Reopening cannot bypass the start of the planning window");
+Reject(() => ScheduleRules.PublishDeadline(planningMonday.AddDays(1)), "Publication deadline requires a Monday");
+Check(ScheduleRules.PlanningStart(new(2027, 1, 4)).Date == new DateTime(2026, 12, 28), "Planning window crosses calendar years");
 Check(!ScheduleRules.IsDuty("afternoon") && ScheduleRules.IsDuty("noon") && ScheduleRules.IsDuty("evening"), "Only duty shifts qualify for duty credit");
 foreach (var method in typeof(SchedulesController).GetMethods().Where(m => m.GetCustomAttribute<HttpPostAttribute>() != null || m.GetCustomAttribute<HttpPutAttribute>() != null))
     Check(method.GetCustomAttributes<AuthorizeAttribute>().Any(a => a.Roles == "hr_staff"), $"Mutation {method.Name} restricted to HR Staff");

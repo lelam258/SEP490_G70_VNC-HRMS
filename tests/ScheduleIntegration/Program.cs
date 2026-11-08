@@ -20,12 +20,13 @@ var configuration = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(con
 var created = false;
 var actor = Guid.NewGuid(); var employeeUser = Guid.NewGuid();
 var staff1 = Guid.NewGuid(); var staff2 = Guid.NewGuid(); var department1 = Guid.NewGuid(); var department2 = Guid.NewGuid(); var facility1 = Guid.NewGuid(); var facility2 = Guid.NewGuid();
-var monday = ScheduleRules.Monday(ScheduleRules.Today);
+var monday = new DateOnly(2026, 11, 9);
+var clock = new TestClock { Now = new(2026, 11, 6, 10, 0, 0, TimeSpan.FromHours(7)) };
 var ct = CancellationToken.None;
 static void Check(bool ok, string name) { if (!ok) throw new Exception(name); Console.WriteLine("PASS " + name); }
 async Task<object> Call(Func<SchedulesController, Task<object>> run, Guid? user = null, string role = "hr_staff") {
     await using var db = new AppDbContext(configuration);
-    var controller = new SchedulesController(db) { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", (user ?? actor).ToString()), new Claim(ClaimTypes.Role, role)], "test")) } } };
+    var controller = new SchedulesController(db, clock) { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", (user ?? actor).ToString()), new Claim(ClaimTypes.Role, role)], "test")) } } };
     return await run(controller);
 }
 async Task Reject(Func<SchedulesController, Task<object>> run, string name, int status = 400) {
@@ -47,6 +48,8 @@ try {
         await seed.SaveChangesAsync();
     }
     await Reject(c => c.Publish(monday, ct), "Empty week cannot close");
+    await Reject(c => c.Create(Input(staff1, facility1, monday.AddDays(7)), ct), "Cannot plan two weeks ahead before its window");
+    await Reject(c => c.Create(Input(staff1, facility1, monday.AddDays(-7)), ct), "Cannot create initial assignments after the work week started");
     await Reject(c => c.Reopen(monday, new("Correct mistaken assignment"), ct), "Cannot reopen a week that was never closed");
     var first = (ScheduleAssignment)await Call(c => c.Create(Input(staff1, facility1, monday), ct));
     await Call(c => c.Create(Input(staff2, facility2, monday), ct));
@@ -80,6 +83,28 @@ try {
     Check(unrelated.GetArrayLength() == 0, "Employee filter cannot expose another employee's schedule");
     var status = JsonSerializer.SerializeToElement(await Call(c => c.Status(monday, ct)));
     Check(status.GetProperty("closed").GetBoolean() && status.GetProperty("assignmentCount").GetInt32() == 6, "Closure status counts active assignments across departments");
+    Check(status.GetProperty("publishDeadline").GetDateTimeOffset() == ScheduleRules.PublishDeadline(monday)
+        && status.GetProperty("planningStartsAt").GetDateTimeOffset() == ScheduleRules.PlanningStart(monday), "Status exposes server-authoritative planning times");
+    // At work start, an unpublished schedule must not become a late first publication.
+    await Call(c => c.Reopen(monday, new("Prepare deadline fixture"), ct));
+    await using (var db = new AppDbContext(configuration)) {
+        var weekIds = await db.ScheduleWeeks.Where(w => w.Monday == monday).Select(w => w.Id).ToArrayAsync();
+        await db.ScheduleChanges.Where(change => weekIds.Contains(change.WeekId)
+            && change.Detail.StartsWith(ScheduleRules.ReopenAuditPrefix)).ExecuteDeleteAsync();
+    }
+    clock.Now = ScheduleRules.PublishDeadline(monday);
+    await Reject(c => c.Publish(monday, ct), "Existing initial draft cannot publish at exact Monday shift start");
+    await Reject(c => c.Create(Input(staff1, facility1, monday.AddDays(2)), ct), "Initial draft cannot add assignments after deadline");
+    await Reject(c => c.Reopen(monday, new("Bypass initial publication deadline"), ct), "Unpublished draft cannot use reopen to bypass deadline");
+    await using (var db = new AppDbContext(configuration)) Check(await db.ScheduleWeeks.Where(w => w.Monday == monday).AllAsync(w => !w.Published), "Failed late publication leaves every department unpublished");
+    clock.Now = ScheduleRules.PublishDeadline(monday).AddTicks(-1);
+    clock.Step = TimeSpan.FromTicks(1);
+    await Reject(c => c.Publish(monday, ct), "Publication rechecks time when validation crosses the deadline");
+    clock.Step = TimeSpan.Zero;
+    await using (var db = new AppDbContext(configuration)) Check(await db.ScheduleWeeks.Where(w => w.Monday == monday).AllAsync(w => !w.Published), "Crossing deadline rolls back publication for all departments");
+    clock.Now = ScheduleRules.PublishDeadline(monday).AddTicks(-1);
+    await Call(c => c.Publish(monday, ct));
+    clock.Now = ScheduleRules.PublishDeadline(monday);
     await Reject(c => c.Reopen(monday, new(" \t "), ct), "Reopening requires a nonblank reason");
     await Reject(c => c.Reopen(monday, new(new string('x', 1001)), ct), "Reopen reason cannot exceed 1000 characters");
     await Reject(c => c.Reopen(monday.AddDays(1), new("Wrong weekday"), ct), "Reopen requires a Monday");
@@ -89,8 +114,10 @@ try {
         await db.SaveChangesAsync();
     }
     await Reject(c => c.Reopen(monday.AddDays(-7), new("Old week"), ct), "Expired week cannot be reopened");
-    var beforeReopen = DateTime.UtcNow;
+    var beforeReopen = clock.Now.UtcDateTime;
     await Call(c => c.Reopen(monday, new("  Correct mistaken facility  "), ct));
+    var correctionStatus = JsonSerializer.SerializeToElement(await Call(c => c.Status(monday, ct)));
+    Check(correctionStatus.GetProperty("isCorrection").GetBoolean(), "Only an audited reopen enables corrections after first publication deadline");
     await using (var db = new AppDbContext(configuration)) {
         Check(await db.ScheduleWeeks.Where(x => x.Monday == monday).AllAsync(x => !x.Published), "Reopen returns all departments to draft atomically");
         var audit = await (from change in db.ScheduleChanges join week in db.ScheduleWeeks on change.WeekId equals week.Id
@@ -142,10 +169,29 @@ try {
     var correctedRows = JsonSerializer.SerializeToElement(await Call(c => c.List(monday, staff2, null, facility1, ct)));
     Check(correctedRows.GetArrayLength() == 1 && correctedRows[0].GetProperty("assignment").GetProperty("Date").GetString() == monday.AddDays(3).ToString("yyyy-MM-dd"), "Corrected date and facility persist after republishing");
     await Reject(c => c.Create(Input(staff1, facility1, monday.AddDays(5)), ct), "Republished week is locked again");
+    clock.Now = ScheduleRules.CorrectionEnd(monday).AddTicks(-1);
+    clock.Step = TimeSpan.FromTicks(1);
+    await Reject(c => c.Reopen(monday, new("Request crosses the end of the week"), ct), "Reopen rechecks time before saving at end of week");
+    clock.Step = TimeSpan.Zero;
+    await using (var db = new AppDbContext(configuration)) Check(await db.ScheduleWeeks.Where(w => w.Monday == monday).AllAsync(w => w.Published), "Crossing correction expiry preserves the published schedule");
+    clock.Now = ScheduleRules.CorrectionEnd(monday);
+    await Reject(c => c.Reopen(monday, new("Too late"), ct), "Published week cannot reopen after Sunday ends");
 } finally {
     if (created && databaseName.StartsWith("VNC_Schedule_Test_") && databaseName.Length == 50) {
         await using var cleanup = new AppDbContext(configuration);
         await cleanup.Database.EnsureDeletedAsync();
         Console.WriteLine("Removed owned test database.");
+    }
+}
+
+sealed class TestClock : TimeProvider
+{
+    public DateTimeOffset Now { get; set; }
+    public TimeSpan Step { get; set; }
+    public override DateTimeOffset GetUtcNow()
+    {
+        var current = Now;
+        Now = Now.Add(Step);
+        return current.ToUniversalTime();
     }
 }

@@ -6,6 +6,8 @@ namespace Vnc.HRMS.Services;
 
 public static class ScheduleRules
 {
+    // Existing audit entries use this prefix; keep it stable when changing display text.
+    public const string ReopenAuditPrefix = "HR Staff mở lại lịch tuần để sửa sai: ";
     public static readonly string[] Shifts = ["morning", "noon", "afternoon", "evening"];
     public static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
     public static DateOnly Monday(DateOnly date) => date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
@@ -50,10 +52,39 @@ public static class ScheduleRules
             _ => throw new AppException(400, "Ca làm việc không hợp lệ.")
         };
     }
-    public static void Editable(DateOnly monday, DateOnly today)
+    private static void ValidateWeek(DateOnly monday)
     {
-        if (monday != Monday(monday) || today < monday.AddDays(-1) || today > monday.AddDays(6))
-            throw new AppException(400, "Chỉ tạo/sửa từ Chủ nhật tuần trước đến hết Chủ nhật của tuần làm việc.");
+        if (monday != Monday(monday) || monday.DayNumber < 7 || monday.DayNumber > DateOnly.MaxValue.DayNumber - 7)
+            throw new AppException(400, "Tuần phải bắt đầu vào thứ Hai và nằm trong khoảng ngày hợp lệ.");
+    }
+    public static DateTimeOffset PlanningStart(DateOnly monday)
+    {
+        ValidateWeek(monday);
+        return new(monday.AddDays(-7).ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(7));
+    }
+    public static DateTimeOffset PublishDeadline(DateOnly monday)
+    {
+        ValidateWeek(monday);
+        return new(monday.ToDateTime(Hours(monday, "morning").Start), TimeSpan.FromHours(7));
+    }
+    public static DateTimeOffset CorrectionEnd(DateOnly monday)
+    {
+        ValidateWeek(monday);
+        return new(monday.AddDays(7).ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(7));
+    }
+    public static void Editable(DateOnly monday, DateTimeOffset now, bool isCorrection = false)
+    {
+        var start = PlanningStart(monday);
+        var end = isCorrection ? CorrectionEnd(monday) : PublishDeadline(monday);
+        if (now < start || now >= end)
+            throw new AppException(400, isCorrection
+                ? "Chỉ điều chỉnh lịch đã mở lại từ tuần trước đến hết Chủ nhật của tuần làm việc."
+                : "Lập và chốt lịch cho tuần kế tiếp từ thứ Hai tuần trước, trước giờ bắt đầu ca sáng thứ Hai của tuần được phân công.");
+    }
+    public static void Reopenable(DateOnly monday, DateTimeOffset now)
+    {
+        if (now < PlanningStart(monday) || now >= CorrectionEnd(monday))
+            throw new AppException(400, "Chỉ mở lại lịch đã chốt từ tuần trước đến hết Chủ nhật của tuần làm việc.");
     }
     private static DateTimeOffset DutyStart(DateOnly date, string shift)
     {

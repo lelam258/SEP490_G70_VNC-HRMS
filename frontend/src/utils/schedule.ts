@@ -1,3 +1,5 @@
+import type { ScheduleWeekStatus } from '../types/schedules';
+
 export const shiftNames: Record<string, string> = { morning: 'Sáng', noon: 'Trực trưa', afternoon: 'Chiều', evening: 'Trực tối' };
 export const dayNames = ['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ nhật'];
 export function dateKey(date: Date) { return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }
@@ -9,4 +11,16 @@ export function shiftHours(date: string, shift: string) {
   const monthDay = date.slice(5);
   const summer = monthDay >= '04-15' && monthDay < '12-01';
   return ({ morning: summer ? '07:00–11:30' : '07:10–11:45', noon: summer ? '11:30–13:30' : '11:45–13:30', afternoon: '13:30–17:00', evening: '17:00–19:00' } as Record<string, string>)[shift] || '';
+}
+
+export function schedulePermissions(status: ScheduleWeekStatus | undefined, now: number) {
+  if (!status) return { canEdit: false, canPublish: false, canReopen: false };
+  const start = Date.parse(status.planningStartsAt);
+  const end = Date.parse(status.isCorrection ? status.correctionEndsAt : status.publishDeadline);
+  const inWindow = now >= start && now < end;
+  return {
+    canEdit: !status.closed && inWindow,
+    canPublish: !status.closed && inWindow && status.assignmentCount > 0,
+    canReopen: status.closed && now >= start && now < Date.parse(status.correctionEndsAt),
+  };
 }

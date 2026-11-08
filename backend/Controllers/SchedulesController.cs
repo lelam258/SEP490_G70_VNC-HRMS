@@ -11,17 +11,26 @@ using Vnc.HRMS.Services;
 namespace Vnc.HRMS.Controllers;
 
 [ApiController, Authorize, Route("api/schedules")]
-public sealed class SchedulesController(AppDbContext db) : ControllerBase
+public sealed class SchedulesController(AppDbContext db, TimeProvider? timeProvider = null) : ControllerBase
 {
     private const string ManagerRole = "hr_staff";
+    private DateTimeOffset Now => (timeProvider ?? TimeProvider.System).GetUtcNow();
     private Guid Actor => Guid.TryParse(User.FindFirstValue("sub"), out var id) ? id : throw new AppException(401, "Phiên không hợp lệ.");
     private bool Reader => User.IsInRole("admin") || User.IsInRole("hr_manager") || User.IsInRole(ManagerRole) || User.IsInRole("department_head");
 
-    private async Task RequireOpenWeek(DateOnly monday, CancellationToken ct)
+    private Task<bool> IsCorrectionWeek(DateOnly monday, CancellationToken ct)
+        => (from change in db.ScheduleChanges
+            join week in db.ScheduleWeeks on change.WeekId equals week.Id
+            where week.Monday == monday && change.Detail.StartsWith(ScheduleRules.ReopenAuditPrefix)
+            select change.Id).AnyAsync(ct);
+
+    private async Task<bool> RequireOpenWeek(DateOnly monday, CancellationToken ct)
     {
-        ScheduleRules.Editable(monday, ScheduleRules.Today);
         if (await db.ScheduleWeeks.AnyAsync(x => x.Monday == monday && x.Published, ct))
             throw new AppException(400, "Tuần đã chốt. Không thể tạo, sửa hoặc hủy phân công.");
+        var isCorrection = await IsCorrectionWeek(monday, ct);
+        ScheduleRules.Editable(monday, Now, isCorrection);
+        return isCorrection;
     }
     private async Task<ScheduleWeek> Week(Guid department, DateOnly monday, CancellationToken ct)
     {
@@ -34,7 +43,7 @@ public sealed class SchedulesController(AppDbContext db) : ControllerBase
     private void Audit(ScheduleWeek week, string detail)
     {
         db.Entry(week).Property(x => x.Published).IsModified = true;
-        db.ScheduleChanges.Add(new() { Id = Guid.NewGuid(), WeekId = week.Id, ActorId = Actor, At = DateTime.UtcNow, Detail = detail });
+        db.ScheduleChanges.Add(new() { Id = Guid.NewGuid(), WeekId = week.Id, ActorId = Actor, At = Now.UtcDateTime, Detail = detail });
     }
     private static string Text(string? value) => !string.IsNullOrWhiteSpace(value) && value.Trim().Length <= 1000
         ? value.Trim() : throw new AppException(400, "Vui lòng nhập nội dung (tối đa 1000 ký tự).");
@@ -43,9 +52,9 @@ public sealed class SchedulesController(AppDbContext db) : ControllerBase
     public async Task<object> Options(CancellationToken ct) => new {
         facilities = await db.ScheduleFacilities.AsNoTracking().OrderBy(x => x.Name).ToArrayAsync(ct),
         coverage = await db.ScheduleCoverage.AsNoTracking().ToArrayAsync(ct),
-        departments = await db.Departments.AsNoTracking().Select(x => new { id = x.DepartmentId, x.Name }).ToArrayAsync(ct),
+        departments = await db.Departments.AsNoTracking().Select(x => new { id = x.DepartmentId, x.Name, x.Status }).ToArrayAsync(ct),
         staff = await db.Staff.AsNoTracking().Where(x => x.Status == "active" && (Reader || x.UserId == Actor))
-            .OrderBy(x => x.FullName).Select(x => new { id = x.StaffId, x.FullName, x.DepartmentId }).ToArrayAsync(ct)
+            .OrderBy(x => x.FullName).Select(x => new { id = x.StaffId, x.FullName, x.DepartmentId, x.DateJoined, x.DateLeft }).ToArrayAsync(ct)
     };
 
     [HttpGet("week-status")]
@@ -57,7 +66,11 @@ public sealed class SchedulesController(AppDbContext db) : ControllerBase
                           join w in db.ScheduleWeeks on a.WeekId equals w.Id
                           join s in db.Staff on a.StaffId equals s.StaffId
                           where w.Monday == monday && !a.Cancelled && (Reader || (s.UserId == Actor && w.Published)) select a;
-        return new { monday, closed, assignmentCount = await assignments.CountAsync(ct) };
+        return new { monday, closed, assignmentCount = await assignments.CountAsync(ct),
+            isCorrection = await IsCorrectionWeek(monday, ct), serverNow = Now,
+            planningStartsAt = ScheduleRules.PlanningStart(monday),
+            publishDeadline = ScheduleRules.PublishDeadline(monday),
+            correctionEndsAt = ScheduleRules.CorrectionEnd(monday) };
     }
 
     [HttpGet]
@@ -117,7 +130,7 @@ public sealed class SchedulesController(AppDbContext db) : ControllerBase
     {
         await using var tx = ownTransaction ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
         var monday = ScheduleRules.Monday(request.Date);
-        await RequireOpenWeek(monday, ct);
+        var isCorrection = await RequireOpenWeek(monday, ct);
         ScheduleRules.Hours(request.Date, request.Shift);
         ScheduleAssignment? item = null;
         if (id.HasValue) {
@@ -130,7 +143,10 @@ public sealed class SchedulesController(AppDbContext db) : ControllerBase
         var staff = await db.Staff.SingleOrDefaultAsync(x => x.StaffId == request.StaffId && x.Status == "active", ct)
             ?? throw new AppException(400, "Nhân viên không tồn tại hoặc đã ngừng làm việc.");
         var department = staff.DepartmentId ?? throw new AppException(400, "Cần cập nhật khoa/phòng cho nhân viên trước khi xếp lịch.");
+        if (staff.DateJoined > request.Date) throw new AppException(400, "Ngày phân công nằm trước ngày vào làm.");
         if (staff.DateLeft.HasValue && staff.DateLeft.Value < request.Date) throw new AppException(400, "Ngày phân công nằm sau ngày nghỉ việc.");
+        if (!await db.Departments.AnyAsync(x => x.DepartmentId == department && x.Status == "active", ct))
+            throw new AppException(400, "Khoa/phòng của nhân viên đã ngừng hoạt động.");
         if (await db.LeaveRequests.AnyAsync(x => x.StaffId == staff.StaffId && x.Status == "approved" && x.StartDate <= request.Date && x.EndDate >= request.Date, ct))
             throw new AppException(400, "Nhân viên đã có nghỉ phép được duyệt.");
 
@@ -156,6 +172,7 @@ public sealed class SchedulesController(AppDbContext db) : ControllerBase
         item.WeekId = week.Id; item.StaffId = staff.StaffId; item.CoverageId = coverage.Id; item.Date = request.Date; item.Shift = request.Shift;
         item.Reason = string.IsNullOrWhiteSpace(request.Reason) ? "Phân công lịch làm việc tuần" : Text(request.Reason); item.TransferConsent = consent;
         Audit(week, $"{(id.HasValue ? "Sửa" : "Tạo")} {item.Id}: {System.Text.Json.JsonSerializer.Serialize(request)}");
+        ScheduleRules.Editable(monday, Now, isCorrection);
         await db.SaveChangesAsync(ct);
         if (tx != null) await tx.CommitAsync(ct);
         return item;
@@ -168,10 +185,11 @@ public sealed class SchedulesController(AppDbContext db) : ControllerBase
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         var item = await db.ScheduleAssignments.SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new AppException(404, "Không có phân công.");
         var week = await db.ScheduleWeeks.SingleAsync(x => x.Id == item.WeekId, ct);
-        await RequireOpenWeek(week.Monday, ct);
+        var isCorrection = await RequireOpenWeek(week.Monday, ct);
         ScheduleRules.CheckAssignmentVersion(item, request.ExpectedVersion);
         if (item.PatientConfirmed || item.ActualEndAt.HasValue || item.Cancelled) throw new AppException(400, "Không thể hủy ca đã ghi nhận trực hoặc đã hủy.");
         item.Cancelled = true; item.Reason = Text(request.Reason); Audit(week, $"Hủy {id}: {item.Reason}");
+        ScheduleRules.Editable(week.Monday, Now, isCorrection);
         await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
         return new { message = "Đã hủy phân công." };
     }
@@ -179,19 +197,24 @@ public sealed class SchedulesController(AppDbContext db) : ControllerBase
     public async Task<object> Publish(DateOnly monday, CancellationToken ct)
     {
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-        await RequireOpenWeek(monday, ct);
+        var isCorrection = await RequireOpenWeek(monday, ct);
         var weeks = await db.ScheduleWeeks.Where(x => x.Monday == monday).ToArrayAsync(ct);
         var weekIds = weeks.Select(x => x.Id).ToArray();
         var count = await db.ScheduleAssignments.CountAsync(x => weekIds.Contains(x.WeekId) && !x.Cancelled, ct);
         if (count == 0) throw new AppException(400, "Chưa có phân công để chốt tuần.");
         var valid = await (from a in db.ScheduleAssignments join w in db.ScheduleWeeks on a.WeekId equals w.Id
                            join s in db.Staff on a.StaffId equals s.StaffId
+                           join d in db.Departments on w.DepartmentId equals d.DepartmentId
                            where w.Monday == monday && !a.Cancelled && s.Status == "active" && s.DepartmentId == w.DepartmentId
+                               && d.Status == "active" && s.DateJoined <= a.Date
                                && (!s.DateLeft.HasValue || s.DateLeft >= a.Date)
                                && !db.LeaveRequests.Any(l => l.StaffId == a.StaffId && l.Status == "approved" && l.StartDate <= a.Date && l.EndDate >= a.Date)
                            select a.Id).CountAsync(ct);
-        if (valid != count) throw new AppException(400, "Có nhân viên nghỉ phép, nghỉ việc hoặc đã đổi khoa. Cần sửa/hủy phân công đó trước khi chốt.");
+        if (valid != count) throw new AppException(400, "Có phân công ngoài thời gian công tác, nhân viên nghỉ phép, nghỉ việc, đổi khoa hoặc khoa/phòng ngừng hoạt động. Cần sửa/hủy trước khi chốt.");
+        // Initial publication must finish validation before work starts. A correction is
+        // allowed later only after Reopen recorded its reason in the existing audit trail.
         foreach (var week in weeks) { week.Published = true; Audit(week, "HR Staff chốt lịch tuần"); }
+        ScheduleRules.Editable(monday, Now, isCorrection);
         await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
         return new { message = "Đã chốt lịch tuần. Nhân viên có thể xem lịch cá nhân." };
     }
@@ -200,17 +223,18 @@ public sealed class SchedulesController(AppDbContext db) : ControllerBase
     public async Task<object> Reopen(DateOnly monday, ReasonRequest request, CancellationToken ct)
     {
         var reason = Text(request.Reason);
-        ScheduleRules.Editable(monday, ScheduleRules.Today);
+        ScheduleRules.Reopenable(monday, Now);
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         var weeks = await db.ScheduleWeeks.Where(x => x.Monday == monday).ToArrayAsync(ct);
         if (!weeks.Any(x => x.Published))
             throw new AppException(400, "Tuần chưa chốt hoặc đã được mở lại.");
         foreach (var week in weeks) {
             week.Published = false;
-            Audit(week, $"HR Staff mở lại lịch tuần để sửa sai: {reason}");
+            Audit(week, ScheduleRules.ReopenAuditPrefix + reason);
         }
         // Keep assignments and actual duty records intact. Save/Cancel still protect
         // assignments with confirmed patient service or an actual duty end.
+        ScheduleRules.Reopenable(monday, Now);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return new { message = "Đã mở lại tuần. Sửa lịch rồi chốt lại để nhân viên xem." };
@@ -227,8 +251,8 @@ public sealed class SchedulesController(AppDbContext db) : ControllerBase
         var week = await db.ScheduleWeeks.SingleAsync(x => x.Id == item.WeekId, ct);
         ScheduleRules.CheckAssignmentVersion(item, request.ExpectedVersion);
         if (!week.Published || item.Cancelled || item.ActualEndAt.HasValue) throw new AppException(400, "Chỉ ghi nhận một lần cho ca trực đã chốt và chưa hủy.");
-        ScheduleRules.ValidateDutyEnd(item.Date, item.Shift, request.EndedAt, DateTimeOffset.UtcNow);
-        item.ActualEndAt = request.EndedAt.ToUniversalTime(); item.EndNote = Text(request.Note); item.EndRecordedBy = Actor; item.EndRecordedAt = DateTime.UtcNow;
+        ScheduleRules.ValidateDutyEnd(item.Date, item.Shift, request.EndedAt, Now);
+        item.ActualEndAt = request.EndedAt.ToUniversalTime(); item.EndNote = Text(request.Note); item.EndRecordedBy = Actor; item.EndRecordedAt = Now.UtcDateTime;
         Audit(week, $"Kết thúc trực {id}: {request.EndedAt:O}; {item.EndNote}");
         await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
         return new { message = "Đã ghi nhận kết thúc thực tế. Công trực cần xác nhận phục vụ bệnh nhân riêng." };
@@ -241,8 +265,8 @@ public sealed class SchedulesController(AppDbContext db) : ControllerBase
         var week = await db.ScheduleWeeks.SingleAsync(x => x.Id == item.WeekId, ct);
         ScheduleRules.CheckAssignmentVersion(item, request.ExpectedVersion);
         if (!week.Published || item.Cancelled || !ScheduleRules.IsDuty(item.Shift) || item.PatientConfirmed) throw new AppException(400, "Chỉ xác nhận một lần cho ca trực đã chốt và chưa hủy.");
-        ScheduleRules.ValidateDutyStarted(item.Date, item.Shift, DateTimeOffset.UtcNow);
-        item.PatientConfirmed = true; item.PatientEvidence = Text(request.Evidence); item.ConfirmedBy = Actor; item.ConfirmedAt = DateTime.UtcNow;
+        ScheduleRules.ValidateDutyStarted(item.Date, item.Shift, Now);
+        item.PatientConfirmed = true; item.PatientEvidence = Text(request.Evidence); item.ConfirmedBy = Actor; item.ConfirmedAt = Now.UtcDateTime;
         Audit(week, $"Xác nhận phục vụ bệnh nhân cho {id}: {item.PatientEvidence}");
         await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
         return new { message = "Đã ghi nhận công trực." };

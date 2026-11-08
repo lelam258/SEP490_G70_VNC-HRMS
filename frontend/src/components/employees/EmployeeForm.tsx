@@ -3,6 +3,7 @@ import { employeeApi, type EmployeeInput, type UnlinkedAccount } from '../../ser
 import type { Department } from '../../services/departmentApi';
 import { roleLabels, type Role, type Employee } from '../../types/accounts';
 import Alert from '../ui/Alert';
+import { validateEmployeeBasics } from '../../utils/employeeRules';
 
 export default function EmployeeForm({
   employee,
@@ -26,6 +27,7 @@ export default function EmployeeForm({
   const [userId, setUserId] = useState('');
   const [unlinkedAccounts, setUnlinkedAccounts] = useState<UnlinkedAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [validationError, setValidationError] = useState('');
 
   useEffect(() => {
     if (employee) return;
@@ -60,6 +62,9 @@ export default function EmployeeForm({
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    const invalid = validateEmployeeBasics({ code, name, email });
+    setValidationError(invalid);
+    if (invalid) return;
     if (!busy) {
       void onSave({
         code: code.trim(),
@@ -167,7 +172,7 @@ export default function EmployeeForm({
           </div>
         </div>
 
-        {error && <Alert>{error}</Alert>}
+        {(validationError || error) && <Alert>{validationError || error}</Alert>}
       </div>
 
       <div className="form-actions">
