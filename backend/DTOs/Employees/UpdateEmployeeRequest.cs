@@ -10,10 +10,10 @@ public sealed record UpdateEmployeeRequest(
     DateOnly? DateOfBirth,
     [StringLength(10)] string? Gender,
     [StringLength(20)] string? IdCardNumber,
-    string? AvatarUrl,
+    [StringLength(500)] string? AvatarUrl,
     Guid? DepartmentId,
     [StringLength(200)] string? ScopeOfPractice,
     DateOnly? DateJoined,
     DateOnly? DateLeft,
-    int? DependentCount,
+    [Range(0, int.MaxValue)] int? DependentCount,
     [Required, RegularExpression("^(active|inactive)$")] string Status);

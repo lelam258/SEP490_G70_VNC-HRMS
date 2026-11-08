@@ -6,6 +6,8 @@ Bộ test này bao phủ các luồng đã có trong frontend/backend hiện t�
 
 Đây là bộ test chức năng thủ công, tập trung vào hành vi người dùng và API. Các mục được ghi rõ **API** khi hiện chỉ có API hoặc dữ liệu đọc, không hàm ý đã có màn hình tương ứng.
 
+Quy tắc hiện hành và các kiểm thử hồi quy bổ sung khi rà soát toàn bộ nhóm màn hình xem tại [BUSINESS_RULES.md](BUSINESS_RULES.md).
+
 Không kiểm thử chức năng chưa được triển khai đầy đủ như phê duyệt nghỉ phép, nhập/chốt công, tính/chốt bảng lương, quy trình quét tuân thủ tự động hoặc tạo/gửi thông báo tự động.
 
 ## 2. Cách chạy và ghi nhận
@@ -102,8 +104,8 @@ Các email và mã mẫu cần được kiểm tra chưa tồn tại trước kh
 | AUTH-03 | Cao | Có tài khoản thử nghiệm | Đăng nhập với mật khẩu sai hoặc tài khoản không khả dụng | Bị từ chối, không tạo phiên; thông báo không tiết lộ tài khoản có tồn tại hay trạng thái cụ thể. |
 | AUTH-04 | Cao | Không cần | Gửi form trống; thử login dài hơn giới hạn API | Form bắt buộc dữ liệu; dữ liệu không hợp lệ bị từ chối, không tạo phiên. |
 | AUTH-05 | Cao | Tài khoản thử nghiệm chưa khóa | Nhập sai mật khẩu 5 lần rồi thử mật khẩu đúng trong 15 phút | Login bị khóa tạm sau ngưỡng; không cấp phiên; sau thời gian khóa, mật khẩu đúng có thể đăng nhập. |
-| AUTH-06 | Cao | Có hồ sơ nhân viên active chưa cấp tài khoản | Đăng ký với mã nhân viên/email khớp, username và mật khẩu hợp lệ | Đăng ký thành công; tài khoản gắn đúng hồ sơ và có thể đăng nhập. |
-| AUTH-07 | Cao | Như AUTH-06 | Đăng ký với mã nhân viên hoặc email không khớp, hoặc nhân viên không active | Bị từ chối; không tạo tài khoản. |
+| AUTH-06 | Cao | Có hồ sơ nhân viên active chưa cấp tài khoản | Admin cấp tài khoản cho hồ sơ với username và mật khẩu hợp lệ; nhân viên đăng nhập | Tài khoản gắn đúng hồ sơ và đăng nhập được sau khi provision; không có chức năng tự đăng ký. |
+| AUTH-07 | Cao | Có hồ sơ chưa cấp tài khoản hoặc inactive | Thử đăng nhập bằng tài khoản dự trữ chưa provision; thử Admin cấp cho nhân viên inactive | Tài khoản dự trữ không đăng nhập được; cấp tài khoản cho nhân viên inactive bị từ chối. |
 | AUTH-08 | Cao | SMTP được cấu hình; tài khoản hợp lệ | Gửi yêu cầu quên mật khẩu bằng email tồn tại, sau đó bằng email không tồn tại | Cùng thông báo chung để tránh dò email; OTP chỉ được gửi cho tài khoản đủ điều kiện. |
 | AUTH-09 | Cao | Có challenge OTP còn hạn | Đặt lại bằng OTP đúng và mật khẩu mới hợp lệ; đăng nhập lại bằng mật khẩu mới | Đặt lại thành công; mật khẩu cũ không còn dùng được; phiên/token cũ bị thu hồi. |
 | AUTH-10 | Cao | Có challenge OTP | Dùng OTP sai, hết hạn, đã dùng hoặc vượt số lần thử; thử mật khẩu mới không đạt yêu cầu | Yêu cầu bị từ chối; không đổi mật khẩu; challenge không thể dùng lại sau khi đã tiêu thụ. |
@@ -256,3 +258,24 @@ Khi thực thi từng ca, cập nhật trạng thái tại nhóm tương ứng v
 - Notification hiện có danh sách và đánh dấu đã đọc; testcase không giả định hệ thống tự tạo/gửi thông báo.
 - Upload avatar có giới hạn riêng 2 MB; upload file chung và file đính kèm nghỉ phép có giới hạn/validation riêng.
 - Test frontend tự động không chứng minh được quyền truy cập, dữ liệu SQL, gửi email, refresh cookie hoặc thu hồi session end-to-end. Những mục đó cần chạy testcase tích hợp với backend.
+
+## 7. Hồi quy bổ sung: lập và chốt lịch tuần kế tiếp
+
+Các ca dưới đây bổ sung cho bộ 80 testcase gốc; không tính gộp vào kết quả cũ của mục 5. Mọi mốc giờ dùng giờ Việt Nam.
+
+| ID | Điều kiện / thao tác | Kết quả mong đợi |
+| --- | --- | --- |
+| SCH-01 | HR Staff mở màn lịch trong tuần hiện tại | Mặc định chọn thứ Hai tuần kế tiếp |
+| SCH-02 | Lập lịch tuần 09–15/11/2026 vào 02/11/2026 lúc 00:00 | Cho tạo/sửa/hủy phân công nháp; trước thời điểm này bị từ chối |
+| SCH-03 | Chốt lần đầu tuần 09–15/11/2026 trước 09/11/2026 07:00, dữ liệu hợp lệ | Thành công; công bố tất cả khoa/phòng |
+| SCH-04 | Chốt lần đầu từ đúng 09/11/2026 07:00; thử thêm/sửa/hủy phân công của bản nháp quá hạn | HTTP 400, không công bố hoặc thay đổi dữ liệu |
+| SCH-05 | Chốt tuần mùa đông 07–13/12/2026 vào 07/12/2026 07:09:59, sau đó thử đúng 07:10 | Trước 07:10 cho phép; từ 07:10 bị từ chối |
+| SCH-06 | Gửi cùng thời điểm bằng UTC và UTC+7 | Cùng kết quả, không lệch hạn theo múi giờ máy chạy |
+| SCH-07 | Bản nháp quá hạn chưa chốt gọi mở lại nhằm vượt hạn | Bị từ chối; không có audit cho phép điều chỉnh |
+| SCH-08 | Lịch đã chốt mở lại sau giờ bắt đầu tuần, nhập lý do | Mở lại toàn bộ tuần, lưu lý do/người/thời điểm; nhân viên tạm không thấy lịch nháp |
+| SCH-09 | Sửa và chốt lại lịch có audit mở lại sau giờ bắt đầu tuần | Cho phép trong thời hạn điều chỉnh; ca đã xác nhận trực/kết thúc trực vẫn không được sửa/hủy |
+| SCH-10 | Mở lại/sửa/chốt lại từ 00:00 thứ Hai sau tuần làm việc | Bị từ chối vì tuần đã hết hạn |
+| SCH-11 | Giữ hộp xác nhận chốt mở qua giờ bắt đầu ca sáng thứ Hai | Nút xác nhận và nút phân công tự khóa; menu sửa/hủy biến mất; API cũng chặn gửi trực tiếp |
+| SCH-12 | Hai request tải tuần trả về không theo thứ tự, hoặc lưu xong tải lại lỗi | Không hiển thị quyền thao tác của tuần cũ; báo rõ đã lưu nếu mutation thành công |
+
+Các kiểm tra tự động tương ứng: `tests/ScheduleRules`, `tests/ScheduleIntegration`, phần schedule trong `frontend/scripts/verify-business-rules.mjs`, và `tests/verify-schedules-ui.mjs` (Chrome headless với API fixture).

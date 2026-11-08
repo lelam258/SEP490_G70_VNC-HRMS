@@ -6,6 +6,8 @@ Base giữ 6 mã role để các thành viên dùng thống nhất: admin, hr_ma
 | --- | --- |
 | Quản lý tài khoản | Administrator (admin) |
 | Hồ sơ nhân viên và khoa/phòng | HR Manager (hr_manager) |
+| Hợp đồng lao động: danh sách, tạo, chi tiết, sửa (`/api/contracts`) | HR Manager (hr_manager); danh sách không trả số tiền lương |
+| Đãi ngộ hợp đồng: điều chỉnh lương, bảo hiểm, thuế, phụ cấp (`/api/compensation`) | Accountant (accountant) |
 | Nghiệp vụ các UC khác | Thành viên phụ trách xác nhận theo yêu cầu |
 
 Đã có JWT policy Admin và HRManager. Bản base chưa có màn/API nghiệp vụ, chưa cấp token, chưa kiểm tra phiên SQL. Guard frontend là khung dùng chung; không thay thế kiểm tra quyền trên API.

@@ -4,6 +4,8 @@ import Alert from '../ui/Alert';
 import type { Department } from '../../services/departmentApi';
 import type { EmployeeDetail, UpdateEmployeeInput } from '../../types/accounts';
 import { formatDate, initials } from '../../utils/format';
+import { validateEmployeeProfile } from '../../utils/employeeRules';
+import { getMaxAdultDateOfBirth } from '../../utils/leaveRules';
 
 interface EmployeeProfileFormProps {
   employee: EmployeeDetail;
@@ -74,12 +76,9 @@ export default function EmployeeProfileForm({
     const trimmedCode = code.trim();
     const trimmedName = name.trim();
 
-    if (!trimmedCode) {
-      setError('Mã nhân viên không được để trống.');
-      return;
-    }
-    if (!trimmedName) {
-      setError('Họ và tên nhân viên không được để trống.');
+    const invalid = validateEmployeeProfile({ code, name, email, phone, dateOfBirth, idCardNumber, dateJoined, dateLeft, dependentCount });
+    if (invalid) {
+      setError(invalid);
       return;
     }
 
@@ -98,7 +97,7 @@ export default function EmployeeProfileForm({
         scopeOfPractice: scopeOfPractice.trim() || null,
         dateJoined: dateJoined || null,
         dateLeft: dateLeft || null,
-        dependentCount: Number(dependentCount) >= 0 ? Number(dependentCount) : 0,
+        dependentCount,
         status,
       });
       if (err) setError(err);
@@ -223,6 +222,8 @@ export default function EmployeeProfileForm({
                 <label htmlFor="staff-dob">Ngày sinh</label>
                 <input
                   id="staff-dob"
+                  min="1940-01-01"
+                  max={getMaxAdultDateOfBirth()}
                   type={readonly ? 'text' : 'date'}
                   value={readonly ? (dateOfBirth ? formatDate(dateOfBirth) : 'Chưa cập nhật') : dateOfBirth}
                   readOnly={readonly}
@@ -238,7 +239,8 @@ export default function EmployeeProfileForm({
                   id="staff-idcard"
                   value={idCardNumber}
                   readOnly={readonly}
-                  maxLength={20}
+                  maxLength={12}
+                  pattern="[0-9]{12}"
                   placeholder="Số căn cước công dân"
                   onChange={e => setIdCardNumber(e.target.value)}
                 />
@@ -248,6 +250,7 @@ export default function EmployeeProfileForm({
                 <label htmlFor="staff-phone">Số điện thoại liên hệ</label>
                 <input
                   id="staff-phone"
+                  pattern="0[0-9]{9}"
                   type="tel"
                   value={phone}
                   readOnly={readonly}
@@ -350,6 +353,7 @@ export default function EmployeeProfileForm({
                 <label htmlFor="staff-left">Ngày nghỉ việc (nếu có)</label>
                 <input
                   id="staff-left"
+                  min={dateJoined || undefined}
                   type={readonly ? 'text' : 'date'}
                   value={readonly ? (dateLeft ? formatDate(dateLeft) : 'Đang làm việc') : dateLeft}
                   readOnly={readonly}
@@ -364,7 +368,7 @@ export default function EmployeeProfileForm({
                 id="staff-dependents"
                 type="number"
                 min={0}
-                max={20}
+                step={1}
                 value={dependentCount}
                 readOnly={readonly}
                 onChange={e => setDependentCount(Number(e.target.value))}

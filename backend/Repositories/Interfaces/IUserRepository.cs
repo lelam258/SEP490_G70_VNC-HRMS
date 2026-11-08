@@ -1,3 +1,4 @@
+using Vnc.HRMS.DTOs.Employees;
 using Vnc.HRMS.DTOs.Users;
 using Vnc.HRMS.Models.Users;
 
@@ -11,6 +12,7 @@ public interface IUserRepository
     Task<AccountDto?> GetDetailAsync(Guid id, CancellationToken ct);
     Task<bool> HasActiveAdminAsync(Guid? exceptId, CancellationToken ct);
     Task<bool> HasProvisionedAdminAsync(CancellationToken ct);
+    Task<UnlinkedAccountDto[]> ListUnlinkedAccountsAsync(CancellationToken ct);
     void Add(User user);
     void Remove(User user);
 }

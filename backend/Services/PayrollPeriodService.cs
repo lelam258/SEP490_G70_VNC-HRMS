@@ -4,6 +4,7 @@ using Vnc.HRMS.DTOs.Payroll;
 using Vnc.HRMS.Models;
 using Vnc.HRMS.Repositories.Interfaces;
 using Vnc.HRMS.Services.Interfaces;
+using Vnc.HRMS.Services.Rules;
 
 namespace Vnc.HRMS.Services;
 
@@ -19,7 +20,8 @@ public sealed partial class PayrollPeriodService(
 
     private static void ValidateMonth(string? payMonth)
     {
-        if (string.IsNullOrWhiteSpace(payMonth) || !MonthRegex.IsMatch(payMonth.Trim()))
+        if (string.IsNullOrWhiteSpace(payMonth) || !MonthRegex.IsMatch(payMonth.Trim())
+            || PayrollParameterRules.MonthStart(payMonth.Trim()) is null)
         {
             throw new AppException(400, "Định dạng tháng không hợp lệ (định dạng đúng: YYYY-MM).");
         }

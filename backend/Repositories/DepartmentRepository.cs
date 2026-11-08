@@ -11,5 +11,9 @@ public sealed class DepartmentRepository(AppDbContext db) : IDepartmentRepositor
     public Task<DepartmentDto[]> ListAsync(CancellationToken ct) => db.Departments.AsNoTracking().OrderBy(x => x.Name)
         .Select(x => new DepartmentDto(x.DepartmentId, x.DeptCode, x.Name, x.Status)).ToArrayAsync(ct);
     public Task<Department?> FindAsync(Guid id, CancellationToken ct) => db.Departments.SingleOrDefaultAsync(x => x.DepartmentId == id, ct);
+    public Task<bool> CodeExistsAsync(string code, Guid? excludeId, CancellationToken ct)
+        => db.Departments.AnyAsync(x => x.DepartmentId != excludeId && x.DeptCode == code, ct);
+    public Task<bool> NameExistsAsync(string name, Guid? excludeId, CancellationToken ct)
+        => db.Departments.AnyAsync(x => x.DepartmentId != excludeId && x.Name == name, ct);
     public void Add(Department department) => db.Departments.Add(department);
 }

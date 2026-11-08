@@ -26,6 +26,7 @@ public static class DependencyInjection
         services.AddScoped<IDepartmentRepository, DepartmentRepository>();
         services.AddScoped<IPayrollParameterRepository, PayrollParameterRepository>();
         services.AddScoped<ICompensationRepository, CompensationRepository>();
+        services.AddScoped<IContractRepository, ContractRepository>();
         services.AddScoped<ISelfServiceRepository, SelfServiceRepository>();
         services.AddScoped<IPayrollPeriodRepository, PayrollPeriodRepository>();
         services.AddScoped<IAuthService, AuthService>();
@@ -37,9 +38,11 @@ public static class DependencyInjection
         services.AddScoped<ICmeRecordService, CmeRecordService>();
         services.AddScoped<IPayrollParameterService, PayrollParameterService>();
         services.AddScoped<ICompensationService, CompensationService>();
+        services.AddScoped<IContractService, ContractService>();
         services.AddScoped<ISelfServiceProfileService, SelfServiceProfileService>();
         services.AddScoped<ILeaveRequestService, LeaveRequestService>();
         services.AddScoped<IPayrollPeriodService, PayrollPeriodService>();
+        services.AddScoped<IProcedureSlipService, ProcedureSlipService>();
         services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
         services.Configure<PasswordHasherOptions>(options => options.IterationCount = 210_000);
         services.AddOptions<OtpOptions>().Bind(configuration.GetSection("Otp")).ValidateDataAnnotations().ValidateOnStart();

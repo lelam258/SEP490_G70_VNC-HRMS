@@ -41,3 +41,4 @@ Script giữ dữ liệu đã có, sao lưu database đích trước DDL và t�
 - [Quyền dự kiến](docs/PERMISSIONS.md)
 - [Database dùng chung](docs/DATABASE.md)
 - [Bộ test case theo tính năng](docs/TEST_CASES_FEATURES.md)
+- [Business Rules theo màn hình và các phần đã bổ sung](docs/BUSINESS_RULES.md)

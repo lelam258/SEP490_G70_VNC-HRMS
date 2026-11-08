@@ -52,6 +52,9 @@ public sealed class SelfServiceRepository(AppDbContext db) : ISelfServiceReposit
     public Task<Staff?> FindStaffByUserIdAsync(Guid userId, CancellationToken ct)
         => db.Staff.SingleOrDefaultAsync(x => x.UserId == userId, ct);
 
+    public Task<bool> IsActiveDepartmentAsync(Guid departmentId, CancellationToken ct)
+        => db.Departments.AnyAsync(x => x.DepartmentId == departmentId && x.Status == "active", ct);
+
     public Task<User?> FindUserByIdAsync(Guid userId, CancellationToken ct)
         => db.Users.SingleOrDefaultAsync(x => x.UserId == userId, ct);
 
