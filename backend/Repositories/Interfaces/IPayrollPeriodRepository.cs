@@ -8,5 +8,7 @@ public interface IPayrollPeriodRepository
     Task<List<PayrollPeriodDto>> ListPeriodsAsync(CancellationToken ct);
     Task<PayrollLock?> FindByMonthAsync(string payMonth, CancellationToken ct);
     Task<PayrollPeriodDetailDto?> GetPeriodDetailAsync(string payMonth, CancellationToken ct);
+    Task<bool> HasPaidPayslipsAsync(string payMonth, CancellationToken ct);
+    Task<List<Payslip>> GetPayslipsByMonthAsync(string payMonth, CancellationToken ct);
     void AddPeriod(PayrollLock period);
 }

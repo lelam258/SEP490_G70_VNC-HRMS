@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import Icon from '../components/ui/Icon';
 import { useAuthStore } from '../store/useAuthStore';
 import { useAppStore } from '../store/useAppStore';
@@ -15,8 +15,10 @@ export default function AppLayout() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const location = useLocation();
-  const navigate = useNavigate();
-  useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }, [location.pathname]);
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.querySelector('.workspace-main')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [location.pathname]);
   const navClass = ({ isActive }: { isActive: boolean }) => `nav-item ${isActive ? 'selected' : ''}`;
   const title = location.pathname.startsWith('/schedules') ? 'Lịch làm việc' : location.pathname.startsWith('/accounts')
     ? 'Quản lý tài khoản'
@@ -61,7 +63,7 @@ export default function AppLayout() {
     setError('');
     try {
       await authApi.logout();
-      navigate('/login', { replace: true });
+      window.location.replace('/login');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Không đăng xuất được.');
     } finally {
@@ -241,10 +243,6 @@ export default function AppLayout() {
         <main className="page-content">
           <Outlet />
         </main>
-        <footer className="workspace-footer">
-          © {new Date().getFullYear()} VNC Clinic
-          <span>Hệ thống quản lý nhân sự</span>
-        </footer>
       </div>
     </div>
   );
