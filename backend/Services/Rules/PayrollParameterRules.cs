@@ -18,9 +18,10 @@ public static class PayrollParameterRules
     public static readonly IReadOnlyList<string> InsuranceTypes = ["social", "health", "unemployment", "accident"];
     public static readonly IReadOnlyList<string> InsurancePayers = ["employee", "employer"];
 
-    public static readonly IReadOnlyList<string> RateConfigCodes =
+    public static readonly IReadOnlyList<string> SystemRateConfigCodes =
         ["duty_night", "duty_noon", "duty_extra_hour_multiplier", "union_fee", "standard_working_days"];
-    public static readonly IReadOnlyList<string> RateConfigUnits = ["vnd", "percent", "days"];
+    public static readonly IReadOnlyList<string> RateConfigCodes = SystemRateConfigCodes;
+    public static readonly IReadOnlyList<string> RateConfigUnits = ["vnd", "percent", "days", "multiplier", "number", "fixed"];
 
     // 5 roles per clinic operation policy (indicating, performing, assisting, lab, typist)
     public static readonly IReadOnlyList<string> CommissionRoles = ["indicating", "performing", "assisting", "lab", "typist"];
@@ -52,6 +53,22 @@ public static class PayrollParameterRules
         var code = value.Trim().ToUpperInvariant();
         if (code.Length > maxLength) throw new AppException(400, $"Mã tối đa {maxLength} ký tự.");
         return code;
+    }
+
+    public static string NormalizeRateConfigCode(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) throw new AppException(400, "Mã tham số lương là bắt buộc.");
+        var code = value.Trim().ToLowerInvariant();
+        if (code.Length > 50) throw new AppException(400, "Mã tham số lương tối đa 50 ký tự.");
+        return code;
+    }
+
+    public static string NormalizeRateConfigUnit(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "vnd";
+        var unit = value.Trim().ToLowerInvariant();
+        if (unit.Length > 20) throw new AppException(400, "Đơn vị tính tối đa 20 ký tự.");
+        return unit;
     }
 
     public static string RequireText(string? value, string field, int maxLength)
