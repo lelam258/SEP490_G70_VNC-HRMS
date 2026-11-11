@@ -129,8 +129,8 @@ UPDATE dbo.allowance_types SET name = N'Điện thoại' WHERE code = 'PHONE';
 DECLARE @lunchId uniqueidentifier = (SELECT TOP 1 allowance_id FROM dbo.allowance_types WHERE code = 'LUNCH');
 IF @lunchId IS NOT NULL
 BEGIN
-    INSERT INTO dbo.staff_allowances (staff_allowance_id, staff_id, allowance_id, amount_value, effective_from, status, created_at)
-    SELECT NEWID(), s.staff_id, @lunchId, 730000, '2026-01-01', 'active', SYSUTCDATETIME()
+    INSERT INTO dbo.staff_allowances (staff_allowance_id, staff_id, allowance_id, value_type, amount_value, effective_from, status, created_at)
+    SELECT NEWID(), s.staff_id, @lunchId, 'fixed', 730000, '2026-01-01', 'active', SYSUTCDATETIME()
     FROM dbo.staff s
     WHERE NOT EXISTS (
         SELECT 1 FROM dbo.staff_allowances sa WHERE sa.staff_id = s.staff_id AND sa.allowance_id = @lunchId

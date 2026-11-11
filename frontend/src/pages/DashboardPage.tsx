@@ -652,17 +652,6 @@ export default function DashboardPage() {
               </Link>
             </div>
           </section>
-
-          {/* System Info Card */}
-          <section className="panel bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-4 text-xs text-slate-500 space-y-1.5">
-            <div className="flex items-center justify-between text-slate-700 font-semibold mb-2">
-              <span>Hệ thống VNC Clinic HRMS</span>
-              <span className="text-[11px] font-mono bg-sky-100 text-sky-800 px-1.5 py-0.5 rounded">v1.0.0</span>
-            </div>
-            <p className="m-0 leading-relaxed">
-              Phân hệ Quản lý Nhân sự & Tiền lương y tế – Phiên bản phát triển Giai đoạn 1 (Iteration 1).
-            </p>
-          </section>
         </div>
       </div>
     </div>

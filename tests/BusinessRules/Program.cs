@@ -21,6 +21,7 @@ using Vnc.HRMS.Persistence;
 using Vnc.HRMS.Repositories;
 using Vnc.HRMS.Services;
 using Vnc.HRMS.Services.Interfaces;
+using Vnc.HRMS.Services.Rules;
 
 // Own an isolated database, following the existing integration test projects.
 const string prefix = "VNC_BusinessRules_Test_";
@@ -113,7 +114,16 @@ try
     await Reject(db => Periods(db).GetPeriodDetailAsync("0000-01", ct), 400, "Payroll detail also rejects year zero");
     var period = await Run(db => Periods(db).CreatePeriodAsync(actor, new(" 2026-12 "), ct));
     Check(period.PayMonth == "2026-12" && period.Status == "draft", "Valid payroll month is normalized");
+    Check(period.OpenDate == new DateOnly(2026, 12, 29) && period.StandardLockDate == new DateOnly(2027, 1, 5) && period.CorrectionDeadline == new DateOnly(2027, 1, 12), "Payroll timeline matches GB-52 and GB-26");
     await Reject(db => Periods(db).CreatePeriodAsync(actor, new("2026-12"), ct), 409, "Payroll rejects duplicate month");
+    await Reject(db => Periods(db).ReopenPeriodAsync(actor, "2026-12", new("Test reason"), ct), 400, "Draft period cannot be reopened");
+
+    await Execute(async db => { var pl = await db.PayrollLocks.SingleAsync(x => x.PayMonth == "2026-12"); pl.Status = "locked"; await db.SaveChangesAsync(); });
+    await Reject(db => Periods(db).ReopenPeriodAsync(actor, "2026-12", new("   "), ct), 400, "Reopen requires non-empty reason");
+    var reopened = await Run(db => Periods(db).ReopenPeriodAsync(actor, "2026-12", new("Bổ sung ca trực bác sĩ"), ct));
+    Check(reopened.Status == "draft" && reopened.IsLate && reopened.ReopenReason == "Bổ sung ca trực bác sĩ", "Reopen succeeds with GB-26 late flag and reason");
+    var periodList = await Run(db => Periods(db).ListPeriodsAsync(ct));
+    Check(periodList.Any(x => x.PayMonth == "2026-12" && x.IsLate), "List shows reopened period marked Late (MSG47)");
 
     await Execute(async db => { var staff = await db.Staff.FindAsync(staff1); staff!.DateJoined = monday.AddDays(1); await db.SaveChangesAsync(); });
     var leaveDay = today.DayOfWeek == DayOfWeek.Sunday ? today.AddDays(1) : today;
