@@ -28,6 +28,8 @@ import PayrollPeriodDetailPage from '../pages/payroll/PayrollPeriodDetailPage';
 import ProcedureListPage from '../pages/payroll/ProcedureListPage';
 import ProcedureDetailPage from '../pages/payroll/ProcedureDetailPage';
 import ProcedureFormPage from '../pages/payroll/ProcedureFormPage';
+import ProcedureServiceListPage from '../pages/payroll/ProcedureServiceListPage';
+import ProcedureServiceDetailPage from '../pages/payroll/ProcedureServiceDetailPage';
 import CommissionResultsPage from '../pages/payroll/CommissionResultsPage';
 import ProfilePage from '../pages/me/ProfilePage';
 import MyCertificateListPage from '../pages/me/MyCertificateListPage';
@@ -92,6 +94,8 @@ export default function AppRoutes() {
             <Route path="/payroll/compensation" element={<CompensationPage />} />
             <Route path="/payroll/periods" element={<PayrollPeriodsPage />} />
             <Route path="/payroll/periods/:month" element={<PayrollPeriodDetailPage />} />
+            <Route path="/payroll/procedure-services" element={<ProcedureServiceListPage />} />
+            <Route path="/payroll/procedure-services/:id" element={<ProcedureServiceDetailPage />} />
             <Route path="/payroll/procedures" element={<ProcedureListPage />} />
           </Route>
         </Route>

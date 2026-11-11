@@ -43,6 +43,7 @@ public static class DependencyInjection
         services.AddScoped<ILeaveRequestService, LeaveRequestService>();
         services.AddScoped<IPayrollPeriodService, PayrollPeriodService>();
         services.AddScoped<IProcedureSlipService, ProcedureSlipService>();
+        services.AddScoped<IProcedureServiceCatalogService, ProcedureServiceCatalogService>();
         services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
         services.Configure<PasswordHasherOptions>(options => options.IterationCount = 210_000);
         services.AddOptions<OtpOptions>().Bind(configuration.GetSection("Otp")).ValidateDataAnnotations().ValidateOnStart();

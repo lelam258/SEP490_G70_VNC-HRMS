@@ -18,10 +18,7 @@ import type {
 export const procedureSlipApi = {
   getLookups: async (): Promise<ProcedureLookups> => {
     const res = await axiosClient.get<ProcedureLookups>('/procedure-slips/lookups');
-    return {
-      ...res.data,
-      services: (res.data.services || []).slice(0, 3),
-    };
+    return res.data;
   },
 
   listSlips: async (filter: ProcedureSlipFilter = {}): Promise<ProcedureSlipListResponse> => {

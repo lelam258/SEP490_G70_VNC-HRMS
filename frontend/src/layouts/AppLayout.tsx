@@ -40,6 +40,8 @@ export default function AppLayout() {
     ? 'Đãi ngộ hợp đồng'
     : location.pathname.startsWith('/payroll/periods')
     ? 'Kỳ tính lương'
+    : location.pathname.startsWith('/payroll/procedure-services')
+    ? 'Danh mục thủ thuật'
     : location.pathname.startsWith('/payroll/procedures') || location.pathname.startsWith('/procedures')
     ? 'Phiếu thủ thuật y tế'
     : location.pathname.startsWith('/me/profile')
@@ -149,6 +151,10 @@ export default function AppLayout() {
                 <NavLink to="/payroll/periods" className={navClass}>
                   <Icon name="calendar" />
                   Kỳ tính lương
+                </NavLink>
+                <NavLink to="/payroll/procedure-services" className={navClass}>
+                  <Icon name="sliders" />
+                  Danh mục thủ thuật
                 </NavLink>
                 <NavLink
                   to="/payroll/procedures"
