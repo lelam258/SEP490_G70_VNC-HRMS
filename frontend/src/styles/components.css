@@ -65,8 +65,8 @@ dialog.vnc-modal-dialog {
   position: fixed !important;
   inset: 0 !important;
   margin: auto !important;
-  width: min(92vw, 580px) !important;
-  max-width: 580px !important;
+  width: min(92vw, var(--vnc-modal-max-width, 580px)) !important;
+  max-width: var(--vnc-modal-max-width, 580px) !important;
   max-height: calc(100vh - 4rem) !important;
   padding: 0 !important;
   border: 1px solid #e2e8f0 !important;

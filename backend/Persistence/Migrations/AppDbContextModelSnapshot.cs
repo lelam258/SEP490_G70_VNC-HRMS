@@ -110,6 +110,14 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("column_mapping");
 
+                    b.Property<string>("ContentHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("DeviceSource")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("ErrorLog")
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("error_log");
@@ -119,6 +127,9 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnType("int")
                         .HasColumnName("error_rows")
                         .HasDefaultValueSql("0");
+
+                    b.Property<Guid?>("FacilityId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("FileName")
                         .IsRequired()
@@ -138,6 +149,9 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.Property<Guid>("ImportedBy")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("imported_by");
+
+                    b.Property<byte[]>("OriginalFile")
+                        .HasColumnType("varbinary(max)");
 
                     b.Property<string>("PayMonth")
                         .HasColumnType("nvarchar(7)")
@@ -165,10 +179,128 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasIndex("ImportedBy");
 
+                    b.HasIndex("FacilityId", "PayMonth", "ContentHash");
+
                     b.ToTable("attendance_imports", "dbo", t =>
                         {
                             t.HasCheckConstraint("CK_attendance_imports_1", "[total_rows] >= 0 AND [success_rows] >= 0 AND [error_rows] >= 0");
                         });
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.AttendanceImportRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("ActualHours")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<Guid?>("AttendanceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AttendanceSymbol")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("CorrectedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CorrectedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CorrectionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DeviceEnrollId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<decimal?>("EarlyMinutes")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<string>("EmployeeBlock")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<Guid>("ImportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("LateMinutes")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<string>("RawDate")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("RawValuesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("ReportedHours")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<int>("RowNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SheetName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ShiftType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid?>("StaffId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TimePairsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ValidationNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("ValidationStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<byte[]>("Version")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateOnly?>("WorkDate")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AttendanceId");
+
+                    b.HasIndex("ImportId", "SheetName", "RowNumber", "ShiftType")
+                        .IsUnique();
+
+                    b.ToTable("attendance_import_rows", "dbo");
                 });
 
             modelBuilder.Entity("Vnc.HRMS.Models.AttendanceRecord", b =>
@@ -213,6 +345,9 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("device_enroll_id");
+
+                    b.Property<Guid?>("FacilityId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("ImportId")
                         .HasColumnType("uniqueidentifier")
@@ -261,6 +396,9 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("staff_id");
 
+                    b.Property<string>("TimePairsJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ValidationStatus")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("nvarchar(20)")
@@ -274,6 +412,8 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.HasKey("AttendanceId");
 
                     b.HasIndex("DepartmentId");
+
+                    b.HasIndex("FacilityId");
 
                     b.HasIndex("ImportId");
 
@@ -316,6 +456,9 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("SYSUTCDATETIME()");
 
+                    b.Property<Guid?>("DepartmentId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("EntityId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("entity_id");
@@ -324,9 +467,19 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("entity_type");
 
+                    b.Property<Guid?>("FacilityId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("IpAddress")
                         .HasColumnType("nvarchar(45)")
                         .HasColumnName("ip_address");
+
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("system");
 
                     b.Property<string>("NewValue")
                         .HasColumnType("nvarchar(max)")
@@ -335,6 +488,16 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.Property<string>("OldValue")
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("old_value");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("success");
+
+                    b.Property<Guid?>("StaffId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("UserAgent")
                         .HasColumnType("nvarchar(300)")
@@ -348,7 +511,12 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("username");
 
+                    b.Property<DateOnly?>("WorkDate")
+                        .HasColumnType("date");
+
                     b.HasKey("LogId");
+
+                    b.HasIndex("Module", "CreatedAt");
 
                     b.ToTable("audit_logs", "dbo");
                 });
@@ -1784,6 +1952,9 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnName("shift_id")
                         .HasDefaultValueSql("NEWID()");
 
+                    b.Property<Guid?>("AttendanceEvidenceId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime?>("ConfirmedAt")
                         .HasColumnType("datetime2(0)")
                         .HasColumnName("confirmed_at");
@@ -1802,6 +1973,13 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("department_id");
 
+                    b.Property<string>("DeviationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid?>("FacilityId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("Note")
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("note");
@@ -1813,6 +1991,13 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.Property<string>("RejectedReason")
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("rejected_reason");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid?>("ScheduleAssignmentId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("ShiftCategory")
                         .IsRequired()
@@ -1841,9 +2026,28 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnName("status")
                         .HasDefaultValueSql("'pending'");
 
+                    b.Property<string>("SupervisorEvidence")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("Version")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.HasKey("ShiftId");
 
+                    b.HasIndex("AttendanceEvidenceId");
+
                     b.HasIndex("DepartmentId");
+
+                    b.HasIndex("FacilityId");
+
+                    b.HasIndex("ScheduleAssignmentId");
 
                     b.HasIndex("StaffId");
 
@@ -2656,6 +2860,189 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.ToTable("procedure_slips", "dbo");
                 });
 
+            modelBuilder.Entity("Vnc.HRMS.Models.ScheduleAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ActualEndAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<bool>("Cancelled")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("ConfirmedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ConfirmedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CoverageId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("EndNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("EndRecordedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("EndRecordedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("PatientConfirmed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PatientEvidence")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Shift")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("StaffId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TransferConsent")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("WeekId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CoverageId");
+
+                    b.HasIndex("WeekId");
+
+                    b.HasIndex("StaffId", "Date", "Shift", "CoverageId")
+                        .IsUnique()
+                        .HasFilter("[Cancelled] = 0");
+
+                    b.ToTable("ScheduleAssignments");
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.ScheduleChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Detail")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<Guid>("WeekId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WeekId");
+
+                    b.ToTable("ScheduleChanges");
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.ScheduleCoverage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DepartmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("FacilityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("FacilityId", "DepartmentId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("ScheduleCoverage");
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.ScheduleFacility", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("active");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ScheduleFacilities");
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.ScheduleWeek", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DepartmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("Monday")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("Published")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PublishedSnapshot")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<byte[]>("Version")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DepartmentId", "Monday")
+                        .IsUnique();
+
+                    b.ToTable("ScheduleWeeks");
+                });
+
             modelBuilder.Entity("Vnc.HRMS.Models.Site", b =>
                 {
                     b.Property<Guid>("SiteId")
@@ -3055,9 +3442,28 @@ namespace Vnc.HRMS.Persistence.Migrations
 
             modelBuilder.Entity("Vnc.HRMS.Models.AttendanceImport", b =>
                 {
+                    b.HasOne("Vnc.HRMS.Models.ScheduleFacility", null)
+                        .WithMany()
+                        .HasForeignKey("FacilityId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Vnc.HRMS.Models.Users.User", null)
                         .WithMany()
                         .HasForeignKey("ImportedBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.AttendanceImportRow", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.AttendanceRecord", null)
+                        .WithMany()
+                        .HasForeignKey("AttendanceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Vnc.HRMS.Models.AttendanceImport", null)
+                        .WithMany()
+                        .HasForeignKey("ImportId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
@@ -3067,6 +3473,11 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.HasOne("Vnc.HRMS.Models.Organization.Department", null)
                         .WithMany()
                         .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Vnc.HRMS.Models.ScheduleFacility", null)
+                        .WithMany()
+                        .HasForeignKey("FacilityId")
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Vnc.HRMS.Models.AttendanceImport", null)
@@ -3299,11 +3710,26 @@ namespace Vnc.HRMS.Persistence.Migrations
 
             modelBuilder.Entity("Vnc.HRMS.Models.OnCallShift", b =>
                 {
+                    b.HasOne("Vnc.HRMS.Models.AttendanceRecord", null)
+                        .WithMany()
+                        .HasForeignKey("AttendanceEvidenceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Vnc.HRMS.Models.Organization.Department", null)
                         .WithMany()
                         .HasForeignKey("DepartmentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Vnc.HRMS.Models.ScheduleFacility", null)
+                        .WithMany()
+                        .HasForeignKey("FacilityId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Vnc.HRMS.Models.ScheduleAssignment", null)
+                        .WithMany()
+                        .HasForeignKey("ScheduleAssignmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
                         .WithMany()
@@ -3415,6 +3841,60 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.HasOne("Vnc.HRMS.Models.ProcedureService", null)
                         .WithMany()
                         .HasForeignKey("ServiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.ScheduleAssignment", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.ScheduleCoverage", null)
+                        .WithMany()
+                        .HasForeignKey("CoverageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Vnc.HRMS.Models.ScheduleWeek", null)
+                        .WithMany()
+                        .HasForeignKey("WeekId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.ScheduleChange", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.ScheduleWeek", null)
+                        .WithMany()
+                        .HasForeignKey("WeekId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.ScheduleCoverage", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.Organization.Department", null)
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Vnc.HRMS.Models.ScheduleFacility", null)
+                        .WithMany()
+                        .HasForeignKey("FacilityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.ScheduleWeek", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.Organization.Department", null)
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

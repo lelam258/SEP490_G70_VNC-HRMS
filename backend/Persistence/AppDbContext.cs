@@ -8,6 +8,11 @@ using Vnc.HRMS.Models.Organization;
 namespace Vnc.HRMS.Persistence;
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : TimestampDbContext(options)
 {
+    public DbSet<ScheduleFacility> ScheduleFacilities => Set<ScheduleFacility>();
+    public DbSet<ScheduleCoverage> ScheduleCoverage => Set<ScheduleCoverage>();
+    public DbSet<ScheduleWeek> ScheduleWeeks => Set<ScheduleWeek>();
+    public DbSet<ScheduleAssignment> ScheduleAssignments => Set<ScheduleAssignment>();
+    public DbSet<ScheduleChange> ScheduleChanges => Set<ScheduleChange>();
     public DbSet<User> Users => Set<User>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
@@ -20,6 +25,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Times
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<Position> Positions => Set<Position>();
     public DbSet<AttendanceImport> AttendanceImports => Set<AttendanceImport>();
+    public DbSet<AttendanceImportRow> AttendanceImportRows => Set<AttendanceImportRow>();
     public DbSet<OnCallShift> OnCallShifts => Set<OnCallShift>();
     public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
     public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
@@ -52,6 +58,26 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Times
     public DbSet<SystemPolicy> SystemPolicies => Set<SystemPolicy>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<ScheduleFacility>().Property(x => x.Name).HasMaxLength(150);
+        modelBuilder.Entity<ScheduleFacility>().Property(x => x.Status).HasMaxLength(20).HasDefaultValue("active");
+        modelBuilder.Entity<ScheduleCoverage>().Property(x => x.Name).HasMaxLength(150);
+        modelBuilder.Entity<ScheduleCoverage>().HasOne<ScheduleFacility>().WithMany().HasForeignKey(x => x.FacilityId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ScheduleCoverage>().HasOne<Department>().WithMany().HasForeignKey(x => x.DepartmentId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ScheduleCoverage>().HasIndex(x => new { x.FacilityId, x.DepartmentId, x.Name }).IsUnique();
+        modelBuilder.Entity<ScheduleWeek>().HasIndex(x => new { x.DepartmentId, x.Monday }).IsUnique();
+        modelBuilder.Entity<ScheduleWeek>().Property(x => x.Version).IsRowVersion();
+        modelBuilder.Entity<ScheduleWeek>().HasOne<Department>().WithMany().HasForeignKey(x => x.DepartmentId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ScheduleAssignment>().HasOne<ScheduleWeek>().WithMany().HasForeignKey(x => x.WeekId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ScheduleAssignment>().HasOne<Staff>().WithMany().HasForeignKey(x => x.StaffId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ScheduleAssignment>().HasOne<ScheduleCoverage>().WithMany().HasForeignKey(x => x.CoverageId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ScheduleAssignment>().Property(x => x.Shift).HasMaxLength(20);
+        modelBuilder.Entity<ScheduleAssignment>().Property(x => x.Reason).HasMaxLength(1000);
+        modelBuilder.Entity<ScheduleAssignment>().Property(x => x.TransferConsent).HasMaxLength(1000);
+        modelBuilder.Entity<ScheduleAssignment>().Property(x => x.PatientEvidence).HasMaxLength(1000);
+        modelBuilder.Entity<ScheduleAssignment>().Property(x => x.EndNote).HasMaxLength(1000);
+        modelBuilder.Entity<ScheduleAssignment>().HasIndex(x => new { x.StaffId, x.Date, x.Shift, x.CoverageId }).IsUnique().HasFilter("[Cancelled] = 0");
+        modelBuilder.Entity<ScheduleChange>().HasOne<ScheduleWeek>().WithMany().HasForeignKey(x => x.WeekId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ScheduleChange>().Property(x => x.Detail).HasMaxLength(4000);
         IAMDomainModelConfiguration.Configure(modelBuilder);
         UsersModelConfiguration.Configure(modelBuilder);
         AuthModelConfiguration.Configure(modelBuilder);
@@ -62,5 +88,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Times
         ComplianceDomainModelConfiguration.Configure(modelBuilder);
         NotificationDomainModelConfiguration.Configure(modelBuilder);
         Version2RelationshipsConfiguration.Configure(modelBuilder);
+        AttendanceWorkflowConfiguration.Configure(modelBuilder);
     }
 }

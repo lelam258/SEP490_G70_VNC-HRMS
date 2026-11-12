@@ -5,6 +5,7 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);**/bin/**;**/obj/**</DefaultItemExcludes>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="ExcelDataReader" Version="3.9.0" />
     <Compile Remove=".local/**" />
     <Content Remove=".local/**" />
     <None Remove=".local/**" />

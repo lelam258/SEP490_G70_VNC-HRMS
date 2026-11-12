@@ -9,6 +9,7 @@ namespace Vnc.HRMS.Controllers;
 public sealed class EmployeesController(IEmployeeService employees) : ControllerBase
 {
     [HttpGet] public Task<EmployeeDto[]> List(CancellationToken ct) => employees.ListAsync(ct);
+    [HttpGet("unlinked-accounts")] public Task<UnlinkedAccountDto[]> UnlinkedAccounts(CancellationToken ct) => employees.ListUnlinkedAccountsAsync(ct);
     [HttpGet("{id:guid}")] public Task<EmployeeDto> Get(Guid id, CancellationToken ct) => employees.GetAsync(id, ct);
     [HttpPut("{id:guid}")]
     public Task<EmployeeDto> Update(Guid id, UpdateEmployeeRequest request, CancellationToken ct) => employees.UpdateAsync(id, request, ct);

@@ -13,4 +13,8 @@ public sealed class AttendanceImport
     public string? Status { get; set; }
     public string? ErrorLog { get; set; }
     public string? ColumnMapping { get; set; }
+    public Guid? FacilityId { get; set; }
+    public string? DeviceSource { get; set; }
+    public string? ContentHash { get; set; }
+    public byte[]? OriginalFile { get; set; }
 }

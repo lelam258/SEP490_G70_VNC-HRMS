@@ -27,6 +27,7 @@ import CommissionRuleForm from '../../components/payroll/CommissionRuleForm';
 import CommissionMatrixView from '../../components/payroll/CommissionMatrixView';
 import StaffCommissionOverrideForm from '../../components/payroll/StaffCommissionOverrideForm';
 import DeactivateModal from '../../components/payroll/DeactivateModal';
+import PayrollRateConfigDetailModal from '../../components/payroll/PayrollRateConfigDetailModal';
 
 type TabKey = 'allowances' | 'insurance' | 'tax' | 'commission' | 'rates';
 
@@ -70,6 +71,7 @@ export default function PayrollParameterPage() {
   const [commissionRules, setCommissionRules] = useState<CommissionRule[]>([]);
   const [commissionMatrix, setCommissionMatrix] = useState<CommissionMatrix | null>(null);
   const [commissionOverrides, setCommissionOverrides] = useState<StaffCommissionOverride[]>([]);
+  const [rateCategoryFilter, setRateCategoryFilter] = useState<'all' | 'duty' | 'system' | 'custom'>('all');
 
   // Dropdown data
   const [positions, setPositions] = useState<PositionOption[]>([]);
@@ -77,6 +79,7 @@ export default function PayrollParameterPage() {
   const [staffList, setStaffList] = useState<{ id: string; code: string; name: string }[]>([]);
 
   // Modals state
+  const [viewingRateConfig, setViewingRateConfig] = useState<PayrollRateConfig | null>(null);
   const [modalType, setModalType] = useState<
     'allowance' | 'insurance' | 'tax' | 'rate' | 'commission' | 'override' | null
   >(null);
@@ -101,6 +104,7 @@ export default function PayrollParameterPage() {
     setActiveTab(tab);
     setSearchTerm('');
     setStatusFilter('active');
+    setRateCategoryFilter('all');
     setSearchParams({ tab });
   }
 
@@ -230,11 +234,11 @@ export default function PayrollParameterPage() {
       case 'rates':
       default:
         return {
-          title: 'Đơn giá trực & Tham số khác',
+          title: 'Đơn giá & Tham số khác',
           count: counts.rates,
-          addLabel: 'Thêm tham số',
-          emptyText: 'Chưa có đơn giá trực hay tham số nào',
-          searchPlaceholder: 'Tìm đơn giá trực, tham số...',
+          addLabel: 'Thêm tham số lương',
+          emptyText: 'Chưa có tham số lương nào',
+          searchPlaceholder: 'Tìm tham số, chức danh, nhân viên...',
           onAdd: () => {
             setEditingItem(null);
             setSaveError('');
@@ -399,10 +403,11 @@ export default function PayrollParameterPage() {
       ]);
     } else {
       filename = 'don-gia-truc-tham-so.csv';
-      headers = ['Mã tham số', 'Áp dụng cho', 'Đơn vị', 'Giá trị', 'Trạng thái'];
+      headers = ['Tham số lương', 'Phân loại', 'Áp dụng cho', 'Đơn vị', 'Giá trị', 'Trạng thái'];
       rows = rateConfigs.map(r => [
-        r.code,
-        renderAppliesTo(r),
+        `"${renderRateParamName(r).replace(/"/g, '""')}"`,
+        renderRateCategory(r).label,
+        r.staffName ? `${r.staffName} (${r.staffCode})` : r.positionName || 'Toàn phòng khám',
         r.unit,
         String(r.value),
         r.status === 'active' ? 'Đang áp dụng' : 'Đã ngừng',
@@ -529,78 +534,135 @@ export default function PayrollParameterPage() {
     });
   }, [commissionOverrides, statusFilter, searchTerm]);
 
-  // Tab 5 "Đơn giá trực & khác": split into 2 groups "Trực" and "Khác"
-  const rateGroups = useMemo(() => {
-    const list = rateConfigs.filter(r => {
-      if (statusFilter !== 'all' && r.status !== statusFilter) return false;
-      if (searchTerm.trim()) {
-        const q = searchTerm.toLowerCase();
-        const text = `${r.code} ${r.description || ''} ${r.positionName || ''} ${r.staffName || ''}`.toLowerCase();
-        return text.includes(q);
-      }
-      return true;
-    });
-
-    const dutyItems = list.filter(r => r.code.startsWith('duty_'));
-    const otherItems = list.filter(r => !r.code.startsWith('duty_'));
-
-    // Sort duty items: Trực tối Bác sĩ, Trực tối Chung, Trực trưa, Trực ngoài giờ
-    dutyItems.sort((a, b) => {
-      if (a.code === 'duty_night' && b.code === 'duty_night') {
-        return a.positionId ? -1 : 1;
-      }
-      if (a.code === 'duty_night') return -1;
-      if (b.code === 'duty_night') return 1;
-      if (a.code === 'duty_noon') return -1;
-      if (b.code === 'duty_noon') return 1;
-      return 0;
-    });
-
-    // Sort other items: union_fee, standard_working_days
-    otherItems.sort((a, b) => (a.code === 'union_fee' ? -1 : 1));
-
-    return { dutyItems, otherItems };
-  }, [rateConfigs, statusFilter, searchTerm]);
-
-  // Helper for applying scope label
-  function renderAppliesTo(r: PayrollRateConfig) {
-    if (r.staffName) return `${r.staffName} (${r.staffCode})`;
-    if (r.positionName) return r.positionName;
-    return 'Chung';
-  }
-
   // Helper for Rate parameter name
   function renderRateParamName(r: PayrollRateConfig) {
     switch (r.code) {
       case 'duty_night':
-        return 'Trực tối';
+        return 'Trực ca đêm';
       case 'duty_noon':
-        return 'Trực trưa';
+        return 'Trực ca trưa';
       case 'duty_extra_hour_multiplier':
         return 'Trực ngoài giờ';
       case 'union_fee':
         return 'Đoàn phí công đoàn';
       case 'standard_working_days':
-        return 'Ngày công chuẩn';
+        return 'Ngày công chuẩn tháng';
       default:
         return r.description || r.code;
     }
+  }
+
+  // Helper for Rate category badge
+  function renderRateCategory(r: PayrollRateConfig) {
+    if (r.code.startsWith('duty_')) {
+      return {
+        label: 'Ca trực',
+        className: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700',
+      };
+    }
+    if (r.code === 'union_fee' || r.code === 'standard_working_days') {
+      return {
+        label: 'Quy định chung',
+        className: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
+      };
+    }
+    return {
+      label: 'Mở rộng',
+      className: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800',
+    };
+  }
+
+  // Helper for applying scope label
+  function renderAppliesTo(r: PayrollRateConfig) {
+    if (r.staffName) {
+      return (
+        <span className="inline-flex items-center gap-1 font-medium text-slate-800 dark:text-slate-200">
+          <span>{r.staffName}</span>
+          <span className="text-xs text-slate-400">({r.staffCode})</span>
+        </span>
+      );
+    }
+    if (r.positionName) {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+          {r.positionName}
+        </span>
+      );
+    }
+    return <span className="text-slate-500 font-normal text-xs">Toàn phòng khám</span>;
   }
 
   // Helper for Rate formatted value
   function renderRateValue(r: PayrollRateConfig) {
     if (r.code === 'duty_extra_hour_multiplier') {
       return (
-        <div>
-          <span className="font-[tabular-nums]">150% lương giờ</span>
-          <div className="text-[11px] text-slate-500 font-normal">Lương giờ = lương ngày ÷ 8</div>
+        <div className="flex flex-col items-end">
+          <span className="font-[tabular-nums] font-semibold text-slate-900 dark:text-slate-100">150%</span>
+          <span className="text-[11px] text-slate-500 font-normal">Lương giờ = lương ngày ÷ 8</span>
         </div>
       );
     }
-    if (r.unit === 'percent') return <span className="font-[tabular-nums]">{r.value}%</span>;
-    if (r.unit === 'days') return <span className="font-[tabular-nums]">{r.value} ngày</span>;
-    return <span className="font-[tabular-nums]">{formatVnd(r.value)}</span>;
+    if (r.unit === 'percent') {
+      return <span className="font-[tabular-nums] font-semibold text-slate-900 dark:text-slate-100">{r.value}%</span>;
+    }
+    if (r.unit === 'days') {
+      return (
+        <span className="font-[tabular-nums] font-semibold text-slate-900 dark:text-slate-100">
+          {r.value} <span className="text-xs text-slate-500 font-normal">ngày</span>
+        </span>
+      );
+    }
+    const unitSuffix = r.code.startsWith('duty_') ? ' / ca' : r.code === 'union_fee' ? ' / tháng' : '';
+    return (
+      <span className="font-[tabular-nums] font-semibold text-slate-900 dark:text-slate-100">
+        {formatVnd(r.value)}
+        {unitSuffix && <span className="text-xs text-slate-500 font-normal">{unitSuffix}</span>}
+      </span>
+    );
   }
+
+  // Tab 5: Filtered Rate configs
+  const filteredRateConfigs = useMemo(() => {
+    return rateConfigs.filter(r => {
+      if (statusFilter !== 'all' && r.status !== statusFilter) return false;
+
+      const isDuty = r.code.startsWith('duty_');
+      const isSystem = r.code === 'union_fee' || r.code === 'standard_working_days';
+      const isCustom = !isDuty && !isSystem;
+
+      if (rateCategoryFilter === 'duty' && !isDuty) return false;
+      if (rateCategoryFilter === 'system' && !isSystem) return false;
+      if (rateCategoryFilter === 'custom' && !isCustom) return false;
+
+      if (searchTerm.trim()) {
+        const q = searchTerm.toLowerCase();
+        const text = `${renderRateParamName(r)} ${r.description || ''} ${r.positionName || ''} ${r.staffName || ''}`.toLowerCase();
+        return text.includes(q);
+      }
+      return true;
+    }).sort((a, b) => {
+      const getCategoryWeight = (item: PayrollRateConfig) => {
+        if (item.code === 'duty_night') return item.positionId ? 1 : 2;
+        if (item.code === 'duty_noon') return 3;
+        if (item.code === 'duty_extra_hour_multiplier') return 4;
+        if (item.code.startsWith('duty_')) return 5;
+        if (item.code === 'union_fee') return 6;
+        if (item.code === 'standard_working_days') return 7;
+        return 8;
+      };
+      return getCategoryWeight(a) - getCategoryWeight(b);
+    });
+  }, [rateConfigs, statusFilter, searchTerm, rateCategoryFilter]);
+
+  const rateCategoryCounts = useMemo(() => {
+    let duty = 0, system = 0, custom = 0;
+    for (const r of rateConfigs) {
+      if (r.code.startsWith('duty_')) duty++;
+      else if (r.code === 'union_fee' || r.code === 'standard_working_days') system++;
+      else custom++;
+    }
+    return { all: rateConfigs.length, duty, system, custom };
+  }, [rateConfigs]);
 
   return (
     <div className="space-y-6">
@@ -709,7 +771,7 @@ export default function PayrollParameterPage() {
             }`}
             onClick={() => handleTabChange('rates')}
           >
-            <span>Đơn giá trực & khác</span>
+            <span>Đơn giá & Tham số khác</span>
             <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
               {counts.rates}
             </span>
@@ -721,7 +783,7 @@ export default function PayrollParameterPage() {
       <div className="panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden">
         {/* Header của card: 1 hàng tinh giản chuẩn desktop, không thanh cuộn */}
         <div className="p-3.5 sm:p-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap xl:flex-nowrap items-center justify-between gap-3">
-          {/* Trái: Nếu là tab Hoa hồng thì hiện cụm 3 nút chuyển nhanh; các tab khác hiện Tiêu đề + Badge */}
+          {/* Trái: Nếu là tab Hoa hồng hoặc Đơn giá thì hiện cụm nút chuyển nhanh; các tab khác hiện Tiêu đề + Badge */}
           {activeTab === 'commission' ? (
             <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 shrink-0">
               <button
@@ -756,6 +818,53 @@ export default function PayrollParameterPage() {
                 }`}
               >
                 Mức riêng nhân viên ({filteredOverrides.length})
+              </button>
+            </div>
+          ) : activeTab === 'rates' ? (
+            <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 shrink-0">
+              <button
+                type="button"
+                onClick={() => setRateCategoryFilter('all')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  rateCategoryFilter === 'all'
+                    ? 'bg-white dark:bg-slate-700 text-sky-700 dark:text-sky-300 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                Tất cả ({rateCategoryCounts.all})
+              </button>
+              <button
+                type="button"
+                onClick={() => setRateCategoryFilter('duty')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  rateCategoryFilter === 'duty'
+                    ? 'bg-white dark:bg-slate-700 text-sky-700 dark:text-sky-300 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                Đơn giá ca trực ({rateCategoryCounts.duty})
+              </button>
+              <button
+                type="button"
+                onClick={() => setRateCategoryFilter('system')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  rateCategoryFilter === 'system'
+                    ? 'bg-white dark:bg-slate-700 text-sky-700 dark:text-sky-300 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                Quy định chung ({rateCategoryCounts.system})
+              </button>
+              <button
+                type="button"
+                onClick={() => setRateCategoryFilter('custom')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  rateCategoryFilter === 'custom'
+                    ? 'bg-white dark:bg-slate-700 text-sky-700 dark:text-sky-300 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
+              >
+                Mở rộng ({rateCategoryCounts.custom})
               </button>
             </div>
           ) : (
@@ -891,14 +1000,21 @@ export default function PayrollParameterPage() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
+                  <table className="w-full text-left text-sm table-fixed">
+                    <colgroup>
+                      <col style={{ width: '25%' }} />
+                      <col style={{ width: '25%' }} />
+                      <col style={{ width: '25%' }} />
+                      <col style={{ width: '13%' }} />
+                      <col style={{ width: '12%' }} />
+                    </colgroup>
                     <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
                       <tr>
-                        <th className="px-4 py-3">Tên phụ cấp</th>
-                        <th className="px-4 py-3">Phương thức tính</th>
-                        <th className="px-4 py-3 text-right">Mức phụ cấp</th>
-                        <th className="px-4 py-3">Trạng thái</th>
-                        <th className="px-4 py-3 text-right">Thao tác</th>
+                        <th className="px-4 py-3" style={{ width: '25%' }}>Tên phụ cấp</th>
+                        <th className="px-4 py-3" style={{ width: '25%' }}>Phương thức tính</th>
+                        <th className="px-4 py-3" style={{ width: '25%' }}>Mức phụ cấp</th>
+                        <th className="px-4 py-3" style={{ width: '13%' }}>Trạng thái</th>
+                        <th className="px-4 py-3 text-right" style={{ width: '12%' }}>Thao tác</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -914,7 +1030,7 @@ export default function PayrollParameterPage() {
                         if (a.defaultValue !== null && a.defaultValue !== undefined) {
                           if (a.defaultValue === 0) {
                             valDisplay = (
-                              <span className="text-slate-400 italic font-normal text-xs" title="Mức phụ cấp áp dụng riêng theo từng hợp đồng nhân viên">
+                              <span className="text-slate-500 font-normal text-xs" title="Mức phụ cấp áp dụng riêng theo từng hợp đồng nhân viên">
                                 Theo hợp đồng
                               </span>
                             );
@@ -949,7 +1065,7 @@ export default function PayrollParameterPage() {
                             <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
                               {methodMap[a.defaultCalcMethod] || a.defaultCalcMethod}
                             </td>
-                            <td className="px-4 py-3 text-right font-[tabular-nums] text-slate-900 dark:text-slate-100">
+                            <td className="px-4 py-3 font-[tabular-nums] text-slate-900 dark:text-slate-100">
                               {valDisplay}
                             </td>
                             <td className="px-4 py-3">
@@ -1519,11 +1635,10 @@ export default function PayrollParameterPage() {
               </div>
             )}
 
-            {/* ================= TAB 5: ĐƠN GIÁ TRỰC & KHÁC ================= */}
+            {/* ================= TAB 5: ĐƠN GIÁ & THAM SỐ KHÁC ================= */}
             {activeTab === 'rates' && (
-              rateGroups.dutyItems.length === 0 && rateGroups.otherItems.length === 0 ? (
+              filteredRateConfigs.length === 0 ? (
                 <div className="py-12 text-center">
-                  <div className="text-3xl text-slate-400 mb-2">📋</div>
                   <p className="text-slate-600 dark:text-slate-400 font-medium mb-3">{cardConfig.emptyText}</p>
                   <button className="h-10 px-4 rounded bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium" onClick={cardConfig.onAdd}>
                     + {cardConfig.addLabel}
@@ -1534,154 +1649,93 @@ export default function PayrollParameterPage() {
                   <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
                       <tr>
-                        <th className="px-4 py-3">Tham số</th>
+                        <th className="px-4 py-3">Tham số lương</th>
+                        <th className="px-4 py-3">Phân loại</th>
                         <th className="px-4 py-3">Áp dụng cho</th>
-                        <th className="px-4 py-3 text-right">Giá trị</th>
+                        <th className="px-4 py-3 text-right">Mức áp dụng</th>
                         <th className="px-4 py-3">Hiệu lực</th>
                         <th className="px-4 py-3">Trạng thái</th>
                         <th className="px-4 py-3 text-right">Thao tác</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {/* Sub-group 1: Trực (Trực tối, Trực trưa, Trực ngoài giờ) */}
-                      {rateGroups.dutyItems.length > 0 && (
-                        <>
-                          <tr className="bg-slate-50 dark:bg-slate-800/70 border-y border-slate-200 dark:border-slate-700">
-                            <td colSpan={6} className="px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                              Trực
-                            </td>
-                          </tr>
-                          {rateGroups.dutyItems.map(r => (
-                            <tr key={r.id} className="h-14 hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
-                              <td className="px-4 py-3">
-                                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                                  {renderRateParamName(r)}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
-                                {renderAppliesTo(r)}
-                              </td>
-                              <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-100">
-                                {renderRateValue(r)}
-                              </td>
-                              <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs font-[tabular-nums]">
-                                {formatDateRange(r.effectiveFrom, r.effectiveTo)}
-                              </td>
-                              <td className="px-4 py-3">
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                  r.status === 'active'
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-                                    : 'bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
-                                }`}>
-                                  {r.status === 'active' ? 'Đang áp dụng' : 'Ngừng'}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <div className="inline-flex items-center justify-end gap-3">
-                                  <button
-                                    type="button"
-                                    className="text-button text-xs font-medium text-sky-700 hover:underline"
-                                    onClick={() => {
-                                      setEditingItem(r);
-                                      setSaveError('');
-                                      setModalType('rate');
-                                    }}
-                                  >
-                                    Sửa
-                                  </button>
-                                  {r.status === 'active' && (
-                                    <button
-                                      type="button"
-                                      className="text-button text-xs font-medium text-rose-600 hover:underline"
-                                      onClick={() => {
-                                        setDeactivatingItem({
-                                          type: 'rate',
-                                          id: r.id,
-                                          name: `${renderRateParamName(r)} (${renderAppliesTo(r)})`,
-                                          effectiveFrom: r.effectiveFrom,
-                                        });
-                                        setDeactivateError('');
-                                      }}
-                                    >
-                                      Ngừng
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </>
-                      )}
-
-                      {/* Sub-group 2: Khác (Đoàn phí công đoàn, Ngày công chuẩn) */}
-                      {rateGroups.otherItems.length > 0 && (
-                        <>
-                          <tr className="bg-slate-50 dark:bg-slate-800/70 border-y border-slate-200 dark:border-slate-700">
-                            <td colSpan={6} className="px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                              Khác
-                            </td>
-                          </tr>
-                          {rateGroups.otherItems.map(r => (
-                            <tr key={r.id} className="h-14 hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
-                              <td className="px-4 py-3">
-                                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                                  {renderRateParamName(r)}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
-                                {renderAppliesTo(r)}
-                              </td>
-                              <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-100">
-                                {renderRateValue(r)}
-                              </td>
-                              <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs font-[tabular-nums]">
-                                {formatDateRange(r.effectiveFrom, r.effectiveTo)}
-                              </td>
-                              <td className="px-4 py-3">
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                  r.status === 'active'
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-                                    : 'bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
-                                }`}>
-                                  {r.status === 'active' ? 'Đang áp dụng' : 'Ngừng'}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                <div className="inline-flex items-center justify-end gap-3">
-                                  <button
-                                    type="button"
-                                    className="text-button text-xs font-medium text-sky-700 hover:underline"
-                                    onClick={() => {
-                                      setEditingItem(r);
-                                      setSaveError('');
-                                      setModalType('rate');
-                                    }}
-                                  >
-                                    Sửa
-                                  </button>
-                                  {r.status === 'active' && (
-                                    <button
-                                      type="button"
-                                      className="text-button text-xs font-medium text-rose-600 hover:underline"
-                                      onClick={() => {
-                                        setDeactivatingItem({
-                                          type: 'rate',
-                                          id: r.id,
-                                          name: `${renderRateParamName(r)} (${renderAppliesTo(r)})`,
-                                          effectiveFrom: r.effectiveFrom,
-                                        });
-                                        setDeactivateError('');
-                                      }}
-                                    >
-                                      Ngừng
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </>
-                      )}
+                      {filteredRateConfigs.map(r => (
+                        <tr
+                          key={r.id}
+                          className="h-14 hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                          onClick={() => setViewingRateConfig(r)}
+                        >
+                          <td className="px-4 py-3">
+                            <button
+                              type="button"
+                              className="text-left text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setViewingRateConfig(r);
+                              }}
+                            >
+                              {renderRateParamName(r)}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium ${renderRateCategory(r).className}`}>
+                              {renderRateCategory(r).label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
+                            {renderAppliesTo(r)}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {renderRateValue(r)}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs font-[tabular-nums]">
+                            {formatDateRange(r.effectiveFrom, r.effectiveTo)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                              r.status === 'active'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                                : 'bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                            }`}>
+                              {r.status === 'active' ? 'Đang áp dụng' : 'Ngừng'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="inline-flex items-center justify-end gap-3">
+                              <button
+                                type="button"
+                                className="text-button text-xs font-medium text-sky-700 hover:underline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingItem(r);
+                                  setSaveError('');
+                                  setModalType('rate');
+                                }}
+                              >
+                                Sửa
+                              </button>
+                              {r.status === 'active' && (
+                                <button
+                                  type="button"
+                                  className="text-button text-xs font-medium text-rose-600 hover:underline"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeactivatingItem({
+                                      type: 'rate',
+                                      id: r.id,
+                                      name: `${renderRateParamName(r)} (${renderAppliesTo(r)})`,
+                                      effectiveFrom: r.effectiveFrom,
+                                    });
+                                    setDeactivateError('');
+                                  }}
+                                >
+                                  Ngừng
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
@@ -1694,7 +1748,7 @@ export default function PayrollParameterPage() {
       {/* 7. Modal forms: Rộng 560px, chuẩn UX */}
       {modalType === 'rate' && (
         <Modal
-          title={editingItem ? 'Cập nhật đơn giá trực / tham số' : 'Thêm mới đơn giá trực / tham số'}
+          title={editingItem ? 'Cập nhật tham số lương' : 'Thêm mới tham số lương'}
           maxWidth="600px"
           onClose={() => setModalType(null)}
           hasUnsavedChanges={isModalDirty}
@@ -1803,6 +1857,19 @@ export default function PayrollParameterPage() {
             onDirtyChange={setIsModalDirty}
           />
         </Modal>
+      )}
+
+      {viewingRateConfig && (
+        <PayrollRateConfigDetailModal
+          item={viewingRateConfig}
+          onClose={() => setViewingRateConfig(null)}
+          onEdit={(item) => {
+            setViewingRateConfig(null);
+            setEditingItem(item);
+            setSaveError('');
+            setModalType('rate');
+          }}
+        />
       )}
 
       {deactivatingItem && (

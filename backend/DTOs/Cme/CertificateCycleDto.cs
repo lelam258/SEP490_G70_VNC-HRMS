@@ -21,7 +21,8 @@ public sealed record CertificateCycleDto(
     int AlertThresholdDays,
     string CertificateStatus,
     string CycleStatus = "active",
-    bool IsCurrentCycle = true
+    bool IsCurrentCycle = true,
+    bool HasCmeCreditsRequirement = false
 );
 
 public sealed record UpdateCmeCycleDatesRequest(
