@@ -187,3 +187,6 @@
 .schedule-page .schedule-editor-notes summary { cursor:pointer; color:#31566a; font-size:13px; font-weight:600; }
 .schedule-page .schedule-editor-notes summary span { display:inline; margin-left:8px; font-weight:400; color:#8393a0; font-size:12px; }
 .schedule-page .schedule-editor-notes .schedule-note-fields { margin-top:16px; }
+.schedule-page .schedule-availability { padding:14px; border:1px solid #e3ebef; border-radius:7px; background:#f8fbfc; }
+.schedule-page .schedule-availability h3 { margin:0 0 10px; font-size:13px; color:#31566a; }
+.schedule-page .schedule-availability p { margin:6px 0; font-size:12px; line-height:1.6; }

@@ -1,16 +1,17 @@
-﻿import { spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 const root=process.cwd(); await mkdir(resolve(root,'.local/refined-browser-profile'),{recursive:true});
 const chrome=spawn('C:/Program Files/Google/Chrome/Application/chrome.exe',['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check','--remote-debugging-port=9335',`--user-data-dir=${resolve(root,'.local/refined-browser-profile')}`,'about:blank'],{windowsHide:true,stdio:'ignore'});
 let socket; const errors=[]; let actor={id:'head',username:'preview',name:'Vũ Thị Thủy',role:'hr_staff',email:null};
 let closed=false, correction=false, serverClockOffset=0; let saveMode='fail', reopenMode='fail', failReload=false, slowDate='', savedRows=[];
-const options={departmentId:'nurses',facilities:[{id:'cs1',name:'Cơ sở 1'},{id:'cs2',name:'Cơ sở 2'}],departments:[{id:'nurses',name:'Khoa Điều dưỡng'}],staff:[{id:'staff1',fullName:'Phan Thị Ngát',departmentId:'nurses'},{id:'staff2',fullName:'Nguyễn Phương Thảo',departmentId:'nurses'}],coverage:[{id:'unit1',name:'Điều dưỡng',departmentId:'nurses',facilityId:'cs1'},{id:'unit2',name:'Điều dưỡng',departmentId:'nurses',facilityId:'cs2'}]};
+let availabilityFailed=false, previewAssignments=[], previewLeave=[];
+const options={departmentId:'nurses',facilities:[{id:'cs1',name:'Cơ sở 1',status:'active'},{id:'cs2',name:'Cơ sở 2',status:'active'},{id:'cs3',name:'Cơ sở ngừng hoạt động',status:'inactive'}],departments:[{id:'nurses',name:'Khoa Điều dưỡng',status:'active'}],staff:[{id:'staff1',fullName:'Phan Thị Ngát',departmentId:'nurses'},{id:'staff2',fullName:'Nguyễn Phương Thảo',departmentId:'nurses'}],coverage:[{id:'unit1',name:'Điều dưỡng',departmentId:'nurses',facilityId:'cs1'},{id:'unit2',name:'Điều dưỡng',departmentId:'nurses',facilityId:'cs2'}]};
 const add=(day,n)=>{const d=new Date(`${day}T12:00:00`);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)};
 const monday=day=>{const d=new Date(`${day}T12:00:00`);return add(day,-(d.getDay()+6)%7)};
 const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Bangkok'}).format(new Date());
 const planningDate=add(monday(today),7);
-const timing=start=>({planningStartsAt:`${add(start,-7)}T00:00:00+07:00`,publishDeadline:`${start}T${start.slice(5)>='04-15'&&start.slice(5)<'12-01'?'07:00':'07:10'}:00+07:00`,correctionEndsAt:`${add(start,7)}T00:00:00+07:00`});
+const timing=start=>({planningStartsAt:`${add(start,-7)}T00:00:00+07:00`,publishDeadline:`${start}T00:00:00+07:00`,correctionEndsAt:`${add(start,7)}T00:00:00+07:00`});
 const baseRow=(id,date,shift='morning',published=false)=>({assignment:{id,staffId:'staff1',coverageId:'unit1',date,shift,cancelled:false,patientConfirmed:false,actualEndAt:null,reason:'Phân công lịch làm việc tuần',transferConsent:'Trưởng phòng/khoa xác nhận phân công tại cơ sở'},fullName:'Phan Thị Ngát',facility:'Cơ sở 1',facilityId:'cs1',coverage:'Điều dưỡng',published:closed,start:shift==='morning'?'07:00':'13:30',end:shift==='morning'?'11:30':'17:00',dutyCredit:false});
 try {
   let pages; for(let i=0;i<40;i++){try{pages=await(await fetch('http://127.0.0.1:9335/json/list')).json();if(pages.length)break}catch{}await new Promise(r=>setTimeout(r,200))}
@@ -23,6 +24,10 @@ try {
     const req=m.params.request,url=new URL(req.url),date=url.searchParams.get('date')||today;let data=[],code=200;
     if(url.pathname==='/api/auth/me')data=actor;
     else if(url.pathname==='/api/schedules/options')data=options;
+    else if(url.pathname==='/api/schedules/availability'){
+      if(availabilityFailed){code=503;data={message:'Availability unavailable'}}
+      else data={staffId:url.searchParams.get('staffId'),monday:monday(date),assignments:previewAssignments,leave:previewLeave};
+    }
     else if(url.pathname==='/api/schedules'&&req.method==='GET'){
       if(failReload){code=503;data={message:'Mất kết nối khi tải lại lịch.'}}
       else {const start=monday(date);data=[baseRow(`a-${start}`,start),baseRow(`b-${start}`,add(start,1),'afternoon',true),...savedRows.filter(r=>monday(r.assignment.date)===start)].map(row=>({...row,published:closed}));if(actor.role==='employee')data=data.filter(r=>r.published&&r.assignment.staffId==='staff1')}
@@ -48,7 +53,7 @@ try {
   const input=async(selector,value)=>{await evaluate(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));})()`);await new Promise(r=>setTimeout(r,80))};
   const screenshot=async name=>writeFile(resolve(root,`.local/${name}.png`),Buffer.from((await send('Page.captureScreenshot',{format:'png',captureBeyondViewport:false})).data,'base64'));
   await send('Page.enable');await send('Runtime.enable');await send('Fetch.enable',{patterns:[{urlPattern:'*/api/*',requestStage:'Request'}]});
-  await send('Page.addScriptToEvaluateOnNewDocument',{source:`sessionStorage.setItem('vnc.hrms.auth.v2',JSON.stringify({state:{session:{accessToken:'preview',expiresAt:'2099-01-01T00:00:00Z',user:${JSON.stringify(actor)}}},version:0}));`});
+  await send('Page.addScriptToEvaluateOnNewDocument',{source:`sessionStorage.setItem('vnc.hrms.auth.v3',JSON.stringify({state:{session:{accessToken:'preview',expiresAt:'2099-01-01T00:00:00Z',user:${JSON.stringify(actor)}}},version:0}));`});
   await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false});
   await send('Page.navigate',{url:'http://localhost:5173/schedules'});
   await waitFor(`!!document.querySelector('#schedule-create')&&!document.querySelector('#schedule-create').disabled`);
@@ -57,14 +62,27 @@ try {
   await screenshot('schedule-refined-desktop');
   await evaluate(`document.querySelector('#schedule-create').focus();document.querySelector('#schedule-create').click()`);await waitFor(`!!document.querySelector('dialog[open]')`);
   check(await evaluate(`document.querySelector('.schedule-total').textContent==='14'`),'weekly editor defaults to 14 assignments');
-  await select('#schedule-staff','staff1');await select('#schedule-facility','cs1');
+  await select('#schedule-staff','staff1');await select('#schedule-facility','cs1');await waitFor(`!document.querySelector('.schedule-save-button').disabled`);
   await evaluate(`document.querySelector('.schedule-save-button').click()`);await waitFor(`!!document.querySelector('dialog [role="alert"]')`);
   check(await evaluate(`document.querySelector('#schedule-staff').value==='staff1'&&!!document.querySelector('dialog[open]')`),'failed save keeps modal and values');
   saveMode='success';await evaluate(`document.querySelector('.schedule-save-button').click()`);await waitFor(`!document.querySelector('dialog[open]')&&!document.querySelector('#schedule-create').disabled`);
   check(await evaluate(`document.querySelectorAll('.schedule-event').length===16`),'successful save closes modal and refreshes calendar');
   await evaluate(`document.querySelector('#schedule-create').focus();document.querySelector('#schedule-create').click()`);await waitFor(`!!document.querySelector('dialog[open]')`);
   check(await evaluate(`document.querySelector('#schedule-staff').value===''&&document.querySelector('#schedule-consent').value===''&&!document.querySelector('#schedule-consent-custom')`),'new form resets after previous save');
+  check(await evaluate(`!document.querySelector('#schedule-facility option[value="cs3"]')`),'inactive facilities are excluded from new assignments');
+  availabilityFailed=true;
+  await select('#schedule-staff','staff1');await select('#schedule-facility','cs1');
+  await waitFor(`document.querySelector('.schedule-availability').textContent.includes('Không tải được')`);
+  check(await evaluate(`document.querySelector('.schedule-save-button').disabled`),'failed availability check blocks saving and offers retry');
+  availabilityFailed=false;
+  previewAssignments=[{id:'preview-site',date:add(planningDate,1),shift:'afternoon',facilityId:'cs2',facility:'Cơ sở 2'}];
+  previewLeave=[{startDate:planningDate,endDate:planningDate}];
+  await evaluate(`document.querySelector('.schedule-availability button').click()`);
+  await waitFor(`document.querySelector('.schedule-availability').textContent.includes('Nghỉ phép đã duyệt')`);
+  check(await evaluate(`document.querySelector('.schedule-availability').textContent.includes('Cơ sở 2')&&document.querySelector('.schedule-save-button').disabled`),'form previews existing site assignments and approved leave before save');
+  check(await evaluate(`document.querySelector('#schedule-consent').required&&document.querySelector('.schedule-editor-notes').open`),'cross-facility preview requires a transfer confirmation');
   await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27,nativeVirtualKeyCode:27});await send('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27,nativeVirtualKeyCode:27});await waitFor(`!document.querySelector('dialog[open]')`);
+  previewAssignments=[];previewLeave=[];
   check(await evaluate(`document.activeElement.id==='schedule-create'`),'Escape closes dialog and restores focus');
   await evaluate(`document.querySelector('.schedule-event-menu summary').click();document.querySelector('.schedule-event-actions button').click()`);await waitFor(`!!document.querySelector('#schedule-date')`);
   check(await evaluate(`document.querySelector('#schedule-date').min!==''&&document.querySelector('#schedule-date').max!==''&&document.querySelector('#schedule-facility').value==='cs1'`),'edit dates constrained to original week; facility retained');
@@ -73,7 +91,7 @@ try {
   await waitFor(`!document.querySelector('#schedule-create').disabled`);await new Promise(r=>setTimeout(r,800));
   check(await evaluate(`!document.querySelector('.alert.error')&&document.querySelector('#schedule-view-date').value===${JSON.stringify(planningDate)}&&document.querySelectorAll('.schedule-event').length===16`),'late previous-week response cannot overwrite selected planning week');
   saveMode='reload-fail';await evaluate(`document.querySelector('#schedule-create').focus();document.querySelector('#schedule-create').click()`);await waitFor(`!!document.querySelector('dialog[open]')`);
-  await select('#schedule-staff','staff1');await select('#schedule-facility','cs1');await evaluate(`document.querySelector('.schedule-save-button').click()`);
+  await select('#schedule-staff','staff1');await select('#schedule-facility','cs1');await waitFor(`!document.querySelector('.schedule-save-button').disabled`);await evaluate(`document.querySelector('.schedule-save-button').click()`);
   await waitFor(`!document.querySelector('dialog[open]')&&!!document.querySelector('.alert.error')`);
   check(await evaluate(`document.querySelector('[role="status"]').textContent.includes('Đã lưu')`),'saved mutation plus reload failure reports saved state without resubmission');
   failReload=false;await evaluate(`document.querySelector('.alert.error button').click()`);await waitFor(`!document.querySelector('.alert.error')&&!document.querySelector('#schedule-create').disabled`);
@@ -89,7 +107,7 @@ try {
   check(await evaluate(`!!document.querySelector('#schedule-reopen')&&!document.querySelector('#schedule-reopen').disabled`),'HR can open the reopen action on a closed current week');
   await evaluate(`document.querySelector('#schedule-reopen').click()`);await waitFor(`!!document.querySelector('#schedule-reopen-reason')`);
   check(await evaluate(`document.querySelector('dialog button[type="submit"]').disabled&&document.querySelector('#schedule-reopen-reason').required&&document.querySelector('#schedule-reopen-reason').maxLength===1000`),'reopen requires a reason before submitting');
-  check(await evaluate(`document.querySelector('dialog').textContent.includes('tất cả khoa/phòng')&&document.querySelector('.schedule-action-warning').textContent.includes('cho đến khi chốt lại')`),'reopen explains global scope and temporary draft visibility');
+  check(await evaluate(`document.querySelector('dialog').textContent.includes('tất cả khoa/phòng')&&document.querySelector('.schedule-action-warning').textContent.includes('tiếp tục xem lịch đã công bố')`),'reopen explains global scope and keeps the published roster visible');
   await input('#schedule-reopen-reason','Chọn nhầm cơ sở khi nhập lịch');
   await evaluate(`document.querySelector('dialog button[type="submit"]').click()`);await waitFor(`!!document.querySelector('dialog [role="alert"]')`);
   check(await evaluate(`document.querySelector('#schedule-reopen-reason').value==='Chọn nhầm cơ sở khi nhập lịch'&&document.querySelector('#schedule-create').disabled`),'failed reopen preserves reason and keeps week locked');
@@ -119,6 +137,19 @@ try {
   await input('#schedule-reopen-reason','Điều chỉnh sau khi bắt đầu tuần làm việc');
   await evaluate(`document.querySelector('dialog button[type="submit"]').click()`);await waitFor(`!document.querySelector('dialog[open]')&&!document.querySelector('#schedule-create').disabled`);
   check(await evaluate(`document.querySelector('.schedule-primary-actions button').textContent.includes('Chốt lại tuần')&&!!document.querySelector('.schedule-event-menu')`),'audited reopening allows correction and republication after the initial deadline');
+  check(await evaluate(`![...document.querySelectorAll('.schedule-event')].filter(card=>card.querySelector('.schedule-event-time').textContent.includes('07:00')).some(card=>card.querySelector('.schedule-event-menu'))`),'same-day shifts cannot be edited after reopening in the working week');
+  await evaluate(`document.querySelector('.schedule-event-menu summary').click();document.querySelector('.schedule-event-actions button').click()`);
+  await waitFor(`!!document.querySelector('#schedule-date')`);
+  await input('#schedule-date',planningDate);
+  check(await evaluate(`document.querySelector('.schedule-save-button').disabled&&document.querySelector('dialog').textContent.includes('24 giờ')`),'edit form checks the revised shift as well as the original shift');
+  await evaluate(`document.querySelector('dialog button[aria-label="Đóng"]').click()`);await waitFor(`!document.querySelector('dialog[open]')`);
+  serverClockOffset=Date.parse(`${add(planningDate,1)}T13:30:00+07:00`)-24*60*60*1000-Date.now()-2500;
+  await send('Page.reload');await waitFor(`!!document.querySelector('.schedule-event-menu')&&!document.querySelector('.schedule-calendar-loading')`);
+  await evaluate(`document.querySelector('.schedule-event-menu summary').click();document.querySelector('.schedule-event-actions .schedule-cancel-action').click()`);
+  await waitFor(`!!document.querySelector('#schedule-action-note')`);await input('#schedule-action-note','Kiểm tra thời hạn hủy');
+  await waitFor(`document.querySelector('dialog button[type="submit"]').disabled&&document.querySelector('dialog').textContent.includes('24 giờ')`);
+  check(await evaluate(`!document.querySelector('.schedule-event-menu')`),'24-hour cutoff expires live in an open cancellation dialog');
+  await evaluate(`document.querySelector('dialog button[aria-label="Đóng"]').click()`);await waitFor(`!document.querySelector('dialog[open]')`);
   serverClockOffset=Date.parse(timing(planningDate).correctionEndsAt)-Date.now();
   await send('Page.reload');await waitFor(`!document.querySelector('.schedule-calendar-loading')&&!!document.querySelector('#schedule-create')&&document.querySelector('#schedule-create').disabled`);
   check(await evaluate(`document.querySelector('.schedule-primary-actions button').disabled&&!document.querySelector('.schedule-event-menu')`),'corrections and republication expire when the work week ends');

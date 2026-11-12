@@ -56,6 +56,13 @@ public static class DependencyInjection
         services.AddScoped<Vnc.HRMS.Contracts.IEmployeeDirectory, EmployeeDirectoryRepository>();
         services.AddScoped<Vnc.HRMS.Contracts.ISessionInspector, Vnc.HRMS.Security.LocalSessionInspector>();
         services.AddScoped<AttendanceRepository>(); services.AddScoped<AttendanceService>();
+        services.AddScoped<AttendanceAccess>();
+        services.AddSingleton<AttendanceWorkbookParser>();
+        services.AddScoped<AttendanceImportService>();
+        services.AddScoped<AttendanceDeviceMappingService>();
+        services.AddScoped<AttendanceRecordService>();
+        services.AddScoped<OnCallService>();
+        services.AddScoped<AuditViewerService>();
         services.AddScoped<PayrollRepository>(); services.AddScoped<PayrollService>();
         services.AddScoped<ComplianceRepository>(); services.AddScoped<ComplianceService>();
         services.AddScoped<NotificationRepository>(); services.AddScoped<NotificationService>();

@@ -50,7 +50,7 @@ try {
   const ready=`!!document.querySelector('.directory-pagination')&&document.querySelector('.directory-panel')?.getAttribute('aria-busy')==='false'`;
   await send('Page.enable');await send('Runtime.enable');await send('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
   await send('Fetch.enable',{patterns:[{urlPattern:'*/api/*',requestStage:'Request'}]});
-  await send('Page.addScriptToEvaluateOnNewDocument',{source:`sessionStorage.setItem('vnc.hrms.auth.v2',JSON.stringify({state:{session:{accessToken:'fixture-only',expiresAt:'2099-01-01T00:00:00Z',user:${JSON.stringify(actor)}}},version:0}));`});
+  await send('Page.addScriptToEvaluateOnNewDocument',{source:`sessionStorage.setItem('vnc.hrms.auth.v3',JSON.stringify({state:{session:{accessToken:'fixture-only',expiresAt:'2099-01-01T00:00:00Z',user:${JSON.stringify(actor)}}},version:0}));`});
   await send('Page.navigate',{url:'http://localhost:5173/employees'});await waitFor(ready);
   check(await evaluate(`document.querySelectorAll('.directory-table tbody tr').length===10&&document.querySelector('.directory-page-info').textContent.includes('1–10')&&document.querySelector('[aria-label="Trang trước"]').disabled`),'employees default to ten rows with range and first-page bounds');
   await screenshot('employees-directory-desktop');

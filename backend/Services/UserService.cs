@@ -12,7 +12,7 @@ using Vnc.HRMS.Services.Interfaces;
 namespace Vnc.HRMS.Services;
 
 public sealed class UserService(IUserRepository users, IEmployeeRepository employees, IAuthRepository auth,
-    IUnitOfWork unitOfWork, IPasswordHasher<User> hasher) : IUserService
+    IUnitOfWork unitOfWork, IPasswordHasher<User> hasher, IAuditLogHelper? auditHelper = null) : IUserService
 {
     private static readonly IReadOnlyList<string> Roles = Vnc.HRMS.Security.AccountRoles.All;
     private static readonly string[] Statuses = ["active", "inactive", "locked"];
@@ -40,6 +40,7 @@ public sealed class UserService(IUserRepository users, IEmployeeRepository emplo
         user.PasswordHash = hasher.HashPassword(user, request.Password!);
         user.SecurityVersion++;
         if (employee is null) users.Add(user);
+        auditHelper?.Log("create_account", "User", user.UserId, null, Snapshot(user));
         await unitOfWork.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         return await GetAsync(user.UserId, ct);
@@ -53,6 +54,11 @@ public sealed class UserService(IUserRepository users, IEmployeeRepository emplo
         var user = await users.FindAsync(id, ct) ?? throw new AppException(404, "Không tìm thấy tài khoản.");
         Validate(request, !user.IsProvisioned);
         if (request.Version != Convert.ToBase64String(user.Version)) throw new AppException(409, "Tài khoản vừa được người khác cập nhật. Hãy tải lại danh sách.");
+        var previous = Snapshot(user);
+        var accessChanged = request.EmployeeId != user.EmployeeId || user.Role != request.Role || user.AccountStatus != request.Status;
+        var activating = user.AccountStatus != "active" && request.Status == "active";
+        var action = user.AccountStatus != request.Status ? request.Status == "active" ? "activate_account" : "deactivate_account"
+            : user.Role != request.Role ? "assign_role" : "update_account";
         var employeeChanged = request.EmployeeId != user.EmployeeId;
         if (employeeChanged)
         {
@@ -79,6 +85,7 @@ public sealed class UserService(IUserRepository users, IEmployeeRepository emplo
         if (employeeChanged || user.Role != request.Role || user.AccountStatus != request.Status || !string.IsNullOrEmpty(request.Password)) user.SecurityVersion++;
         user.Username = request.Username.Trim(); user.NormalizedUsername = user.Username.ToUpperInvariant();
         user.Email = CleanEmail(request.Email); user.FullName = request.FullName?.Trim(); user.Role = request.Role; user.AccountStatus = request.Status;
+        if (activating) { user.FailedLoginCount = 0; user.LockedUntil = null; }
         if (!string.IsNullOrEmpty(request.Password))
         {
             var credential = user;
@@ -89,6 +96,11 @@ public sealed class UserService(IUserRepository users, IEmployeeRepository emplo
             await auth.RevokeSessionsAsync(id, ct);
             await auth.InvalidateOtpsAsync(id, ct);
         }
+        else if (accessChanged) {
+            await auth.RevokeSessionsAsync(id, ct);
+            await auth.InvalidateOtpsAsync(id, ct);
+        }
+        auditHelper?.Log(action, "User", user.UserId, previous, Snapshot(user));
         await unitOfWork.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         return await GetAsync(id, ct);
@@ -116,4 +128,5 @@ public sealed class UserService(IUserRepository users, IEmployeeRepository emplo
             throw new AppException(400, PasswordHelper.Requirements);
     }
     private static string? CleanEmail(string? email) => string.IsNullOrWhiteSpace(email) ? null : email.Trim().ToLowerInvariant();
+    private static object Snapshot(User user) => new { user.UserId, user.Username, user.Role, status = user.AccountStatus, user.EmployeeId, user.IsProvisioned };
 }

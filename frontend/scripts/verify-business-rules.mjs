@@ -24,15 +24,15 @@ try {
   assert.ok(validateEmployeeProfile({ ...profile, dependentCount: -1 }, today));
   assert.ok(validateEmployeeProfile({ ...profile, dependentCount: 0.5 }, today));
   console.log('PASS 16 employee business rule cases: optional fields, names, age boundary, employment dates, phone, CCCD and dependents.');
-  const { schedulePermissions } = await server.ssrLoadModule('/src/utils/schedule.ts');
+  const { schedulePermissions, canChangeShift } = await server.ssrLoadModule('/src/utils/schedule.ts');
   const week = { monday: '2026-11-09', closed: false, assignmentCount: 1, isCorrection: false,
     serverNow: '2026-11-06T10:00:00+07:00', planningStartsAt: '2026-11-02T00:00:00+07:00',
-    publishDeadline: '2026-11-09T07:00:00+07:00', correctionEndsAt: '2026-11-16T00:00:00+07:00' };
+    publishDeadline: '2026-11-09T00:00:00+07:00', correctionEndsAt: '2026-11-16T00:00:00+07:00' };
   const at = (status, time) => schedulePermissions(status, Date.parse(time));
   assert.equal(at(week, '2026-11-01T23:59:59+07:00').canEdit, false);
   assert.equal(at(week, week.planningStartsAt).canEdit, true);
   assert.equal(at(week, '2026-11-06T10:00:00+07:00').canPublish, true);
-  assert.equal(at(week, '2026-11-09T06:59:59.999+07:00').canPublish, true);
+  assert.equal(at(week, '2026-11-08T23:59:59.999+07:00').canPublish, true);
   assert.equal(at(week, week.publishDeadline).canPublish, false);
   assert.equal(at(week, '2026-11-09T00:00:00Z').canEdit, false);
   assert.equal(at({ ...week, closed: true }, week.serverNow).canEdit, false);
@@ -43,7 +43,16 @@ try {
   assert.equal(at({ ...week, isCorrection: true }, week.correctionEndsAt).canEdit, false);
   assert.equal(at({ ...week, closed: true }, week.correctionEndsAt).canReopen, false);
   assert.equal(at(undefined, week.serverNow).canEdit, false);
-  console.log('PASS 14 schedule permission cases: next-week planning, exact publication cutoff, timezone, reopened corrections and expiry.');
+  assert.equal(at({ ...week, assignmentCount: 0, isCorrection: true }, '2026-11-09T08:00:00+07:00').canPublish, true);
+  assert.equal(canChangeShift('2026-11-10', 'morning', Date.parse('2026-11-09T07:00:00+07:00')), true);
+  assert.equal(canChangeShift('2026-11-10', 'morning', Date.parse('2026-11-09T07:00:00.001+07:00')), false);
+  assert.equal(canChangeShift('2026-11-09', 'morning', Date.parse('2026-11-09T00:00:00+07:00')), false);
+  assert.equal(canChangeShift('2026-11-09', 'morning', Date.parse('2026-11-08T23:59:59+07:00')), true);
+  assert.equal(canChangeShift('2026-11-10', 'noon', Date.parse('2026-11-09T04:30:00Z')), true);
+  assert.equal(canChangeShift('2026-12-08', 'morning', Date.parse('2026-12-07T07:10:00+07:00')), true);
+  assert.equal(canChangeShift('2026-12-08', 'morning', Date.parse('2026-12-07T07:10:00.001+07:00')), false);
+  assert.equal(canChangeShift('2026-11-09', 'afternoon', Date.parse('2026-11-11T00:00:00+07:00')), false);
+  console.log('PASS 23 schedule cases: Monday midnight publication, 24-hour cutoff, seasonal hours, UTC, all-cancelled revisions and expiry.');
 } finally {
   await server.close();
 }

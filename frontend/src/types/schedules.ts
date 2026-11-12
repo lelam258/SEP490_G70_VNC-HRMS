@@ -16,3 +16,9 @@ export type ScheduleWeekStatus = {
   serverNow: string; planningStartsAt: string; publishDeadline: string; correctionEndsAt: string;
 };
 export type ScheduleDraft = { staffId: string; facilityId: string; date: string; shift: string; reason: string; transferConsent: string; mode: 'week' | 'day' | 'edit'; monday: string; days: number[]; shifts: string[] };
+
+export type ScheduleAvailability = {
+  staffId: string; monday: string;
+  assignments: { id: string; date: string; shift: string; facilityId: string; facility: string }[];
+  leave: { startDate: string; endDate: string }[];
+};

@@ -20,7 +20,7 @@ export default function AppLayout() {
     document.querySelector('.workspace-main')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [location.pathname]);
   const navClass = ({ isActive }: { isActive: boolean }) => `nav-item ${isActive ? 'selected' : ''}`;
-  const title = location.pathname.startsWith('/schedules') ? 'Lịch làm việc' : location.pathname.startsWith('/accounts')
+  const title = location.pathname.startsWith('/attendance') ? 'Chấm công và ca trực' : location.pathname.startsWith('/roles') ? 'Quản lý vai trò' : location.pathname.startsWith('/audit-logs') ? 'Nhật ký hệ thống' : location.pathname.startsWith('/schedules') ? 'Lịch làm việc' : location.pathname.startsWith('/accounts')
     ? 'Quản lý tài khoản'
     : location.pathname.startsWith('/employees')
     ? 'Nhân viên'
@@ -91,6 +91,9 @@ export default function AppLayout() {
               Trang chủ
             </NavLink>
             <NavLink to="/schedules" className={navClass}><Icon name="users" />Lịch làm việc</NavLink>
+            {user.role !== 'accountant' && <NavLink to="/attendance/records" className={navClass}><Icon name="calendar" />Chấm công & ca trực</NavLink>}
+            {user.role === 'accountant' && <NavLink to="/attendance/history" className={navClass}><Icon name="clock" />Lịch sử chấm công</NavLink>}
+            {user.role === 'admin' && <><NavLink to="/roles" className={navClass}><Icon name="shield" />Quản lý vai trò</NavLink><NavLink to="/audit-logs" className={navClass}><Icon name="fileText" />Nhật ký hệ thống</NavLink></>}
             {user.role !== 'admin' && user.role !== 'accountant' && (
               <NavLink to="/procedures" className={navClass}><Icon name="fileText" />Phiếu thủ thuật</NavLink>
             )}

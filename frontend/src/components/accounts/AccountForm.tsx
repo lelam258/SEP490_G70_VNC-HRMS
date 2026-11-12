@@ -1,12 +1,13 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import Icon from '../ui/Icon';
 import { isStrongPassword, passwordHint } from '../../utils/password';
 import { roleLabels, roles, statuses, statusLabels, type Account, type AccountInput, type Employee, type Role, type Status } from '../../types/accounts';
 import { formatDate, initials } from '../../utils/format';
 
-export default function AccountForm({ account, accounts, employees, mode, onBack, onEdit, onSave }: {
+export default function AccountForm({ account, accounts, employees, mode, onBack, onEdit, onSave, accessAction }: {
   account?: Account; accounts: Account[]; employees: Employee[]; mode: 'create' | 'detail' | 'edit';
   onBack: () => void; onEdit: () => void; onSave: (value: AccountInput) => Promise<string | null>;
+  accessAction?: ReactNode;
 }) {
   const readonly = mode === 'detail';
   const [employeeId, setEmployeeId] = useState(account?.employeeId || '');
@@ -33,6 +34,8 @@ export default function AccountForm({ account, accounts, employees, mode, onBack
     if (login.length < 3 || login.length > 50 || !/^(?:[a-zA-Z0-9._-]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$/.test(login)) { setError('Tên đăng nhập cần 3–50 ký tự chữ không dấu, số hoặc . _ -; có thể dùng dạng email.'); return; }
     if (accounts.some(a => a.id !== account?.id && a.username.toLowerCase() === login.toLowerCase())) { setError('Tên đăng nhập đã tồn tại. Vui lòng chọn tên khác.'); return; }
     if (employeeId && accounts.some(a => a.id !== account?.id && a.employeeId === employeeId)) { setError('Nhân viên này đã có tài khoản.'); return; }
+    if (account && (role !== account.role || status !== account.status)
+      && !window.confirm('Xác nhận thay đổi vai trò hoặc trạng thái tài khoản? Các phiên cũ sẽ kết thúc; lịch sử được giữ lại.')) return;
     const now = new Date().toISOString();
     setBusy(true);
     try {
@@ -42,7 +45,7 @@ export default function AccountForm({ account, accounts, employees, mode, onBack
   }
   return <section className="account-form-page">
     <button className="text-button back-button" onClick={back}><Icon name="arrow" size={18} /> Danh sách tài khoản</button>
-    <div className="page-heading"><div><span className="eyebrow">QUẢN TRỊ HỆ THỐNG</span><h1>{mode === 'create' ? 'Tạo tài khoản' : mode === 'edit' ? 'Chỉnh sửa tài khoản' : 'Chi tiết tài khoản'}</h1><p className="muted">{mode === 'create' ? 'Thiết lập quyền truy cập hệ thống cho thành viên đội ngũ.' : 'Thông tin tài khoản và quyền truy cập của nhân viên.'}</p></div>{readonly && <button className="button primary" onClick={onEdit}><Icon name="edit" size={18} />Chỉnh sửa</button>}</div>
+    <div className="page-heading"><div><span className="eyebrow">QUẢN TRỊ HỆ THỐNG</span><h1>{mode === 'create' ? 'Tạo tài khoản' : mode === 'edit' ? 'Chỉnh sửa tài khoản' : 'Chi tiết tài khoản'}</h1><p className="muted">{mode === 'create' ? 'Thiết lập quyền truy cập hệ thống cho thành viên đội ngũ.' : 'Thông tin tài khoản và quyền truy cập của nhân viên.'}</p></div>{readonly && <div className="operations-actions">{accessAction}<button className="button primary" onClick={onEdit}><Icon name="edit" size={18} />Chỉnh sửa</button></div>}</div>
     <div className="form-layout"><form onSubmit={submit} className="panel account-form" aria-label={mode === 'create' ? 'Tạo tài khoản' : 'Thông tin tài khoản'}>
       <div className="panel-heading"><span className="section-number">01</span><div><h2>Thông tin nhân viên</h2><p>Liên kết tài khoản với hồ sơ nhân viên hiện có hoặc tạo trước cho nhân sự mới.</p></div></div>
       <div className="form-section"><label htmlFor="account-employee">Nhân viên liên kết (không bắt buộc nếu tạo trước)</label><select id="account-employee" disabled={!!account?.employeeId || readonly} value={employeeId} onChange={e => { setEmployeeId(e.target.value); const selected = employees.find(x => x.id === e.target.value); if (selected) { setUsername(selected?.email?.split('@')[0] || selected?.code.toLowerCase() || ''); setEmail(selected?.email || ''); setFullName(selected?.name || ''); } }}><option value="">Chưa liên kết hồ sơ nhân viên (Tạo tài khoản trước cho nhân sự)</option>{available.map(e => <option key={e.id} value={e.id}>{e.code} — {e.name}</option>)}</select><p className="field-hint">Bạn có thể tạo tài khoản trước cho nhân sự khám chữa bệnh hoặc quản trị. Sau đó HR Manager có thể chọn liên kết tài khoản này khi hoàn thiện hồ sơ nhân viên.</p>

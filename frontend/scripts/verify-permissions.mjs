@@ -20,6 +20,19 @@ try {
     assert.equal(loginDestination(role, '/me/leave-requests'), role !== 'admin' ? '/me/leave-requests' : roleHome(role));
     assert.equal(loginDestination(role, '/me/leave-requests/new'), role !== 'admin' ? '/me/leave-requests/new' : roleHome(role));
     assert.equal(loginDestination(role, '/schedules'), '/schedules');
+    assert.equal(loginDestination(role, '/roles'), role === 'admin' ? '/roles' : roleHome(role));
+    assert.equal(loginDestination(role, '/audit-logs'), role === 'admin' ? '/audit-logs' : roleHome(role));
+    assert.equal(loginDestination(role, '/attendance/records'), role !== 'accountant' ? '/attendance/records' : roleHome(role));
+    assert.equal(loginDestination(role, '/attendance/history'), role !== 'employee' ? '/attendance/history' : roleHome(role));
+    assert.equal(loginDestination(role, '/attendance/imports/new'), role === 'hr_staff' ? '/attendance/imports/new' : roleHome(role));
+    assert.equal(loginDestination(role, '/attendance/device-mappings'), ['admin', 'hr_manager', 'hr_staff'].includes(role) ? '/attendance/device-mappings' : roleHome(role));
+    assert.equal(loginDestination(role, '/attendance/import-periods'), roleHome(role));
+    assert.equal(loginDestination(role, '/attendance/on-call/new'), role === 'hr_staff' ? '/attendance/on-call/new' : roleHome(role));
+    const attendanceId = '00000000-0000-4000-8000-000000000001';
+    const importPreview = `/attendance/imports/${attendanceId}/preview`;
+    assert.equal(loginDestination(role, importPreview), ['admin', 'hr_manager', 'hr_staff'].includes(role) ? importPreview : roleHome(role));
+    const dutyEdit = `/attendance/on-call/${attendanceId}/edit`;
+    assert.equal(loginDestination(role, dutyEdit), role === 'hr_staff' ? dutyEdit : roleHome(role));
     for (const from of ['//untrusted.example', '/\\untrusted.example', 'https://untrusted.example', '/payroll']) {
       assert.equal(loginDestination(role, from), roleHome(role));
     }

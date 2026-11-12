@@ -65,7 +65,7 @@ public static class ScheduleRules
     public static DateTimeOffset PublishDeadline(DateOnly monday)
     {
         ValidateWeek(monday);
-        return new(monday.ToDateTime(Hours(monday, "morning").Start), TimeSpan.FromHours(7));
+        return new(monday.ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(7));
     }
     public static DateTimeOffset CorrectionEnd(DateOnly monday)
     {
@@ -79,8 +79,22 @@ public static class ScheduleRules
         if (now < start || now >= end)
             throw new AppException(400, isCorrection
                 ? "Chỉ điều chỉnh lịch đã mở lại từ tuần trước đến hết Chủ nhật của tuần làm việc."
-                : "Lập và chốt lịch cho tuần kế tiếp từ thứ Hai tuần trước, trước giờ bắt đầu ca sáng thứ Hai của tuần được phân công.");
+                : "Lập và chốt lịch cho tuần kế tiếp từ thứ Hai tuần trước, trước 00:00 thứ Hai của tuần được phân công.");
     }
+    public static DateTimeOffset ShiftStart(DateOnly date, string shift)
+        => new(date.ToDateTime(Hours(date, shift).Start), TimeSpan.FromHours(7));
+
+    public static void ValidateAffectedShift(DateOnly date, string shift, DateTimeOffset now)
+    {
+        var start = ShiftStart(date, shift);
+        if (now >= PublishDeadline(Monday(date)) && start - now < TimeSpan.FromHours(24))
+            throw new AppException(400, $"Ngày {date:dd/MM/yyyy}, ca {ShiftName(shift)}: Ca bị ảnh hưởng phải bắt đầu ít nhất 24 giờ sau khi lưu thay đổi.");
+    }
+
+    public static bool SamePlan(ScheduleAssignment left, ScheduleAssignment right)
+        => left.WeekId == right.WeekId && left.StaffId == right.StaffId && left.CoverageId == right.CoverageId
+            && left.Date == right.Date && left.Shift == right.Shift && left.Cancelled == right.Cancelled
+            && left.Reason == right.Reason && left.TransferConsent == right.TransferConsent;
     public static void Reopenable(DateOnly monday, DateTimeOffset now)
     {
         if (now < PlanningStart(monday) || now >= CorrectionEnd(monday))
