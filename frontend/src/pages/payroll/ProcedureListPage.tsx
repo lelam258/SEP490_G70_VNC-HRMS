@@ -51,7 +51,7 @@ export default function ProcedureListPage() {
   const [serviceId, setServiceId] = useState<string>('');
   const [afterHoursFilter, setAfterHoursFilter] = useState<string>('all');
   const [page, setPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(20);
+  const [pageSize, setPageSize] = useState<number>(5);
 
   // ============================================================================
   // STATE BỘ LỌC LỊCH SỬ DUYỆT DÀNH CHO HR STAFF & ACCOUNTANT
@@ -61,7 +61,7 @@ export default function ProcedureListPage() {
   const [historyMonth, setHistoryMonth] = useState<string>(''); // '' = Tất cả tháng, hoặc 'YYYY-MM'
   const [historyStatus, setHistoryStatus] = useState<string>('all'); // 'all' | 'verified' | 'rejected' | 'hr_checked'
   const [historyPage, setHistoryPage] = useState<number>(1);
-  const [historyPageSize, setHistoryPageSize] = useState<number>(10);
+  const [historyPageSize, setHistoryPageSize] = useState<number>(5);
 
   // Common data state
   const [lookups, setLookups] = useState<ProcedureLookups | null>(null);
@@ -667,73 +667,20 @@ export default function ProcedureListPage() {
   // ============================================================================
   if (isReviewerRole) {
     return (
-      <div className="space-y-6">
-        {/* Header trang kiểm duyệt */}
-        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-sky-900 text-white rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-sky-200 text-xs font-semibold mb-2">
-              {isHrStaff
-                ? 'Phân hệ Nhân sự (HR Staff) • Kiểm tra quy chế & kíp thủ thuật'
-                : 'Phân hệ Kế toán (Accountant) • Đối soát viện phí & Xác minh hoa hồng'}
-            </div>
-            <h1 className="text-xl md:text-2xl font-bold text-white m-0">
-              {isHrStaff
-                ? 'Kiểm duyệt Phiếu Thủ Thuật Y Tế'
-                : 'Xác minh Phiếu Thủ Thuật & Hoa Hồng'}
-            </h1>
-            <p className="text-xs md:text-sm text-slate-300 mt-1">
-              {isHrStaff
-                ? 'Xem và đánh giá các phiếu thủ thuật đang chờ kiểm tra. Phiếu sau khi Duyệt hoặc Từ chối sẽ tự động chuyển xuống Bảng lịch sử duyệt.'
-                : 'Xem và xác minh các phiếu thủ thuật đã qua bước HR kiểm tra. Phiếu sau khi Xác minh hoặc Từ chối sẽ tự động chuyển xuống Bảng lịch sử duyệt.'}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="bg-white/10 border border-white/15 rounded-xl px-4 py-2.5 text-center">
-              <span className="block text-[11px] uppercase tracking-wider text-slate-300">
-                Đang chờ xử lý
-              </span>
-              <strong className="text-2xl font-extrabold text-amber-300 font-[tabular-nums]">
-                {pendingQueueItems.length}
-              </strong>
-            </div>
-            <div className="bg-white/10 border border-white/15 rounded-xl px-4 py-2.5 text-center">
-              <span className="block text-[11px] uppercase tracking-wider text-slate-300">
-                Đã xử lý trong lịch sử
-              </span>
-              <strong className="text-2xl font-extrabold text-emerald-300 font-[tabular-nums]">
-                {filteredHistoryItems.length}
-              </strong>
-            </div>
-            {isAccountant && (
-              <button
-                type="button"
-                onClick={() => {
-                  setCalcResult(null);
-                  setCalcError('');
-                  setCalcModalOpen(true);
-                }}
-                className="button bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500 font-semibold py-2.5 px-4 shadow-xs"
-              >
-                Tính hoa hồng tháng
-              </button>
-            )}
-          </div>
-        </div>
-
+      <div className="space-y-4">
         {error && <Alert variant="error">{error}</Alert>}
         {notice && <Alert variant="success">{notice}</Alert>}
 
         {/* BẢNG 1: DANH SÁCH PHIẾU CHỜ XỬ LÝ (ẨN HOÀN TOÀN NẾU KHÔNG CÓ PHIẾU CHỜ) */}
         {pendingQueueItems.length > 0 && (
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
-            <div className="px-6 py-4 bg-amber-50/60 border-b border-amber-200/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500 text-white font-bold text-xs">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+            <div className="px-5 py-3 bg-amber-50/60 border-b border-amber-200/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-amber-500 text-white font-bold text-xs">
                   !
                 </span>
                 <div>
-                  <h2 className="text-base font-bold text-slate-900 m-0">
+                  <h2 className="text-sm font-bold text-slate-900 m-0">
                     {isHrStaff
                       ? 'Danh sách phiếu chờ HR kiểm tra'
                       : 'Danh sách phiếu chờ Kế toán xác minh'}
@@ -743,12 +690,12 @@ export default function ProcedureListPage() {
                   </p>
                 </div>
               </div>
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
                 {pendingQueueItems.length} phiếu đang chờ
               </span>
             </div>
 
-            <div className="p-6 procedure-table-wrap">
+            <div className="p-4 procedure-table-wrap procedure-slip-scroll-box">
               <DataTable<ProcedureSlipListItem>
                 columns={pendingQueueColumns}
                 rows={pendingQueueItems}
@@ -760,28 +707,49 @@ export default function ProcedureListPage() {
         )}
 
         {/* BẢNG 2: LỊCH SỬ DUYỆT & TRA CỨU TÌNH HÌNH PHIẾU */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
-          <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-sky-700 text-white font-bold text-xs">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+          <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-sky-700 text-white font-bold text-xs">
                 ✓
               </span>
               <div>
-                <h2 className="text-base font-bold text-slate-900 m-0">
+                <h2 className="text-sm font-bold text-slate-900 m-0">
                   Bảng lịch sử duyệt & Kiểm tra tình hình phiếu
                 </h2>
-                <p className="text-xs text-slate-600 m-0">
+                <p className="text-xs text-slate-500 m-0">
                   Tra cứu các phiếu đã xử lý theo Bác sĩ chỉ định, Người thực hiện chính, Tháng thực hiện, hoặc trạng thái Đã xác minh / Từ chối.
                 </p>
               </div>
             </div>
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-200 text-slate-800">
-              {filteredHistoryItems.length} phiếu trong lịch sử
-            </span>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {pendingQueueItems.length > 0 && (
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                  {pendingQueueItems.length} chờ xử lý
+                </span>
+              )}
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-200/80 text-slate-700">
+                {filteredHistoryItems.length} phiếu trong lịch sử
+              </span>
+              {isAccountant && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCalcResult(null);
+                    setCalcError('');
+                    setCalcModalOpen(true);
+                  }}
+                  className="button primary text-xs py-1.5 px-3 min-h-[34px]"
+                >
+                  Tính hoa hồng tháng
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Bộ lọc tìm kiếm cho Bảng Lịch sử duyệt */}
-          <div className="px-6 py-4 bg-slate-50/50 border-b border-slate-200">
+          <div className="px-5 py-3 bg-slate-50/50 border-b border-slate-200">
             <datalist id="procedure-staff-options">
               {lookups?.staff.map((st) => (
                 <option key={st.staffId} value={`${st.staffCode} - ${st.fullName}`}>
@@ -790,10 +758,10 @@ export default function ProcedureListPage() {
               ))}
             </datalist>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
               {/* 1. Bác sĩ chỉ định */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                   Bác sĩ chỉ định (Chọn hoặc điền)
                 </label>
                 <div className="relative">
@@ -806,7 +774,7 @@ export default function ProcedureListPage() {
                       setHistoryPage(1);
                     }}
                     placeholder="Chọn hoặc nhập tên / mã BS chỉ định..."
-                    className="w-full rounded-lg border border-slate-300 pl-3 pr-8 py-2 text-sm bg-white"
+                    className="w-full h-9 min-h-[36px] rounded-lg border border-slate-300 pl-3 pr-8 py-1.5 text-xs bg-white"
                   />
                   {historyIndicatingQuery && (
                     <button
@@ -826,7 +794,7 @@ export default function ProcedureListPage() {
 
               {/* 2. Người thực hiện chính */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                   Người thực hiện chính (Chọn hoặc điền)
                 </label>
                 <div className="relative">
@@ -839,7 +807,7 @@ export default function ProcedureListPage() {
                       setHistoryPage(1);
                     }}
                     placeholder="Chọn hoặc nhập tên / mã người thực hiện..."
-                    className="w-full rounded-lg border border-slate-300 pl-3 pr-8 py-2 text-sm bg-white"
+                    className="w-full h-9 min-h-[36px] rounded-lg border border-slate-300 pl-3 pr-8 py-1.5 text-xs bg-white"
                   />
                   {historyPerformingQuery && (
                     <button
@@ -859,7 +827,7 @@ export default function ProcedureListPage() {
 
               {/* 3. Tìm theo tháng */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                   Tìm theo tháng thực hiện
                 </label>
                 <input
@@ -869,14 +837,14 @@ export default function ProcedureListPage() {
                     setHistoryMonth(e.target.value);
                     setHistoryPage(1);
                   }}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                  className="w-full h-9 min-h-[36px] rounded-lg border border-slate-300 px-3 py-1.5 text-xs bg-white"
                 />
               </div>
 
               {/* 4. Tìm theo trạng thái Đã xác minh / Từ chối */}
               <div className="flex items-end gap-2">
                 <div className="flex-1">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                     Trạng thái kết quả
                   </label>
                   <select
@@ -885,7 +853,7 @@ export default function ProcedureListPage() {
                       setHistoryStatus(e.target.value);
                       setHistoryPage(1);
                     }}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                    className="w-full h-9 min-h-[36px] rounded-lg border border-slate-300 px-3 py-1.5 text-xs bg-white"
                   >
                     <option value="all">Tất cả phiếu đã xử lý</option>
                     {isHrStaff && (
@@ -909,7 +877,7 @@ export default function ProcedureListPage() {
                       setHistoryStatus('all');
                       setHistoryPage(1);
                     }}
-                    className="button text-xs py-2 px-3 text-slate-600 hover:text-slate-900 shrink-0"
+                    className="button text-xs py-1.5 px-3 min-h-[36px] text-slate-600 hover:text-slate-900 shrink-0"
                   >
                     Đặt lại
                   </button>
@@ -918,9 +886,9 @@ export default function ProcedureListPage() {
             </div>
           </div>
 
-          <div className="p-6 procedure-table-wrap">
+          <div className="px-5 py-3 procedure-table-wrap procedure-slip-scroll-box">
             {loading ? (
-              <div className="p-8 text-center text-slate-500 text-sm">
+              <div className="p-6 text-center text-slate-500 text-sm">
                 Đang tải lịch sử duyệt phiếu...
               </div>
             ) : (
@@ -933,7 +901,7 @@ export default function ProcedureListPage() {
                 />
 
                 {filteredHistoryItems.length > 0 && (
-                  <div className="mt-4">
+                  <div className="mt-2">
                     <Pagination
                       page={historyPage}
                       pageSize={historyPageSize}
@@ -1306,7 +1274,7 @@ export default function ProcedureListPage() {
       </div>
 
       {/* Bảng danh sách phiếu cá nhân / theo khoa */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs procedure-table-wrap">
+      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs procedure-table-wrap procedure-slip-scroll-box">
         {loading ? (
           <div className="p-8 text-center text-slate-500 text-sm">
             Đang tải dữ liệu phiếu thủ thuật...

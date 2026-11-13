@@ -86,6 +86,42 @@
 .vnc.directory-dialog input, .vnc.directory-dialog select { height:42px; min-height:42px; font-size:13px; border-radius:7px; }
 .vnc.directory-dialog .form-actions { background:#f9fbfc; border-top:1px solid #e6edf0; }
 
+/* Compact Procedure Services Directory (5 rows fit on 1 screen without scroll) */
+.vnc .directory-procedure-services { gap: 12px; }
+.vnc .directory-procedure-services .directory-heading .eyebrow { margin-bottom: 4px; }
+.vnc .directory-procedure-services .directory-heading h1 { font-size: 23px; line-height: 1.25; }
+.vnc .directory-procedure-services .directory-heading p { font-size: 12px; margin-top: 3px; }
+.vnc .directory-procedure-services .directory-heading .button { min-height: 36px; padding: 7px 14px; font-size: 12px; }
+.vnc .directory-procedure-services .directory-panel-heading { padding: 12px 18px 10px; }
+.vnc .directory-procedure-services .directory-panel-heading h2 { font-size: 14px; }
+.vnc .directory-procedure-services .directory-panel-heading p { margin-top: 2px; font-size: 11px; }
+.vnc .directory-procedure-services .directory-filters { grid-template-columns: minmax(220px, 1.5fr) minmax(160px, 1fr) minmax(150px, 0.8fr); gap: 12px; padding: 0 18px 12px; }
+.vnc .directory-procedure-services .directory-filters label { gap: 4px; font-size: 11px; }
+.vnc .directory-procedure-services .directory-filters input,
+.vnc .directory-procedure-services .directory-filters select { min-height: 35px; height: 35px; padding: 6px 10px; font-size: 12px; }
+.vnc .directory-procedure-services .directory-search input { padding: 6px 0; }
+.vnc .directory-procedure-services .directory-filter-summary { padding: 0 18px 10px; }
+.vnc .directory-procedure-services .directory-table .table-scroll {
+  max-height: clamp(275px, calc(100dvh - 380px), 520px);
+  overflow-y: auto;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.vnc .directory-procedure-services .directory-table .table-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.vnc .directory-procedure-services .directory-table .table-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+.vnc .directory-procedure-services .directory-table .table-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+.vnc .directory-procedure-services .directory-table th { position: sticky; top: 0; z-index: 2; padding: 8px 16px; font-size: 11px; background: #f7f9fb; box-shadow: inset 0 -1px 0 #e7edf0; }
+.vnc .directory-procedure-services .directory-table td { padding: 7px 16px; height: 46px; font-size: 12px; }
+.vnc .directory-procedure-services .directory-avatar { width: 32px; height: 32px; border-radius: 8px; }
+.vnc .directory-procedure-services .directory-person { gap: 10px; }
+.vnc .directory-procedure-services .directory-person strong { font-size: 12.5px; line-height: 1.25; }
+.vnc .directory-procedure-services .directory-person small { font-size: 10.5px; margin-top: 1px; }
+.vnc .directory-procedure-services .directory-col-actions { width: 230px; }
+.vnc .directory-procedure-services .directory-action { min-height: 28px; padding: 4px 8px; font-size: 11px; }
+.vnc .directory-procedure-services .directory-pagination { padding: 10px 18px; }
+
 @media (max-width:1000px) {
   .vnc .directory-pagination { gap:12px; }
   .vnc .directory-page-info { gap:10px; }

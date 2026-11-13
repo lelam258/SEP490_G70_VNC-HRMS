@@ -89,7 +89,7 @@ export default function ProcedureServiceListPage() {
     });
   }, [services, search, categoryFilter, statusFilter]);
 
-  const pagination = usePagination(filtered);
+  const pagination = usePagination(filtered, 5);
   const hasFilters = !!(search || categoryFilter || statusFilter);
 
   function resetFilters() {
@@ -159,7 +159,7 @@ export default function ProcedureServiceListPage() {
 
   return (
     <section
-      className="directory-page directory-departments"
+      className="directory-page directory-procedure-services"
       aria-labelledby="procedure-services-page-title"
     >
       <header className="directory-heading">
@@ -379,12 +379,11 @@ export default function ProcedureServiceListPage() {
                   key: 'usage',
                   label: 'Sử dụng & Quy tắc',
                   render: (item) => (
-                    <div className="text-xs space-y-0.5">
+                    <div className="text-xs leading-tight space-y-0.5">
                       <div>
                         <span className="font-semibold text-slate-800">{item.slipCount}</span>{' '}
-                        <span className="text-slate-500">phiếu phát sinh</span>
-                      </div>
-                      <div>
+                        <span className="text-slate-500">phiếu</span>
+                        <span className="mx-1.5 text-slate-300">·</span>
                         <span
                           className={
                             item.activeRuleCount > 0
@@ -392,7 +391,7 @@ export default function ProcedureServiceListPage() {
                               : 'text-slate-400'
                           }
                         >
-                          {item.activeRuleCount} quy tắc riêng đang áp dụng
+                          {item.activeRuleCount} quy tắc riêng
                         </span>
                       </div>
                     </div>

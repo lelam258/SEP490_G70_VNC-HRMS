@@ -285,6 +285,22 @@ export default function PayrollParameterPage() {
     }
   }
 
+  async function handleResetCommissionToDefault(ruleId: string) {
+    setSaving(true);
+    setSaveError('');
+    try {
+      const res = await payrollParameterApi.deactivateCommissionRule(ruleId);
+      setModalType(null);
+      setNotice('Đã hủy mức hoa hồng của vai trò này về mặc định (+ Thêm).');
+      setAffectedWarning(res.affectedOpenPeriods && res.affectedOpenPeriods.length > 0 ? res.affectedOpenPeriods : null);
+      await loadData();
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : 'Không thể hủy mức hoa hồng này.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleSaveOverride(input: any) {
     setSaving(true);
     setSaveError('');
@@ -785,14 +801,14 @@ export default function PayrollParameterPage() {
         <div className="p-3.5 sm:p-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap xl:flex-nowrap items-center justify-between gap-3">
           {/* Trái: Nếu là tab Hoa hồng hoặc Đơn giá thì hiện cụm nút chuyển nhanh; các tab khác hiện Tiêu đề + Badge */}
           {activeTab === 'commission' ? (
-            <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 shrink-0">
+            <div className="inline-flex p-1 rounded-lg bg-slate-100/90 border border-slate-200/80 shrink-0">
               <button
                 type="button"
                 onClick={() => setCommSubTab('matrix')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                   commSubTab === 'matrix'
-                    ? 'bg-white dark:bg-slate-700 text-sky-700 dark:text-sky-300 shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    ? 'bg-white text-slate-900 font-semibold shadow-2xs border border-slate-200/60'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Phân bổ vai trò
@@ -800,10 +816,10 @@ export default function PayrollParameterPage() {
               <button
                 type="button"
                 onClick={() => setCommSubTab('list')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                   commSubTab === 'list'
-                    ? 'bg-white dark:bg-slate-700 text-sky-700 dark:text-sky-300 shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    ? 'bg-white text-slate-900 font-semibold shadow-2xs border border-slate-200/60'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Danh sách quy tắc ({filteredCommissionRules.length})
@@ -811,10 +827,10 @@ export default function PayrollParameterPage() {
               <button
                 type="button"
                 onClick={() => setCommSubTab('overrides')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                   commSubTab === 'overrides'
-                    ? 'bg-white dark:bg-slate-700 text-sky-700 dark:text-sky-300 shadow-xs'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                    ? 'bg-white text-slate-900 font-semibold shadow-2xs border border-slate-200/60'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Mức riêng nhân viên ({filteredOverrides.length})
@@ -1407,6 +1423,15 @@ export default function PayrollParameterPage() {
                         setModalType('commission');
                       }
                     }}
+                    onRemoveCell={(cell, serviceName, roleLabel) => {
+                      setDeactivatingItem({
+                        type: 'commission',
+                        id: cell.ruleId,
+                        name: `${serviceName} (${roleLabel})`,
+                        effectiveFrom: cell.effectiveFrom,
+                      });
+                      setDeactivateError('');
+                    }}
                     onAddRuleForService={(serviceId, category, roleKey) => {
                       setEditingItem({
                         serviceId,
@@ -1421,35 +1446,34 @@ export default function PayrollParameterPage() {
 
                 {commSubTab === 'list' && (
                   filteredCommissionRules.length === 0 ? (
-                    <div className="py-12 text-center">
-                      <div className="text-3xl text-slate-400 mb-2">📋</div>
-                      <p className="text-slate-600 dark:text-slate-400 font-medium mb-3">{cardConfig.emptyText}</p>
-                      <button className="h-10 px-4 rounded bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium" onClick={cardConfig.onAdd}>
+                    <div className="py-12 text-center border border-slate-200 rounded-lg bg-slate-50/50">
+                      <p className="text-slate-500 text-sm mb-3">{cardConfig.emptyText}</p>
+                      <button className="h-9 px-4 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-xs font-medium transition-colors" onClick={cardConfig.onAdd}>
                         + {cardConfig.addLabel}
                       </button>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-sm">
-                        <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+                    <div className="overflow-x-auto border border-slate-200 rounded-lg bg-white">
+                      <table className="w-full text-left text-sm border-collapse">
+                        <thead className="bg-slate-50/90 text-slate-500 text-[11px] font-semibold uppercase tracking-wider border-b border-slate-200">
                           <tr>
-                            <th className="px-4 py-3">Dịch vụ / Nhóm dịch vụ</th>
-                            <th className="px-4 py-3">Vai trò</th>
-                            <th className="px-4 py-3">Chức danh & Điều kiện</th>
-                            <th className="px-4 py-3 text-right">Mức hoa hồng</th>
-                            <th className="px-4 py-3">Hiệu lực</th>
-                            <th className="px-4 py-3">Trạng thái</th>
-                            <th className="px-4 py-3 text-right">Thao tác</th>
+                            <th className="px-4 py-2.5 text-slate-600">Dịch vụ / Nhóm dịch vụ</th>
+                            <th className="px-4 py-2.5 text-slate-600">Vai trò</th>
+                            <th className="px-4 py-2.5 text-slate-600">Chức danh & Điều kiện</th>
+                            <th className="px-4 py-2.5 text-right text-slate-600">Mức hoa hồng</th>
+                            <th className="px-4 py-2.5 text-slate-600">Hiệu lực</th>
+                            <th className="px-4 py-2.5 text-slate-600">Trạng thái</th>
+                            <th className="px-4 py-2.5 text-right text-slate-600">Thao tác</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        <tbody className="divide-y divide-slate-200/70 bg-white">
                           {filteredCommissionRules.map(c => {
                             const roleMap: Record<string, string> = {
                               indicating: 'BS Chỉ định',
                               performing: 'BS Thực hiện',
                               assisting: 'Phụ tá / KTV',
-                              lab: 'Phòng Lab',
-                              typist: 'Đánh máy',
+                              lab: 'KTV Lab / Xét nghiệm',
+                              typist: 'Nhập kết quả',
                             };
 
                             let valStr = '';
@@ -1458,39 +1482,39 @@ export default function PayrollParameterPage() {
                             else valStr = formatPercent(c.commissionValue);
 
                             return (
-                              <tr key={c.id} className="h-14 hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
-                                <td className="px-4 py-3">
-                                  <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                              <tr key={c.id} className="h-13 hover:bg-slate-50/60 transition-colors">
+                                <td className="px-4 py-2.5">
+                                  <span className="text-[13px] font-medium text-slate-800">
                                     {c.serviceName || `[Nhóm] ${c.serviceCategory}`}
                                   </span>
                                 </td>
-                                <td className="px-4 py-3 text-slate-700 dark:text-slate-300 font-medium">
+                                <td className="px-4 py-2.5 text-slate-700 text-[13px]">
                                   {roleMap[c.role] || c.role}
                                 </td>
-                                <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs">
+                                <td className="px-4 py-2.5 text-slate-600 text-xs">
                                   {c.positionName ? c.positionName : 'Mọi chức danh'}
                                   {c.timeCondition !== 'all' && (
-                                    <span className="ml-1 text-[11px] bg-amber-50 text-amber-700 border border-amber-200 px-1 py-0.2 rounded font-medium">
+                                    <span className="ml-1.5 text-[11px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-medium">
                                       {c.timeCondition === 'after_hours' ? 'Ngoài giờ' : 'Hành chính'}
                                     </span>
                                   )}
                                 </td>
-                                <td className="px-4 py-3 text-right font-[tabular-nums] text-slate-900 dark:text-slate-100">
+                                <td className="px-4 py-2.5 text-right font-[tabular-nums] text-[13px] font-semibold text-slate-800">
                                   {valStr}
                                 </td>
-                                <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs font-[tabular-nums]">
+                                <td className="px-4 py-2.5 text-slate-500 text-xs font-[tabular-nums]">
                                   {formatDateRange(c.effectiveFrom, c.effectiveTo)}
                                 </td>
-                                <td className="px-4 py-3">
+                                <td className="px-4 py-2.5">
                                   <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                                     c.status === 'active'
-                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-                                      : 'bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                      : 'bg-slate-100 text-slate-600 border border-slate-200'
                                   }`}>
                                     {c.status === 'active' ? 'Đang áp dụng' : 'Ngừng'}
                                   </span>
                                 </td>
-                                <td className="px-4 py-3 text-right">
+                                <td className="px-4 py-2.5 text-right">
                                   <div className="inline-flex items-center justify-end gap-3">
                                     <button
                                       type="button"
@@ -1533,11 +1557,10 @@ export default function PayrollParameterPage() {
 
                 {commSubTab === 'overrides' && (
                   filteredOverrides.length === 0 ? (
-                    <div className="py-12 text-center">
-                      <div className="text-3xl text-slate-400 mb-2">📋</div>
-                      <p className="text-slate-600 dark:text-slate-400 font-medium mb-3">Chưa có đơn giá hoa hồng riêng nào cho nhân viên.</p>
+                    <div className="py-12 text-center border border-slate-200 rounded-lg bg-slate-50/50">
+                      <p className="text-slate-500 text-sm mb-3">Chưa có đơn giá hoa hồng riêng nào cho nhân viên.</p>
                       <button
-                        className="h-10 px-4 rounded bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium"
+                        className="h-9 px-4 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-xs font-medium transition-colors"
                         onClick={() => {
                           setEditingItem(null);
                           setSaveError('');
@@ -1548,52 +1571,52 @@ export default function PayrollParameterPage() {
                       </button>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-sm">
-                        <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
+                    <div className="overflow-x-auto border border-slate-200 rounded-lg bg-white">
+                      <table className="w-full text-left text-sm border-collapse">
+                        <thead className="bg-slate-50/90 text-slate-500 text-[11px] font-semibold uppercase tracking-wider border-b border-slate-200">
                           <tr>
-                            <th className="px-4 py-3">Nhân viên</th>
-                            <th className="px-4 py-3">Dịch vụ / Nhóm</th>
-                            <th className="px-4 py-3">Vai trò</th>
-                            <th className="px-4 py-3 text-right">Mức hoa hồng riêng</th>
-                            <th className="px-4 py-3">Hiệu lực</th>
-                            <th className="px-4 py-3">Trạng thái</th>
-                            <th className="px-4 py-3 text-right">Thao tác</th>
+                            <th className="px-4 py-2.5 text-slate-600">Nhân viên</th>
+                            <th className="px-4 py-2.5 text-slate-600">Dịch vụ / Nhóm</th>
+                            <th className="px-4 py-2.5 text-slate-600">Vai trò</th>
+                            <th className="px-4 py-2.5 text-right text-slate-600">Mức hoa hồng riêng</th>
+                            <th className="px-4 py-2.5 text-slate-600">Hiệu lực</th>
+                            <th className="px-4 py-2.5 text-slate-600">Trạng thái</th>
+                            <th className="px-4 py-2.5 text-right text-slate-600">Thao tác</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        <tbody className="divide-y divide-slate-200/70 bg-white">
                           {filteredOverrides.map(o => (
-                            <tr key={o.id} className="h-14 hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
-                              <td className="px-4 py-3">
-                                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                            <tr key={o.id} className="h-13 hover:bg-slate-50/60 transition-colors">
+                              <td className="px-4 py-2.5">
+                                <span className="text-[13px] font-medium text-slate-800">
                                   {o.staffName}
                                 </span>
-                                <div className="text-xs text-slate-500">{o.staffCode}</div>
+                                <div className="text-xs text-slate-400 font-mono">{o.staffCode}</div>
                               </td>
-                              <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
+                              <td className="px-4 py-2.5 text-slate-700 text-[13px]">
                                 {o.serviceName || `[Nhóm] ${o.serviceCategory}`}
                               </td>
-                              <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
+                              <td className="px-4 py-2.5 text-slate-700 text-[13px]">
                                 {o.role}
                               </td>
-                              <td className="px-4 py-3 text-right font-[tabular-nums] text-slate-900 dark:text-slate-100">
+                              <td className="px-4 py-2.5 text-right font-[tabular-nums] text-[13px] font-semibold text-slate-800">
                                 {o.valueType === 'fixed' || o.valueType === 'per_hour'
                                   ? formatVnd(o.commissionValue)
                                   : `${o.commissionValue}%`}
                               </td>
-                              <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs font-[tabular-nums]">
+                              <td className="px-4 py-2.5 text-slate-500 text-xs font-[tabular-nums]">
                                 {formatDateRange(o.effectiveFrom, o.effectiveTo)}
                               </td>
-                              <td className="px-4 py-3">
+                              <td className="px-4 py-2.5">
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                                   o.status === 'active'
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-                                    : 'bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : 'bg-slate-100 text-slate-600 border border-slate-200'
                                 }`}>
                                   {o.status === 'active' ? 'Đang áp dụng' : 'Ngừng'}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-right">
+                              <td className="px-4 py-2.5 text-right">
                                 <div className="inline-flex items-center justify-end gap-3">
                                   <button
                                     type="button"
@@ -1778,6 +1801,7 @@ export default function PayrollParameterPage() {
             services={services}
             positions={positions}
             onSave={handleSaveCommission}
+            onResetToDefault={handleResetCommissionToDefault}
             onClose={() => setModalType(null)}
             busy={saving}
             error={saveError}

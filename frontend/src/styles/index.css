@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 @import "./components.css";
 @import "./auth.css";
 @import "./certificates.css";
@@ -114,6 +115,30 @@ a { text-decoration: none; }
 }
 .vnc .procedure-table-wrap .table-scroll {
   overflow-x: hidden !important;
+}
+.vnc .procedure-slip-scroll-box .table-scroll {
+  max-height: clamp(240px, calc(100dvh - 320px), 520px);
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.vnc .procedure-slip-scroll-box .table-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.vnc .procedure-slip-scroll-box .table-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+.vnc .procedure-slip-scroll-box .table-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+.vnc .procedure-slip-scroll-box th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 9px 12px !important;
+  background: #f7f9fb;
+  box-shadow: inset 0 -1px 0 #e7edf0;
+}
+.vnc .procedure-slip-scroll-box td {
+  padding: 9px 12px !important;
+}
+.vnc .procedure-slip-scroll-box .directory-pagination {
+  padding: 10px 4px 2px;
 }
 .vnc .procedure-table-wrap table {
   table-layout: fixed;
