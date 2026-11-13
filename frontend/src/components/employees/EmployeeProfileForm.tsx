@@ -427,7 +427,7 @@ export default function EmployeeProfileForm({
           <p>Hồ sơ nhân viên là dữ liệu gốc của toàn bộ hệ thống quản lý nhân sự VNC Clinic.</p>
           <ul>
             <li>
-              <strong>Mã nhân viên</strong> là duy nhất trong toàn hệ thống, dùng để cấp tài khoản và đồng bộ máy chấm công.
+              <strong>Mã nhân viên</strong> là duy nhất trong toàn hệ thống. Mã đăng ký trên máy chấm công được HR Staff xác nhận riêng tại mục Liên kết mã máy chấm công.
             </li>
             <li>
               <strong>Khoa/phòng</strong> xác định luồng duyệt chấm công, phân ca trực và cấu trúc sơ đồ tổ chức.

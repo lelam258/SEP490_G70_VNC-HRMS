@@ -267,15 +267,21 @@ Các ca dưới đây bổ sung cho bộ 80 testcase gốc; không tính gộp v
 | --- | --- | --- |
 | SCH-01 | HR Staff mở màn lịch trong tuần hiện tại | Mặc định chọn thứ Hai tuần kế tiếp |
 | SCH-02 | Lập lịch tuần 09–15/11/2026 vào 02/11/2026 lúc 00:00 | Cho tạo/sửa/hủy phân công nháp; trước thời điểm này bị từ chối |
-| SCH-03 | Chốt lần đầu tuần 09–15/11/2026 trước 09/11/2026 07:00, dữ liệu hợp lệ | Thành công; công bố tất cả khoa/phòng |
-| SCH-04 | Chốt lần đầu từ đúng 09/11/2026 07:00; thử thêm/sửa/hủy phân công của bản nháp quá hạn | HTTP 400, không công bố hoặc thay đổi dữ liệu |
-| SCH-05 | Chốt tuần mùa đông 07–13/12/2026 vào 07/12/2026 07:09:59, sau đó thử đúng 07:10 | Trước 07:10 cho phép; từ 07:10 bị từ chối |
+| SCH-03 | Chốt lần đầu tuần 09–15/11/2026 trước 09/11/2026 00:00, dữ liệu hợp lệ | Thành công; công bố tất cả khoa/phòng |
+| SCH-04 | Chốt lần đầu từ đúng 09/11/2026 00:00; thử thêm/sửa/hủy phân công của bản nháp quá hạn | HTTP 400, không công bố hoặc thay đổi dữ liệu |
+| SCH-05 | Chốt tuần mùa đông 07–13/12/2026 vào 06/12/2026 23:59:59, sau đó thử đúng 07/12/2026 00:00 | Trước 00:00 cho phép; từ 00:00 bị từ chối |
 | SCH-06 | Gửi cùng thời điểm bằng UTC và UTC+7 | Cùng kết quả, không lệch hạn theo múi giờ máy chạy |
 | SCH-07 | Bản nháp quá hạn chưa chốt gọi mở lại nhằm vượt hạn | Bị từ chối; không có audit cho phép điều chỉnh |
-| SCH-08 | Lịch đã chốt mở lại sau giờ bắt đầu tuần, nhập lý do | Mở lại toàn bộ tuần, lưu lý do/người/thời điểm; nhân viên tạm không thấy lịch nháp |
-| SCH-09 | Sửa và chốt lại lịch có audit mở lại sau giờ bắt đầu tuần | Cho phép trong thời hạn điều chỉnh; ca đã xác nhận trực/kết thúc trực vẫn không được sửa/hủy |
+| SCH-08 | Lịch đã chốt mở lại sau giờ bắt đầu tuần, nhập lý do | Mở lại toàn bộ tuần, lưu lý do/người/thời điểm; nhân viên tiếp tục thấy bản đã công bố, không thấy các thay đổi nháp |
+| SCH-09 | Sửa và chốt lại lịch có audit mở lại trong tuần | Chỉ các ca cũ và mới cách thời điểm lưu/chốt ít nhất 24 giờ được thay đổi; ca đã xác nhận trực/kết thúc trực vẫn không được sửa/hủy |
 | SCH-10 | Mở lại/sửa/chốt lại từ 00:00 thứ Hai sau tuần làm việc | Bị từ chối vì tuần đã hết hạn |
-| SCH-11 | Giữ hộp xác nhận chốt mở qua giờ bắt đầu ca sáng thứ Hai | Nút xác nhận và nút phân công tự khóa; menu sửa/hủy biến mất; API cũng chặn gửi trực tiếp |
+| SCH-11 | Giữ hộp xác nhận chốt mở qua 00:00 thứ Hai | Nút xác nhận và nút phân công tự khóa; menu sửa/hủy biến mất; API cũng chặn gửi trực tiếp |
 | SCH-12 | Hai request tải tuần trả về không theo thứ tự, hoặc lưu xong tải lại lỗi | Không hiển thị quyền thao tác của tuần cũ; báo rõ đã lưu nếu mutation thành công |
+| SCH-13 | Tạo/sửa/hủy ca đúng 24 giờ trước khi bắt đầu; thử thiếu 1 tick và giờ mùa đông | Đúng 24 giờ cho phép; thiếu thời gian bị từ chối, thống nhất UTC/UTC+7 |
+| SCH-14 | Chỉ ca mới đủ 24 giờ nhưng ca cũ đã sát giờ, hoặc ngược lại | Từ chối sửa trong cả hai trường hợp |
+| SCH-15 | Phân công nhiều ca/full-day, hoặc xử lý request vượt mốc 24 giờ | Không lưu dở; toàn bộ transaction rollback |
+| SCH-16 | Nhân viên xem/lọc lịch khi HR mở lại và sửa ngày/cơ sở/hủy ca | Giữ bản công bố trước đó và quyền chỉ xem lịch cá nhân đến khi chốt lại |
+| SCH-17 | Chọn nhân viên có phân công/nghỉ phép, thử cơ sở inactive và lỗi tải availability | Hiển thị trước khi lưu, chặn xung đột, không chọn cơ sở inactive; có nút thử lại khi lỗi |
+| SCH-18 | Hủy ca hoạt động cuối cùng trong bản điều chỉnh và chốt lại | Cho công bố toàn bộ trạng thái hủy, không giữ ca cũ hoạt động |
 
-Các kiểm tra tự động tương ứng: `tests/ScheduleRules`, `tests/ScheduleIntegration`, phần schedule trong `frontend/scripts/verify-business-rules.mjs`, và `tests/verify-schedules-ui.mjs` (Chrome headless với API fixture).
+Các kiểm tra tự động tương ứng: `tests/ScheduleRules`, `tests/ScheduleIntegration`, phần schedule trong `frontend/scripts/verify-business-rules.mjs`, và `tests/verify-schedules-ui.mjs` (Chrome headless với API fixture; Node 20 chạy bằng `node --experimental-websocket tests/verify-schedules-ui.mjs`, cần Vite tại cổng 5173).

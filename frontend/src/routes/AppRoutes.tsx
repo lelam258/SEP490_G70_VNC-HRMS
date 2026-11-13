@@ -38,6 +38,17 @@ import MyLeaveRequestsPage from '../pages/me/MyLeaveRequestsPage';
 import LeaveRequestFormPage from '../pages/me/LeaveRequestFormPage';
 import ProtectedRoute from './ProtectedRoute';
 import SchedulesPage from '../pages/SchedulesPage';
+import RoleManagementPage from '../pages/accounts/RoleManagementPage';
+import AuditLogPage from '../pages/accounts/AuditLogPage';
+import AttendanceRecordListPage from '../pages/attendance/AttendanceRecordListPage';
+import AttendanceRecordDetailPage from '../pages/attendance/AttendanceRecordDetailPage';
+import AttendanceImportListPage from '../pages/attendance/AttendanceImportListPage';
+import AttendanceImportUploadPage from '../pages/attendance/AttendanceImportUploadPage';
+import AttendanceImportPreviewPage from '../pages/attendance/AttendanceImportPreviewPage';
+import AttendanceDeviceMappingsPage from '../pages/attendance/AttendanceDeviceMappingsPage';
+import OnCallListPage from '../pages/attendance/OnCallListPage';
+import OnCallDetailPage from '../pages/attendance/OnCallDetailPage';
+import OnCallFormPage from '../pages/attendance/OnCallFormPage';
 
 export default function AppRoutes() {
   return (
@@ -51,10 +62,33 @@ export default function AppRoutes() {
           <Route path="/change-password" element={<ChangePasswordPage />} />
           <Route path="/schedules" element={<SchedulesPage />} />
           <Route element={<ProtectedRoute roles={['admin']} />}>
+            <Route path="/roles" element={<RoleManagementPage />} />
+            <Route path="/audit-logs" element={<AuditLogPage />} />
             <Route path="/accounts" element={<AccountListPage />} />
             <Route path="/accounts/new" element={<AccountCreatePage />} />
             <Route path="/accounts/:id" element={<AccountDetailPage />} />
             <Route path="/accounts/:id/edit" element={<AccountEditPage />} />
+          </Route>
+          <Route element={<ProtectedRoute roles={['admin', 'hr_manager', 'hr_staff', 'department_head', 'employee']} />}>
+            <Route path="/attendance" element={<Navigate to="/attendance/records" replace />} />
+            <Route path="/attendance/records" element={<AttendanceRecordListPage />} />
+            <Route path="/attendance/records/:id" element={<AttendanceRecordDetailPage />} />
+            <Route path="/attendance/on-call" element={<OnCallListPage />} />
+            <Route path="/attendance/on-call/:id" element={<OnCallDetailPage />} />
+          </Route>
+          <Route element={<ProtectedRoute roles={['admin', 'hr_manager', 'hr_staff']} />}>
+            <Route path="/attendance/device-mappings" element={<AttendanceDeviceMappingsPage />} />
+            <Route path="/attendance/imports" element={<AttendanceImportListPage />} />
+            <Route path="/attendance/imports/:id/preview" element={<AttendanceImportPreviewPage />} />
+            <Route path="/attendance/imports/:id/errors" element={<AttendanceImportPreviewPage errors />} />
+          </Route>
+          <Route element={<ProtectedRoute roles={['hr_staff']} />}>
+            <Route path="/attendance/imports/new" element={<AttendanceImportUploadPage />} />
+            <Route path="/attendance/on-call/new" element={<OnCallFormPage />} />
+            <Route path="/attendance/on-call/:id/edit" element={<OnCallFormPage />} />
+          </Route>
+          <Route element={<ProtectedRoute roles={['admin', 'hr_manager', 'hr_staff', 'department_head', 'accountant']} />}>
+            <Route path="/attendance/history" element={<AuditLogPage history />} />
           </Route>
           <Route element={<ProtectedRoute roles={['hr_manager', 'department_head', 'admin']} />}>
             <Route path="/compliance" element={<ComplianceDashboardPage />} />

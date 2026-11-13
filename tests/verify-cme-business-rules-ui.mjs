@@ -69,7 +69,7 @@ try {
   await send('Page.enable'); await send('Runtime.enable');
   await send('Fetch.enable', { patterns: [{ urlPattern: '*://*/api/*', requestStage: 'Request' }] });
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `window.confirm=()=>true;
-    sessionStorage.setItem('vnc.hrms.auth.v2',JSON.stringify({state:{session:{accessToken:'fixture',expiresAt:'2099-01-01T00:00:00Z',user:${JSON.stringify(actor)}}},version:0}));
+    sessionStorage.setItem('vnc.hrms.auth.v3',JSON.stringify({state:{session:{accessToken:'fixture',expiresAt:'2099-01-01T00:00:00Z',user:${JSON.stringify(actor)}}},version:0}));
     localStorage.setItem('vnc_hrms_locked_cme_cycles',JSON.stringify(['cert-test:1']));` });
   await send('Page.navigate', { url: 'http://localhost:5173/cme-records?staffId=staff-test' });
   await waitFor(`!!(${lockButton})`);

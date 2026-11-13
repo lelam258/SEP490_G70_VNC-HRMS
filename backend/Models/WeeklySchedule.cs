@@ -4,6 +4,7 @@ public sealed class ScheduleFacility
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = "";
+    public string Status { get; set; } = "active";
 }
 // One coverage unit per clinical team or functional machine room at each facility.
 public sealed class ScheduleCoverage
@@ -19,6 +20,7 @@ public sealed class ScheduleWeek
     public Guid DepartmentId { get; set; }
     public DateOnly Monday { get; set; }
     public bool Published { get; set; }
+    public string? PublishedSnapshot { get; set; }
     public byte[] Version { get; set; } = [];
 }
 public sealed class ScheduleAssignment

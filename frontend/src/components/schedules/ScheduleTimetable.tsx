@@ -1,5 +1,6 @@
 import Icon from '../ui/Icon';
 import type { ScheduleRow } from '../../types/schedules';
+import { canChangeShift } from '../../utils/schedule';
 import '../../styles/schedule-timetable.css';
 
 const shiftRows = [
@@ -13,8 +14,8 @@ function dateKey(value: Date) { return `${value.getFullYear()}-${String(value.ge
 function moveDate(date: string, days: number) { const d = new Date(`${date}T12:00:00`); d.setDate(d.getDate() + days); return dateKey(d); }
 function formatDate(date: string, year = false) { return new Date(`${date}T12:00:00`).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', ...(year ? { year: 'numeric' } : {}) }); }
 
-export default function ScheduleTimetable({ date, rows, head, canEdit, busy, loading = false, onDateChange, onEdit, onCancel, onConfirmPatient, onEndDuty, onInspect, onCreateSlot }: {
-  date: string; rows: ScheduleRow[]; head: boolean; canEdit: boolean; busy: boolean; loading?: boolean;
+export default function ScheduleTimetable({ date, rows, head, canEdit, now, busy, loading = false, onDateChange, onEdit, onCancel, onConfirmPatient, onEndDuty, onInspect, onCreateSlot }: {
+  date: string; rows: ScheduleRow[]; head: boolean; canEdit: boolean; now: number; busy: boolean; loading?: boolean;
   onDateChange: (date: string) => void; onEdit: (row: ScheduleRow) => void;
   onCancel: (row: ScheduleRow) => void; onConfirmPatient: (row: ScheduleRow) => void;
   onEndDuty: (row: ScheduleRow) => void;
@@ -51,12 +52,12 @@ export default function ScheduleTimetable({ date, rows, head, canEdit, busy, loa
           {days.map(day => {
             const assignments = grouped.get(`${day.date}-${shift.key}`) || [];
             return <td key={day.date} className={day.date === today ? 'is-today' : ''} aria-label={`${day.name} ${formatDate(day.date)}, ${shift.name}`}>
-              {assignments.length === 0 ? head && onCreateSlot ? <button type="button" className="schedule-empty-slot-create" disabled={pending} onClick={() => onCreateSlot({ date: day.date, shift: shift.key })} aria-label={`Phân công ${shift.name}, ${day.name}, ngày ${formatDate(day.date, true)}`} title={`Phân công ${shift.name}, ${formatDate(day.date)}`}><Icon name="plus" size={16} /><span>Phân công</span></button> : <span className="schedule-empty-slot">—</span> : <div className="schedule-event-stack">{assignments.map(row => {
+              {assignments.length === 0 ? head && onCreateSlot && canChangeShift(day.date, shift.key, now) ? <button type="button" className="schedule-empty-slot-create" disabled={pending} onClick={() => onCreateSlot({ date: day.date, shift: shift.key })} aria-label={`Phân công ${shift.name}, ${day.name}, ngày ${formatDate(day.date, true)}`} title={`Phân công ${shift.name}, ${formatDate(day.date)}`}><Icon name="plus" size={16} /><span>Phân công</span></button> : <span className="schedule-empty-slot">—</span> : <div className="schedule-event-stack">{assignments.map(row => {
                 const assignment = row.assignment;
                 const status = assignment.cancelled ? 'cancelled' : row.published ? 'published' : 'draft';
                 const duty = ['noon', 'evening'].includes(assignment.shift);
-                const editable = canEdit && !row.published;
-                const recordable = row.published && duty && new Date(`${assignment.date}T${row.start}:00+07:00`).getTime() <= Date.now();
+                const editable = canEdit && !row.published && canChangeShift(assignment.date, assignment.shift, now);
+                const recordable = row.published && duty && new Date(`${assignment.date}T${row.start}:00+07:00`).getTime() <= now;
                 const hasActions = (editable && !assignment.patientConfirmed && !assignment.actualEndAt) || (recordable && (!assignment.patientConfirmed || !assignment.actualEndAt));
                 return <article key={assignment.id} className={`schedule-event ${status}`}>
                   <div className="schedule-event-top">

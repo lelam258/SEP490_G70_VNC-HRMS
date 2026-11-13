@@ -25,6 +25,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Times
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<Position> Positions => Set<Position>();
     public DbSet<AttendanceImport> AttendanceImports => Set<AttendanceImport>();
+    public DbSet<AttendanceImportRow> AttendanceImportRows => Set<AttendanceImportRow>();
     public DbSet<OnCallShift> OnCallShifts => Set<OnCallShift>();
     public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
     public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
@@ -58,6 +59,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Times
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<ScheduleFacility>().Property(x => x.Name).HasMaxLength(150);
+        modelBuilder.Entity<ScheduleFacility>().Property(x => x.Status).HasMaxLength(20).HasDefaultValue("active");
         modelBuilder.Entity<ScheduleCoverage>().Property(x => x.Name).HasMaxLength(150);
         modelBuilder.Entity<ScheduleCoverage>().HasOne<ScheduleFacility>().WithMany().HasForeignKey(x => x.FacilityId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<ScheduleCoverage>().HasOne<Department>().WithMany().HasForeignKey(x => x.DepartmentId).OnDelete(DeleteBehavior.Restrict);
@@ -86,5 +88,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Times
         ComplianceDomainModelConfiguration.Configure(modelBuilder);
         NotificationDomainModelConfiguration.Configure(modelBuilder);
         Version2RelationshipsConfiguration.Configure(modelBuilder);
+        AttendanceWorkflowConfiguration.Configure(modelBuilder);
     }
 }

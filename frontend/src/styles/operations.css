@@ -1,0 +1,47 @@
+.operations-page .operations-tabs { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 20px; }
+.operations-tabs a { padding:10px 14px; border:1px solid #dce7ec; border-radius:8px; color:#4d6b7a; background:white; font-size:13px; }
+.operations-tabs a.active { color:#087f76; border-color:#81c4bb; background:#edf8f5; font-weight:600; }
+.operations-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.operations-panel { background:white; border:1px solid #e1e8ee; border-radius:12px; padding:22px; margin:16px 0; min-width:0; }
+.operations-panel h2 { margin:0 0 14px; font-size:18px; }
+.operations-filters { display:flex; flex-wrap:wrap; gap:12px; margin:16px 0; align-items:end; }
+.operations-filters label { min-width:145px; flex:1; font-size:12px; color:#526d7e; }
+.operations-filters input,.operations-filters select { display:block; width:100%; margin-top:5px; }
+.operations-stats { display:flex; flex-wrap:wrap; gap:10px; margin:16px 0; }
+.operations-stats span { background:#f0f6f7; padding:10px 14px; border-radius:8px; font-size:12px; color:#456572; }
+.operations-stats strong { font-size:18px; margin-right:6px; }
+.operations-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.operations-grid label { display:flex; flex-direction:column; gap:6px; font-size:13px; color:#4e6a7b; }
+.operations-grid .wide { grid-column:1/-1; }
+.operations-form textarea { resize:vertical; min-height:88px; width:100%; padding:10px; border:1px solid #d5e1e7; border-radius:7px; }
+.operations-form fieldset { border:0; padding:0; margin:0; min-width:0; }
+.operations-form .form-actions { margin-top:20px; }
+.operations-pairs { display:grid; gap:10px; margin:16px 0; }
+.operations-pair { display:grid; grid-template-columns:80px 1fr 1fr; align-items:center; gap:12px; }
+.operations-pair input { width:100%; }
+.operations-detail { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin:0; }
+.operations-detail dt { color:#8093a0; font-size:12px; margin-bottom:6px; }
+.operations-detail dd { margin:0; font-size:14px; overflow-wrap:anywhere; }
+.operations-detail .wide { grid-column:1/-1; }
+.operations-json { max-height:350px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; background:#f4f7f9; padding:14px; border-radius:8px; font-size:12px; }
+.operations-checkbox { display:flex!important; flex-direction:row!important; align-items:start; gap:8px; margin:14px 0; }
+.operations-checkbox input { width:auto; margin-top:3px; }
+.operations-role-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin:20px 0; }
+.operations-role-card { text-align:left; background:white; border:1px solid #dce6ec; border-radius:10px; padding:18px; color:#416171; }
+.operations-role-card.active { border-color:#169687; box-shadow:0 0 0 2px #dff3ef; }
+.operations-role-card strong { display:block; font-size:15px; margin-bottom:8px; }
+.operations-role-card p { font-size:12px; line-height:1.7; min-height:42px; margin:5px 0 10px; }
+.operations-note { color:#768d9b; font-size:12px; line-height:1.7; }
+.oncall-shortcut { margin:18px 0; padding:16px; background:#f3f8fa; border:1px solid #dce8ee; border-radius:10px; }
+.oncall-shortcut label { display:flex; flex-direction:column; gap:8px; font-size:13px; color:#4e6a7b; }
+.oncall-shortcut select { width:100%; min-width:0; }
+.oncall-shortcut .operations-note { margin-bottom:0; }
+.oncall-readiness { margin:16px 0; padding:14px 16px; border:1px solid #dce7ec; border-radius:9px; color:#456572; background:#f7fafb; font-size:13px; line-height:1.7; }
+.oncall-readiness.ready { border-color:#b6dcd2; background:#f0f9f5; color:#246557; }
+.oncall-readiness ul { margin:6px 0 0; padding-left:20px; }
+.oncall-readiness p { margin:4px 0 0; }
+.oncall-readiness a { color:inherit; text-decoration:underline; text-underline-offset:3px; }
+.oncall-readiness a:focus-visible { outline:2px solid #087f76; outline-offset:3px; }
+.operations-page .table-scroll td { max-width:340px; overflow-wrap:anywhere; }
+@media(max-width:800px) { .operations-role-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:560px) { .operations-grid,.operations-detail,.operations-role-grid { grid-template-columns:1fr; } .operations-panel { padding:16px; } .operations-filters label { min-width:130px; } .operations-pair { grid-template-columns:55px 1fr 1fr; gap:7px; } }

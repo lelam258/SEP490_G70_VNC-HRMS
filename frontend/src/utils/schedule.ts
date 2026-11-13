@@ -13,6 +13,12 @@ export function shiftHours(date: string, shift: string) {
   return ({ morning: summer ? '07:00–11:30' : '07:10–11:45', noon: summer ? '11:30–13:30' : '11:45–13:30', afternoon: '13:30–17:00', evening: '17:00–19:00' } as Record<string, string>)[shift] || '';
 }
 
+export function canChangeShift(date: string, shift: string, now: number) {
+  if (now < Date.parse(`${weekStart(date)}T00:00:00+07:00`)) return true;
+  const start = shiftHours(date, shift).split('–')[0];
+  return !!start && Date.parse(`${date}T${start}:00+07:00`) - now >= 24 * 60 * 60 * 1000;
+}
+
 export function schedulePermissions(status: ScheduleWeekStatus | undefined, now: number) {
   if (!status) return { canEdit: false, canPublish: false, canReopen: false };
   const start = Date.parse(status.planningStartsAt);
@@ -20,7 +26,7 @@ export function schedulePermissions(status: ScheduleWeekStatus | undefined, now:
   const inWindow = now >= start && now < end;
   return {
     canEdit: !status.closed && inWindow,
-    canPublish: !status.closed && inWindow && status.assignmentCount > 0,
+    canPublish: !status.closed && inWindow && (status.assignmentCount > 0 || status.isCorrection),
     canReopen: status.closed && now >= start && now < Date.parse(status.correctionEndsAt),
   };
 }
