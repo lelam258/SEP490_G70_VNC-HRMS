@@ -1,5 +1,8 @@
 import { axiosClient } from './axiosClient';
-import type { ImportAnalysis, ImportAnalysisQuery, ImportRowInput, OnCallInput } from '../types/attendance';
+import type {
+  ImportAnalysis, ImportAnalysisQuery, ImportRowInput, ManualAttendanceInput,
+  OnCallInput, ReconcileAttendanceInput, VerifyAttendanceInput, VerifyOnCallInput
+} from '../types/attendance';
 
 function importBody(file: File, facilityId: string, month: string, deviceSource: string, mapping: Record<string, number>, dateOrder: string) {
   const body = new FormData();
@@ -31,6 +34,21 @@ export const attendanceApi = {
   async onCall(id: string | undefined, input: OnCallInput) {
     return (await (id ? axiosClient.put<{ id: string; message: string }>(`/attendance/on-call-shifts/${id}`, input)
       : axiosClient.post<{ id: string; message: string }>('/attendance/on-call-shifts', input))).data;
+  },
+  async verifyOnCall(id: string, input: VerifyOnCallInput) {
+    return (await axiosClient.post<{ id: string; status: string; message: string }>(`/attendance/on-call-shifts/${id}/verify`, input)).data;
+  },
+  async createManual(input: ManualAttendanceInput) {
+    return (await axiosClient.post<{ id: string; status: string; flagged: boolean; message: string }>('/attendance/records/manual', input)).data;
+  },
+  async reconcile(id: string, input: ReconcileAttendanceInput) {
+    return (await axiosClient.post<{ id: string; status: string; actualHours?: number; message: string }>(`/attendance/records/${id}/reconcile`, input)).data;
+  },
+  async verifyRecord(id: string, input: VerifyAttendanceInput) {
+    return (await axiosClient.post<{ id: string; status: string; message: string }>(`/attendance/records/${id}/verify`, input)).data;
+  },
+  async lockMonthly(month: string, version: string, note = '') {
+    return (await axiosClient.post<{ id: string; payMonth: string; status: string; message: string }>(`/attendance/monthly-timesheets/${month}/lock`, { version, note })).data;
   },
 };
 export async function downloadAttendance(path: string, filename: string, params?: Record<string, unknown>) {

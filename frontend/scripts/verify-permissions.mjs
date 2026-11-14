@@ -23,6 +23,8 @@ try {
     assert.equal(loginDestination(role, '/roles'), role === 'admin' ? '/roles' : roleHome(role));
     assert.equal(loginDestination(role, '/audit-logs'), role === 'admin' ? '/audit-logs' : roleHome(role));
     assert.equal(loginDestination(role, '/attendance/records'), role !== 'accountant' ? '/attendance/records' : roleHome(role));
+    assert.equal(loginDestination(role, '/attendance/records/new'), role === 'hr_staff' ? '/attendance/records/new' : roleHome(role));
+    assert.equal(loginDestination(role, '/attendance/monthly'), role !== 'employee' ? '/attendance/monthly' : roleHome(role));
     assert.equal(loginDestination(role, '/attendance/history'), role !== 'employee' ? '/attendance/history' : roleHome(role));
     assert.equal(loginDestination(role, '/attendance/imports/new'), role === 'hr_staff' ? '/attendance/imports/new' : roleHome(role));
     assert.equal(loginDestination(role, '/attendance/device-mappings'), ['admin', 'hr_manager', 'hr_staff'].includes(role) ? '/attendance/device-mappings' : roleHome(role));

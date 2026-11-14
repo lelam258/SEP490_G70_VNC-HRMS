@@ -18,9 +18,9 @@ export function loginDestination(role: string, from: unknown): string {
     || /^\/attendance\/(records|on-call)\/[a-f0-9-]{36}$/i.test(path));
   const importRead = ['admin', 'hr_manager', 'hr_staff'].includes(role)
     && (path === '/attendance/imports' || /^\/attendance\/imports\/[a-f0-9-]{36}\/(preview|errors)$/i.test(path));
-  const attendanceWrite = role === 'hr_staff' && (path === '/attendance/imports/new' || path === '/attendance/on-call/new'
+  const attendanceWrite = role === 'hr_staff' && (path === '/attendance/records/new' || path === '/attendance/imports/new' || path === '/attendance/on-call/new'
     || /^\/attendance\/on-call\/[a-f0-9-]{36}\/edit$/i.test(path));
-  const historyRead = role !== 'employee' && path === '/attendance/history';
+  const historyRead = role !== 'employee' && (path === '/attendance/history' || path === '/attendance/monthly');
   const deviceMappingsRead = ['admin', 'hr_manager', 'hr_staff'].includes(role) && path === '/attendance/device-mappings';
   const permitted = path === '/' || path === '/change-password' || path === '/schedules'
     || (role !== 'admin' && (path === '/procedures' || path.startsWith('/procedures/')))

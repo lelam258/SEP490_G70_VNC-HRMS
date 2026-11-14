@@ -20,11 +20,13 @@ public sealed class DepartmentService(IDepartmentRepository departments, IUnitOf
     }
 
     public Task<DepartmentDto[]> ListAsync(CancellationToken ct) => departments.ListAsync(ct);
+    public Task<FacilityOptionDto[]> ListFacilitiesAsync(CancellationToken ct) => departments.ListFacilitiesAsync(ct);
+
     public async Task<DepartmentDto> GetAsync(Guid id, CancellationToken ct)
     {
-        var department = await departments.FindAsync(id, ct) ?? throw new AppException(404, "Không tìm thấy khoa/phòng.");
-        return new(department.DepartmentId, department.DeptCode, department.Name, department.Status);
+        return await departments.GetDtoAsync(id, ct) ?? throw new AppException(404, "Không tìm thấy khoa/phòng.");
     }
+
     public async Task<DepartmentDto> CreateAsync(CreateDepartmentRequest request, CancellationToken ct)
     {
         var code = PayrollParameterRules.NormalizeCode(request.Code, 20);
@@ -34,9 +36,15 @@ public sealed class DepartmentService(IDepartmentRepository departments, IUnitOf
         var department = new Department { DepartmentId = Guid.NewGuid(), DeptCode = code, Name = name };
         departments.Add(department);
         await unitOfWork.SaveChangesAsync(ct);
+        if (request.FacilityIds is { Count: > 0 })
+        {
+            await departments.AssignFacilitiesAsync(department.DepartmentId, name, request.FacilityIds, ct);
+            await unitOfWork.SaveChangesAsync(ct);
+        }
         await tx.CommitAsync(ct);
         return await GetAsync(department.DepartmentId, ct);
     }
+
     public async Task<DepartmentDto> UpdateAsync(Guid id, UpdateDepartmentRequest request, CancellationToken ct)
     {
         var code = PayrollParameterRules.NormalizeCode(request.Code, 20);
@@ -48,8 +56,20 @@ public sealed class DepartmentService(IDepartmentRepository departments, IUnitOf
         department.DeptCode = code;
         department.Name = name;
         department.Status = request.Status;
+        if (request.FacilityIds is { Count: > 0 })
+        {
+            await departments.AssignFacilitiesAsync(id, name, request.FacilityIds, ct);
+        }
         await unitOfWork.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+        return await GetAsync(id, ct);
+    }
+
+    public async Task<DepartmentDto> AssignFacilitiesAsync(Guid id, AssignDepartmentFacilitiesRequest request, CancellationToken ct)
+    {
+        var department = await departments.FindAsync(id, ct) ?? throw new AppException(404, "Không tìm thấy khoa/phòng.");
+        await departments.AssignFacilitiesAsync(id, department.Name, request.FacilityIds ?? [], ct);
+        await unitOfWork.SaveChangesAsync(ct);
         return await GetAsync(id, ct);
     }
 

@@ -12,6 +12,21 @@ public sealed record SaveOnCallRequest(Guid StaffId, Guid FacilityId, DateOnly D
     string Start, string End, string? Note, string? DeviationReason, string? SupervisorEvidence,
     Guid? AttendanceEvidenceId, string? Version);
 
+public sealed record VerifyOnCallRequest([Required] string Decision, string? Reason, string? SupervisorEvidence, [Required] string Version);
+
+public sealed record CreateManualAttendanceRequest(Guid StaffId, Guid FacilityId, DateOnly WorkDate,
+    [Required] string ShiftType, [Required] TimePairInput[] Pairs, string? SourceReference,
+    [Required, StringLength(1000)] string Reason, string? SupervisorEvidence = null);
+
+public sealed record ReconcileAttendanceRequest([Required] string Action, TimePairInput[]? Pairs,
+    Guid? FacilityId, [Required, StringLength(1000)] string Reason, string? SupervisorEvidence,
+    bool SupervisorConfirmed, [Required] string Version);
+
+public sealed record VerifyAttendanceRequest([Required] string Decision, string? Reason,
+    string? SupervisorEvidence, [Required] string Version);
+
+public sealed record LockMonthlyAttendanceRequest(string? Note = null, string? Version = null);
+
 public sealed class AttendanceFilter
 {
     public string? Month { get; set; }

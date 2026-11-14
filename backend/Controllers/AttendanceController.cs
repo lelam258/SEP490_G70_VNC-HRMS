@@ -21,6 +21,18 @@ public sealed class AttendanceController(AttendanceService legacy, AttendanceRec
     public Task<object> Records([FromQuery] AttendanceFilter filter, CancellationToken ct) => records.List(User, filter, ct);
     [HttpGet("records/{id:guid}"), Authorize(Roles = Readers)]
     public Task<object> Record(Guid id, CancellationToken ct) => records.Detail(User, id, ct);
+    [HttpGet("manual-context"), Authorize]
+    public Task<object> ManualContext(Guid staffId, Guid facilityId, DateOnly date, CancellationToken ct)
+        => records.ManualContext(User, staffId, facilityId, date, ct);
+    [HttpPost("records/manual"), Authorize]
+    public Task<object> CreateManual(CreateManualAttendanceRequest request, CancellationToken ct)
+        => records.CreateManual(User, request, ct);
+    [HttpPost("records/{id:guid}/reconcile"), Authorize]
+    public Task<object> Reconcile(Guid id, ReconcileAttendanceRequest request, CancellationToken ct)
+        => records.Reconcile(User, id, request, ct);
+    [HttpPost("records/{id:guid}/verify"), Authorize]
+    public Task<object> Verify(Guid id, VerifyAttendanceRequest request, CancellationToken ct)
+        => records.Verify(User, id, request, ct);
 
     [HttpGet("imports"), Authorize(Roles = ImportReaders)]
     public Task<object> Imports(string? month, Guid? facilityId, CancellationToken ct, int page = 1, int pageSize = 20)
@@ -77,6 +89,15 @@ public sealed class AttendanceController(AttendanceService legacy, AttendanceRec
     public Task<object> CreateOnCall(SaveOnCallRequest request, CancellationToken ct) => onCall.Save(User, null, request, ct);
     [HttpPut("on-call-shifts/{id:guid}"), Authorize(Roles = "hr_staff")]
     public Task<object> EditOnCall(Guid id, SaveOnCallRequest request, CancellationToken ct) => onCall.Save(User, id, request, ct);
+    [HttpPost("on-call-shifts/{id:guid}/verify"), Authorize]
+    public Task<object> VerifyOnCall(Guid id, VerifyOnCallRequest request, CancellationToken ct) => onCall.Verify(User, id, request, ct);
+
+    [HttpGet("monthly-timesheets/{month}"), Authorize]
+    public Task<object> MonthlySummary(string month, [FromQuery] Guid? departmentId, [FromQuery] Guid? facilityId, CancellationToken ct)
+        => records.MonthlySummary(User, month, departmentId, facilityId, ct);
+    [HttpPost("monthly-timesheets/{month}/lock"), Authorize]
+    public Task<object> LockMonthly(string month, LockMonthlyAttendanceRequest? request, CancellationToken ct)
+        => records.LockMonthly(User, month, request ?? new LockMonthlyAttendanceRequest(), ct);
 
     [HttpGet("history"), Authorize(Roles = HistoryReaders)]
     public Task<object> History([FromQuery] AuditFilter filter, CancellationToken ct) => audit.List(User, filter, true, ct);

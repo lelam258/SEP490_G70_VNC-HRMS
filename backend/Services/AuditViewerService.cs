@@ -138,6 +138,7 @@ public sealed class AuditViewerService(AppDbContext db, AttendanceAccess access)
             "AttendanceRecord" when !user.IsInRole("accountant") => $"/attendance/records/{entry.EntityId}",
             "OnCallShift" when !user.IsInRole("accountant") => $"/attendance/on-call/{entry.EntityId}",
             "AttendanceImport" when user.IsInRole("hr_staff") || user.IsInRole("hr_manager") || user.IsInRole("admin") => $"/attendance/imports/{entry.EntityId}/preview",
+            "MonthlyTimesheet" => "/attendance/monthly" + (entry.WorkDate.HasValue ? $"?month={entry.WorkDate:yyyy-MM}" : ""),
             "ScheduleWeek" or "ScheduleAssignment" => "/schedules" + (entry.WorkDate.HasValue ? $"?date={entry.WorkDate:yyyy-MM-dd}" : ""),
             "User" when !history && user.IsInRole("admin") => $"/accounts/{entry.EntityId}", _ => null
         };

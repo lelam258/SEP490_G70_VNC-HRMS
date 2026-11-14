@@ -5,6 +5,8 @@ namespace Vnc.HRMS.Services.Interfaces;
 public interface IProcedureSlipService
 {
     Task<ProcedureLookupsDto> GetLookupsAsync(Guid currentUserId, CancellationToken ct);
+    Task<IReadOnlyList<ProcedureStaffAvailabilityDto>> GetStaffAvailabilityAsync(
+        DateOnly procedureDate, Guid? departmentId, Guid? facilityId, string? startTime, string? endTime, Guid? excludeSlipId, CancellationToken ct);
     Task<ProcedureSlipListResponseDto> ListSlipsAsync(Guid currentUserId, string currentUserRole, ProcedureSlipListFilter filter, CancellationToken ct);
     Task<ProcedureSlipDetailDto> GetSlipDetailAsync(Guid currentUserId, string currentUserRole, Guid slipId, CancellationToken ct);
     Task<IReadOnlyList<PreviewAssignmentCommissionDto>> PreviewCommissionAsync(PreviewProcedureCommissionRequest request, CancellationToken ct);
@@ -12,6 +14,7 @@ public interface IProcedureSlipService
     Task<ProcedureSlipDetailDto> UpdateSlipAsync(Guid currentUserId, string currentUserRole, Guid slipId, SaveProcedureSlipRequest request, CancellationToken ct);
     Task<ProcedureSlipDetailDto> HrCheckSlipAsync(Guid currentUserId, string currentUserRole, Guid slipId, ReviewProcedureSlipRequest request, CancellationToken ct);
     Task<ProcedureSlipDetailDto> VerifySlipAsync(Guid currentUserId, string currentUserRole, Guid slipId, ReviewProcedureSlipRequest request, CancellationToken ct);
+    Task<ProcedureSlipDetailDto> CompleteSlipAsync(Guid currentUserId, string currentUserRole, Guid slipId, CompleteProcedureSlipRequest request, CancellationToken ct);
     Task<CalculateMonthlyCommissionResultDto> CalculateMonthlyCommissionAsync(Guid currentUserId, CalculateMonthlyCommissionRequest request, CancellationToken ct);
     Task<CommissionResultsResponseDto> GetCommissionResultsAsync(Guid currentUserId, string currentUserRole, GetCommissionResultsFilter filter, CancellationToken ct);
     Task<StaffCommissionDetailResponseDto> GetStaffCommissionDetailAsync(Guid currentUserId, string currentUserRole, Guid staffId, string payMonth, CancellationToken ct);

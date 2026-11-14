@@ -66,8 +66,8 @@ export default function ProcedureReviewModal({
       const successMessage =
         decision === 'approve'
           ? isHr
-            ? `Đã xác nhận phiếu ${slip.slipNumber} đạt yêu cầu và chuyển sang Kế toán.`
-            : `Đã xác minh phiếu ${slip.slipNumber} thành công (Verified).`
+            ? `Đã xác nhận phiếu ${slip.slipNumber} đạt yêu cầu.`
+            : `Đã xác minh phiếu ${slip.slipNumber} thành công (Chuyển Bác sĩ thực hiện).`
           : `Đã từ chối phiếu ${slip.slipNumber} và gửi thông báo cho nhân viên y tế.`;
 
       setNote('');
@@ -127,27 +127,17 @@ export default function ProcedureReviewModal({
         {/* Checklist đối soát thu gọn */}
         <div className="bg-sky-50/70 border border-sky-200/80 rounded-xl px-4 py-2.5 text-xs text-sky-900">
           <div className="font-semibold text-sky-950 mb-1">
-            {isHr ? 'Tiêu chí HR kiểm tra (Bước 1):' : 'Tiêu chí Kế toán xác minh (Bước 2):'}
+            Tiêu chí Kế toán xác minh viện phí:
           </div>
-          {isHr ? (
-            <ul className="list-disc list-inside space-y-0.5 text-sky-800">
-              <li>Nhân sự tham gia đúng phân công, chức danh và định mức hoa hồng đúng quy chế.</li>
-              <li>
-                Khung giờ ({slip.isAfterHours ? 'Ca ngoài giờ' : 'Giờ hành chính'}) khớp với lịch trực.
-              </li>
-            </ul>
-          ) : (
-            <ul className="list-disc list-inside space-y-0.5 text-sky-800">
-              <li>
-                Viện phí ({formatVnd(slip.chargedAmount)}) & chi phí trực tiếp (
-                {formatVnd(slip.directCost)}) khớp hóa đơn thực thu.
-              </li>
-              <li>
-                Tổng hoa hồng ({formatVnd(slip.totalCommissionAmount)}) đủ điều kiện kết chuyển bảng
-                lương tháng.
-              </li>
-            </ul>
-          )}
+          <ul className="list-disc list-inside space-y-0.5 text-sky-800">
+            <li>
+              Viện phí ({formatVnd(slip.chargedAmount)}) & chi phí trực tiếp (
+              {formatVnd(slip.directCost)}) khớp hóa đơn thực thu.
+            </li>
+            <li>
+              Tổng hoa hồng ({formatVnd(slip.totalCommissionAmount)}) đủ điều kiện kết chuyển kíp thực hiện.
+            </li>
+          </ul>
         </div>
 
         {/* Lựa chọn Quyết định */}

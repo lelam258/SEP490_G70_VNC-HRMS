@@ -1,6 +1,6 @@
 import type { ProcedureServiceOption } from './payroll';
 
-export type ProcedureSlipStatus = 'pending' | 'hr_checked' | 'verified' | 'rejected';
+export type ProcedureSlipStatus = 'pending' | 'hr_checked' | 'verified' | 'completed' | 'rejected';
 
 export type ProcedureCommissionRole = 'indicating' | 'performing' | 'assisting' | 'lab' | 'typist';
 
@@ -17,7 +17,7 @@ export interface ProcedureSlipFilter {
   status?: string;
   isAfterHours?: boolean;
   q?: string;
-  scope?: 'mine' | 'department' | 'all';
+  scope?: 'mine' | 'assigned' | 'department' | 'all';
   page?: number;
   pageSize?: number;
 }
@@ -77,6 +77,14 @@ export interface ProcedureSlipListItem {
   rejectedReason?: string | null;
   createdAt?: string | null;
   isPeriodLocked: boolean;
+  startTime?: string | null;
+  endTime?: string | null;
+  facilityId?: string | null;
+  facilityName?: string | null;
+  completedBy?: string | null;
+  completedByName?: string | null;
+  completedAt?: string | null;
+  completeNote?: string | null;
 }
 
 export interface ProcedureSlipAuditItem {
@@ -95,6 +103,7 @@ export interface ProcedureSlipDetail extends ProcedureSlipListItem {
   canEdit: boolean;
   canHrCheck: boolean;
   canAccountantVerify: boolean;
+  canComplete: boolean;
   assignments: ProcedureAssignmentItem[];
   auditHistory: ProcedureSlipAuditItem[];
 }
@@ -166,11 +175,45 @@ export interface SaveProcedureSlipInput {
   durationHours?: number | null;
   indicatingStaffId?: string | null;
   assignments: SaveProcedureAssignmentInput[];
+  startTime?: string | null;
+  endTime?: string | null;
+  facilityId?: string | null;
+}
+
+export interface StaffProcedureBooking {
+  slipId: string;
+  slipNumber: string;
+  serviceName: string;
+  startTime: string;
+  endTime: string;
+  timeRangeLabel: string;
+}
+
+export interface ProcedureStaffAvailability {
+  staffId: string;
+  staffCode: string;
+  fullName: string;
+  departmentId?: string | null;
+  departmentName?: string | null;
+  positionId?: string | null;
+  positionName?: string | null;
+  isWorkingToday: boolean;
+  isOnLeave: boolean;
+  shiftsToday: string[];
+  offReason?: string | null;
+  isBusyInRequestedTime: boolean;
+  busyReason?: string | null;
+  bookingsToday: StaffProcedureBooking[];
+  freeTimeRangesUntil17h?: string[];
 }
 
 export interface ReviewProcedureSlipInput {
   decision: 'approve' | 'reject';
   reason?: string | null;
+  note?: string | null;
+}
+
+export interface CompleteProcedureSlipInput {
   note?: string | null;
 }
 
@@ -207,10 +250,18 @@ export interface ProcedureLookupStaff {
   positionName?: string | null;
 }
 
+export interface ProcedureLookupFacility {
+  facilityId: string;
+  name: string;
+  status: string;
+}
+
 export interface ProcedureLookupDepartment {
   departmentId: string;
   deptCode: string;
   name: string;
+  facilityIds?: string[];
+  facilityLabel?: string | null;
 }
 
 export interface ProcedureLookups {
@@ -221,6 +272,7 @@ export interface ProcedureLookups {
   currentUserStaffCode?: string | null;
   currentUserFullName?: string | null;
   currentUserDepartmentId?: string | null;
+  facilities?: ProcedureLookupFacility[];
 }
 
 export interface CalculateMonthlyCommissionInput {

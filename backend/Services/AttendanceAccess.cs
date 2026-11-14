@@ -40,10 +40,19 @@ public sealed class AttendanceAccess(AppDbContext db, TimeProvider? timeProvider
         var (start, _) = AttendanceRules.Month(month);
         var next = start.AddMonths(1);
         var period = await db.PayrollLocks.AsNoTracking().SingleOrDefaultAsync(x => x.PayMonth == month, ct);
+        var timesheet = await db.MonthlyTimesheets.AsNoTracking().SingleOrDefaultAsync(x => x.PayMonth == month, ct);
+        var timesheetLocked = timesheet?.Status is "locked" or "confirmed" or "paid";
+        if (timesheetLocked && timesheet?.Status != "paid" && period?.Status?.Trim().ToLowerInvariant() is "reopened" or "late" or "draft") {
+            var lockedAt = timesheet?.LockedAt ?? DateTime.MinValue;
+            timesheetLocked = !await (from audit in db.AuditLogs join actor in db.Users on audit.UserId equals actor.UserId
+                where audit.EntityId == period!.LockId && audit.EntityType == "PayrollLock" && audit.Action == "reopen"
+                    && audit.Result == "success" && actor.Role == "accountant" && audit.CreatedAt > lockedAt
+                select audit.LogId).AnyAsync(ct);
+        }
         if (period?.Status is "locked" or "paid" or "exported"
-            || await db.MonthlyTimesheets.AnyAsync(x => x.PayMonth == month && (x.Status == "locked" || x.Status == "confirmed" || x.Status == "paid"), ct)
+            || timesheetLocked
             || await db.Payslips.AnyAsync(x => x.PayMonth == month && (x.Status == "paid" || x.IsLocked == true), ct))
-            throw new AppException(400, "Tháng đã khóa hoặc đã thanh toán. Không thể thay đổi dữ liệu chấm công.");
+            throw new AppException(400, "MSG11: Tháng đã khóa hoặc đã thanh toán. Không thể thay đổi dữ liệu chấm công.");
         var deadline = new DateTimeOffset(next.AddDays(5).ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(7));
         if (Now < deadline) return;
         var correctionEnd = new DateTimeOffset(next.AddDays(12).ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(7));
@@ -77,6 +86,23 @@ public sealed class AttendanceAccess(AppDbContext db, TimeProvider? timeProvider
     public async Task<string?> ImportLockReason(string month, CancellationToken ct)
     {
         try { await RequireOpenImportMonth(month, ct); return null; }
+        catch (AppException error) when (error.StatusCode == 400) { return error.Message; }
+    }
+
+    // GB-52 & GB-26: Monthly timesheet consolidation opens 2 calendar days before month-end
+    // and remains available through day 5 of the following month (or day 6–12 when reopened by Accountant).
+    public async Task RequireConsolidationWindow(string month, CancellationToken ct)
+    {
+        var (start, _) = AttendanceRules.Month(month);
+        var openDate = PayrollPeriodRules.GetConsolidationOpenDate(start.Year, start.Month);
+        if (Today < openDate)
+            throw new AppException(400, $"Chưa đến thời điểm tổng hợp công tháng {month} (mở từ ngày {openDate:dd/MM/yyyy} theo GB-52).");
+        await RequireOpenImportMonth(month, ct);
+    }
+
+    public async Task<string?> ConsolidationLockReason(string month, CancellationToken ct)
+    {
+        try { await RequireConsolidationWindow(month, ct); return null; }
         catch (AppException error) when (error.StatusCode == 400) { return error.Message; }
     }
 }

@@ -9,9 +9,13 @@ namespace Vnc.HRMS.Controllers;
 public sealed class DepartmentsController(IDepartmentService departments) : ControllerBase
 {
     [HttpGet] public Task<DepartmentDto[]> List(CancellationToken ct) => departments.ListAsync(ct);
+    [HttpGet("facilities")] public Task<FacilityOptionDto[]> ListFacilities(CancellationToken ct) => departments.ListFacilitiesAsync(ct);
     [HttpGet("{id:guid}")] public Task<DepartmentDto> Get(Guid id, CancellationToken ct) => departments.GetAsync(id, ct);
     [HttpPut("{id:guid}")]
     public Task<DepartmentDto> Update(Guid id, UpdateDepartmentRequest request, CancellationToken ct) => departments.UpdateAsync(id, request, ct);
+    [HttpPut("{id:guid}/facilities")]
+    public Task<DepartmentDto> AssignFacilities(Guid id, AssignDepartmentFacilitiesRequest request, CancellationToken ct)
+        => departments.AssignFacilitiesAsync(id, request, ct);
     [HttpPatch("{id:guid}/status")]
     public Task<DepartmentDto> SetStatus(Guid id, DepartmentStatusRequest request, CancellationToken ct)
         => departments.SetStatusAsync(id, request.Status, ct);

@@ -150,7 +150,7 @@ async Task<T> Run<T>(ClaimsPrincipal principal, Func<AppDbContext, AttendanceImp
     var access = new AttendanceAccess(db, clock);
     var audit = new AuditLogHelper(db, new HttpContextAccessor { HttpContext = new DefaultHttpContext { User = principal } });
     var imports = new AttendanceImportService(db, access, parser, audit);
-    return await action(db, imports, new AttendanceRecordService(db, access, imports), new OnCallService(db, access, imports, audit), new AuditViewerService(db, access));
+    return await action(db, imports, new AttendanceRecordService(db, access, imports, audit), new OnCallService(db, access, imports, audit), new AuditViewerService(db, access));
 }
 async Task<object> Import(Func<AttendanceImportService, Task<object>> action, ClaimsPrincipal? principal = null)
     => await Run(principal ?? hr, (_, service, _, _, _) => action(service));
@@ -484,6 +484,7 @@ try {
     await Reject(async () => { await Run(employee, (_, _, _, _, service) => service.List(employee, new AuditFilter(), true, ct)); }, 403, "Employees cannot browse the operational audit history");
 
     await DeviceMappingRegression.Run(options, hrId, adminId, department1, Check, ct);
+    await AttendanceReconcileVerifyMonthlyRegression.Run(options, clock, next => clock.Now = next, hrId, managerId, accountantId, facility1, facility2, department1, Check, ct);
 
     // Exercise the real HTTP pipeline, including Swagger, multipart binding and SQL-backed sessions.
     const string signingKey = "attendance-integration-test-signing-key-never-used-for-real-accounts";
@@ -536,6 +537,8 @@ try {
         }
         using (var response = await Get($"/api/attendance/records/{otherRecord}", employeeToken)) Check(response.StatusCode == HttpStatusCode.Forbidden, "HTTP attendance details deny another employee's record");
         using (var response = await Get("/api/attendance/on-call-shifts?month=2026-11", hrToken)) Check(response.IsSuccessStatusCode, "HTTP on-call list materializes its full projection");
+        using (var response = await Get("/api/attendance/monthly-timesheets/2026-11", hrToken)) Check(response.IsSuccessStatusCode, "HTTP monthly timesheet consolidation endpoint returns clinic-wide summary");
+        using (var response = await Get("/api/attendance/monthly-timesheets/2026-11", employeeToken)) Check(response.StatusCode == HttpStatusCode.Forbidden, "HTTP monthly timesheet consolidation rejects ordinary employees");
         using (var response = await Get("/api/attendance/history?month=2026-11&from=&to=&staffId=&facilityId=&page=1&pageSize=20", hrToken)) Check(response.IsSuccessStatusCode, "HTTP history query binding and pagination work");
         using (var request = new HttpRequestMessage(HttpMethod.Post, "/api/attendance/imports")) {
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", hrToken);

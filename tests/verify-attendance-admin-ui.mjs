@@ -25,6 +25,7 @@ let duty = { id: dutyId, staffId, staffCode: 'NV01', staffName: 'Nhân viên th�
 const auditEvent = { id: eventId, createdAt: stamp, userId: adminId, actor: 'Quản trị viên', action: 'assign_role', module: 'accounts', entityType: 'User', entityId: employeeId, facilityId: null, departmentId: null, staffId: null, workDate: null, result: 'success', oldStatus: 'active', newStatus: 'active', oldValue: { role: 'employee', passwordHash: '[Đã ẩn]' }, newValue: { role: 'hr_staff' }, sourceUrl: `/accounts/${employeeId}` };
 let failCorrection = true, failCommit = true, reviewRevision = 0, socket, scriptId, requestSerial = 0;
 let onCallScheduled = true, onCallHasEvidence = true, onCallLockedReason = null, onCallWrites = 0;
+let monthlyStatus = 'open', monthlyCanLock = true;
 const waiting = new Map(), errors = [];
 let checks = 0;
 try {
@@ -54,7 +55,26 @@ try {
       else if (path === '/api/audit-logs' || path === '/api/attendance/history') data = { total: 1, page: 1, pageSize: 20, items: [auditEvent] };
       else if (path === '/api/attendance/options') data = options;
       else if (path === '/api/attendance/records') data = { total: 1, page: 1, pageSize: 20, items: [record], counts: { confirmed: 0, unconfirmed: 1, flagged: 0 }, month, lockedReason: null };
-      else if (path === `/api/attendance/records/${recordId}`) data = { item: record, pairs, deviceEnrollId: '001', batch, note: 'Cần đối chiếu với lịch phân công', reconcileNote: null, reconciledAt: null, reconciledBy: null, confirmedAt: null, confirmedBy: null, actors: [], createdAt: stamp, payslipId: null, lockedReason: null, schedules: [], events: [] };
+      else if (path === `/api/attendance/records/${recordId}` && request.method === 'GET') data = { item: record, pairs, machinePairs: pairs, deviceEnrollId: '001', batch, note: 'Cần đối chiếu với lịch phân công', reconcileNote: record.reconcileNote || null, reconciledAt: record.reconciledAt || null, reconciledBy: record.reconciledBy || null, confirmedAt: record.confirmedAt || null, confirmedBy: record.confirmedBy || null, actors: [{ id: hrId, name: 'HR Staff' }], createdAt: stamp, payslipId: null, lockedReason: null, schedules: [], scheduleDetails: [{ id: guid(80), facilityId, facilityName: 'Cơ sở 1', date: today, shift: 'morning', start: '07:00', end: '11:30', patientConfirmed: false, patientEvidence: null, actualEndAt: null, endNote: null }], leaves: [], onCalls: [], discrepancies: record.status === 'flagged' ? [{ code: 'source_mismatch', label: 'Lệch giờ với lịch phân công', severity: 'warning' }] : [], suggestedClassification: record.status === 'flagged' ? 'source_mismatch' : 'matched', supervisorConfirmed: false, supervisorEvidence: null, version: 'v1', events: [] };
+      else if (path === `/api/attendance/records/${recordId}/reconcile` && request.method === 'POST') {
+        const input = JSON.parse(request.postData);
+        record.status = input.action === 'mark_unresolved' ? 'flagged' : 'reconciled';
+        record.reconcileNote = input.reason; record.reconciledBy = hrId; record.reconciledAt = stamp;
+        data = { id: recordId, status: record.status, actualHours: record.actualHours, message: 'MSG03: Đã đối chiếu chấm công thành công.' };
+      } else if (path === `/api/attendance/records/${recordId}/verify` && request.method === 'POST') {
+        const input = JSON.parse(request.postData);
+        record.status = input.decision === 'return' ? 'flagged' : 'confirmed';
+        record.confirmedBy = input.decision === 'confirm' ? hrId : null; record.confirmedAt = input.decision === 'confirm' ? stamp : null;
+        data = { id: recordId, status: record.status, message: 'MSG03: Đã xác nhận bản ghi chấm công thành công.' };
+      } else if (path === '/api/attendance/manual-context') data = { staffId, facilityId, date: url.searchParams.get('date') || today, approvedLeave: false, lockedReason: null, schedules: [{ id: guid(80), facilityId, facilityName: 'Cơ sở 1', shift: 'morning', start: '07:00', end: '11:30' }, { id: guid(82), facilityId, facilityName: 'Cơ sở 1', shift: 'afternoon', start: '13:30', end: '17:00' }], leaves: [], existingRecords: [], onCalls: [] };
+      else if (path === '/api/attendance/records/manual' && request.method === 'POST') {
+        data = { id: recordId, status: 'pending', flagged: false, message: 'MSG03: Đã lưu bản ghi chấm công thủ công chờ xác nhận.' };
+      } else if (path === `/api/attendance/monthly-timesheets/${month}` && request.method === 'GET') {
+        data = { payMonth: month, status: monthlyStatus, timesheetId: guid(90), lockedBy: monthlyStatus === 'locked' ? hrId : null, lockedByName: monthlyStatus === 'locked' ? 'HR Staff' : null, lockedAt: monthlyStatus === 'locked' ? stamp : null, consolidationOpenDate: `${month}-28`, standardLockDate: `${month}-05`, correctionDeadline: `${month}-12`, windowStatus: monthlyStatus === 'locked' ? 'locked' : 'open', lockedReason: null, consolidationLockReason: null, canLock: monthlyCanLock, version: 'v1', totals: { totalStaff: 1, confirmedMainDays: 22, confirmedNoonDuties: 4, confirmedEveningDuties: 2, confirmedHours: 188, overtimeHours: 12, paidLeaveDays: 1, unpaidLeaveDays: 0, machineRecords: 20, manualRecords: 2, confirmedRecords: 22, flaggedRecords: 0, unconfirmedRecords: 0, missingPunchRecords: 0, pendingOnCalls: 0, unaccountedScheduledShifts: 0 }, facilityTotals: [{ id: facilityId, name: 'Cơ sở 1', staffCount: 1, confirmedMainDays: 22, confirmedNoonDuties: 4, confirmedEveningDuties: 2, confirmedHours: 188, paidLeaveDays: 1, flaggedCount: 0, unconfirmedCount: 0, unaccountedScheduleCount: 0, completed: true }], departmentTotals: [{ id: departmentId, name: 'Khoa Điều dưỡng', staffCount: 1, confirmedMainDays: 22, confirmedNoonDuties: 4, confirmedEveningDuties: 2, confirmedHours: 188, paidLeaveDays: 1, flaggedCount: 0, unconfirmedCount: 0, unaccountedScheduleCount: 0, completed: true }], staffSummaries: [{ staffId, staffCode: 'NV01', staffName: 'Nhân viên thử nghiệm', departmentId, departmentName: 'Khoa Điều dưỡng', plannedMainDays: 22, confirmedMainDays: 22, confirmedNoonDuties: 4, confirmedEveningDuties: 2, confirmedHours: 188, overtimeHours: 12, paidLeaveDays: 1, unpaidLeaveDays: 0, machineRecordCount: 20, manualRecordCount: 2, flaggedCount: 0, unconfirmedCount: 0, missingPunchCount: 0, unaccountedScheduleCount: 0, readyForPayroll: true }], exceptions: [], incompleteScopes: [] };
+      } else if (path === `/api/attendance/monthly-timesheets/${month}/lock` && request.method === 'POST') {
+        monthlyStatus = 'locked'; monthlyCanLock = false;
+        data = { id: guid(90), payMonth: month, status: 'locked', message: 'MSG03: Đã tổng hợp và khóa bảng chấm công tháng thành công.' };
+      }
       else if (path === '/api/attendance/imports/analyze') data = { fileName: batch.fileName, payMonth: month, facilityId, deviceSource: batch.deviceSource, dateOrder: 'mdy',
         totalRows: rows.length, employeeCodes: 3, dateFrom: today, dateTo: today, sourceMonths: [{ month, rows: rows.length }], suggestedMonth: null, lockedReason: null, canStage: true,
         counts: Object.fromEntries(['valid', 'warning', 'error', 'duplicate'].map(status => [status, rows.filter(row => row.validationStatus === status).length])), total: rows.length, page: 1, pageSize: 20, items: rows };
@@ -160,7 +180,28 @@ try {
   check(await evaluate(`document.querySelector('[role="status"]').textContent.includes('hàng chờ xác nhận')`), 'Committing valid rows reports the unconfirmed attendance queue');
 
   await visit('hr_staff', `/attendance/records/${recordId}`); await waitFor(`document.querySelector('h1')?.textContent==='Chi tiết chấm công'&&document.querySelectorAll('.operations-stats span').length===3`);
-  check(await evaluate(`document.querySelector('main').textContent.includes('Máy chấm công')&&document.querySelector('main').textContent.includes('attendance-workflow-fixture.xlsx')`), 'Attendance details display all punch pairs and retained source information');
+  check(await evaluate(`document.querySelector('main').textContent.includes('Máy chấm công')&&document.querySelector('main').textContent.includes('attendance-workflow-fixture.xlsx')&&!!document.querySelector('#side-by-side-reconciliation')&&!!document.querySelector('#attendance-workflow-dock')`), 'Attendance details display all punch pairs, side-by-side comparison and reconciliation/verification dock');
+  check(await evaluate(`document.documentElement.scrollHeight<=innerHeight+8`), 'Attendance detail & reconciliation screen (UC 4.11/4.13) fits in a single desktop viewport without vertical scrolling');
+  await textarea('#reconcile-reason', 'Đã kiểm tra bảng chấm công giấy Khoa Điều dưỡng');
+  await click('#reconcile-submit'); await waitFor(`document.querySelector('[role="status"]')?.textContent.includes('MSG03')&&document.querySelector('#tab-verify')?.classList.contains('active')`);
+  check(record.status === 'reconciled', 'Submitting UC 4.11 reconciliation updates status to reconciled and switches to UC 4.13 verification tab');
+  await click('#verify-submit'); await waitFor(`document.querySelector('[role="status"]')?.textContent.includes('MSG03')`);
+  check(record.status === 'confirmed', 'Submitting UC 4.13 verification confirms the attendance record');
+
+  await visit('hr_staff', '/attendance/records/new'); await waitFor(`document.querySelector('h1')?.textContent==='Nhập chấm công thủ công'&&!!document.querySelector('#manual-staff')`);
+  await select('#manual-staff', staffId); await select('#manual-facility', facilityId);
+  await waitFor(`document.querySelector('#manual-context-panel')?.textContent.includes('Lịch phân công đã công bố')`);
+  check(await evaluate(`document.documentElement.scrollHeight<=innerHeight+8`), 'Manual attendance entry screen (UC 4.12) fits in a single desktop viewport without vertical scrolling');
+  await textarea('#manual-reason', 'Máy vân tay bảo trì buổi sáng, nhập từ bảng công giấy');
+  await click('#manual-submit'); await waitFor(`document.querySelector('h1')?.textContent==='Chi tiết chấm công'`);
+  check(true, 'UC 4.12 manual attendance submission navigates to the record detail screen');
+
+  await visit('hr_staff', `/attendance/monthly?month=${month}`); await waitFor(`document.querySelector('h1')?.textContent==='Chốt bảng chấm công tháng'&&document.querySelectorAll('.att-kpi').length===6`);
+  check(await evaluate(`document.documentElement.scrollHeight<=innerHeight+8&&!document.querySelector('#lock-monthly-btn').disabled`), 'Monthly attendance consolidation screen (UC 4.14) displays 6 KPIs and fits in a single desktop viewport without vertical scrolling');
+  await click('#lock-monthly-btn'); await waitFor(`!!document.querySelector('dialog[open]')`);
+  await textarea('#lock-monthly-note', 'Đã đối chiếu đủ 2 cơ sở');
+  await click('#confirm-lock-monthly-btn'); await waitFor(`!document.querySelector('dialog[open]')&&document.querySelector('[role="status"]')?.textContent.includes('MSG03')`);
+  check(monthlyStatus === 'locked', 'Confirming monthly attendance locks the timesheet for payroll');
   await visit('hr_staff', '/attendance/on-call/new'); await waitFor(`!!document.querySelector('#oncall-staff')`);
   await select('#oncall-staff', staffId); await select('#oncall-facility', facilityId); await waitFor(`!!document.querySelector('#oncall-evidence')&&!document.querySelector('button[type="submit"]').disabled`);
   await select('#oncall-evidence', recordId); await click('button[type="submit"]'); await waitFor(`document.querySelector('h1')?.textContent==='Chi tiết hồ sơ trực'`);

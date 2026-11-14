@@ -1,3 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 namespace Vnc.HRMS.DTOs.Organization;
-public sealed record CreateDepartmentRequest([Required, StringLength(20)] string Code, [Required, StringLength(100)] string Name);
+public sealed record CreateDepartmentRequest(
+    [Required, StringLength(20)] string Code,
+    [Required, StringLength(100)] string Name,
+    IReadOnlyList<Guid>? FacilityIds = null);

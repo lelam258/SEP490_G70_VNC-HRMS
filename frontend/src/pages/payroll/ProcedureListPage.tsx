@@ -5,6 +5,7 @@ import DataTable, { type Column } from '../../components/ui/DataTable';
 import Modal from '../../components/ui/Modal';
 import Pagination from '../../components/ui/Pagination';
 import ProcedureReviewModal from '../../components/payroll/ProcedureReviewModal';
+import ProcedureCompleteModal from '../../components/payroll/ProcedureCompleteModal';
 import { procedureSlipApi } from '../../services/procedureSlipApi';
 import { useAuthStore } from '../../store/useAuthStore';
 import type {
@@ -15,6 +16,7 @@ import type {
 } from '../../types/procedureSlip';
 import { formatDateOnly, formatVnd } from '../../utils/format';
 import {
+  formatTimeRangeVn,
   getProcedureStatusBadgeClass,
   PROCEDURE_STATUS_LABELS,
 } from '../../utils/procedureHelpers';
@@ -39,9 +41,7 @@ export default function ProcedureListPage() {
   // ============================================================================
   // STATE DÀNH CHO MEDICAL STAFF / DEPARTMENT HEAD / HR MANAGER (CHẾ ĐỘ CÁ NHÂN)
   // ============================================================================
-  const [viewScope, setViewScope] = useState<'mine' | 'department'>(
-    isDeptHead ? 'department' : 'mine'
-  );
+  const [viewScope, setViewScope] = useState<'assigned' | 'mine' | 'department'>('assigned');
   const [periodMode, setPeriodMode] = useState<PeriodMode>('month');
   const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1);
@@ -75,6 +75,7 @@ export default function ProcedureListPage() {
   const [reviewModalSlip, setReviewModalSlip] = useState<ProcedureSlipListItem | null>(null);
   const [reviewMode, setReviewMode] = useState<'hr_check' | 'accountant_verify'>('accountant_verify');
   const [reviewDefaultDecision, setReviewDefaultDecision] = useState<'approve' | 'reject'>('approve');
+  const [completeModalSlip, setCompleteModalSlip] = useState<ProcedureSlipListItem | null>(null);
 
   // Monthly commission calculation modal state (Accountant)
   const [calcModalOpen, setCalcModalOpen] = useState<boolean>(false);
@@ -125,7 +126,7 @@ export default function ProcedureListPage() {
               : afterHoursFilter === 'in_hours'
               ? false
               : undefined,
-          scope: isDeptHead ? viewScope : 'mine',
+          scope: viewScope,
           page,
           pageSize,
         });
@@ -144,7 +145,6 @@ export default function ProcedureListPage() {
     selectedQuarter,
     serviceId,
     afterHoursFilter,
-    isDeptHead,
     viewScope,
     page,
     pageSize,
@@ -158,32 +158,26 @@ export default function ProcedureListPage() {
   // DỮ LIỆU TÁCH BẢNG CHO HR STAFF & ACCOUNTANT
   // ============================================================================
 
-  // Bảng 1: Danh sách phiếu đang chờ xử lý của vai trò hiện tại
-  // - HR Staff: chỉ hiện phiếu 'pending' (khi duyệt hoặc từ chối sẽ biến mất khỏi bảng này)
-  // - Accountant: chỉ hiện phiếu 'hr_checked' (khi xác minh hoặc từ chối sẽ biến mất khỏi bảng này)
+  // Bảng 1: Danh sách phiếu đang chờ xử lý của Kế toán
+  // - Kế toán xác minh viện phí: nhận phiếu trực tiếp từ Bác sĩ ('pending' hoặc 'hr_checked')
   const pendingQueueItems = useMemo(() => {
-    if (!isReviewerRole) return [];
-    if (isHrStaff) {
-      return allReviewerItems.filter((item) => item.status === 'pending');
-    }
-    return allReviewerItems.filter((item) => item.status === 'hr_checked');
-  }, [isReviewerRole, isHrStaff, allReviewerItems]);
+    if (!isAccountant) return [];
+    return allReviewerItems.filter(
+      (item) => item.status === 'pending' || item.status === 'hr_checked'
+    );
+  }, [isAccountant, allReviewerItems]);
 
   // Bảng 2: Lịch sử các phiếu đã xử lý (lọc theo BS chỉ định, Người thực hiện chính, Tháng, Trạng thái)
   const filteredHistoryItems = useMemo(() => {
     if (!isReviewerRole) return [];
 
-    // Tập phiếu đã qua xử lý
+    // Tập phiếu đã qua xử lý (Đã xác minh, Đã hoàn thành hoặc Đã từ chối)
     const baseHistory = allReviewerItems.filter((item) => {
-      if (isHrStaff) {
-        return (
-          item.status === 'hr_checked' ||
-          item.status === 'verified' ||
-          item.status === 'rejected'
-        );
-      }
-      // Accountant: xem các phiếu đã xác minh hoặc đã bị từ chối
-      return item.status === 'verified' || item.status === 'rejected';
+      return (
+        item.status === 'verified' ||
+        item.status === 'completed' ||
+        item.status === 'rejected'
+      );
     });
 
     return baseHistory.filter((item) => {
@@ -291,6 +285,7 @@ export default function ProcedureListPage() {
           </button>
           <div className="text-xs text-slate-500 mt-0.5">
             Ngày: <span className="font-medium text-slate-700">{formatDateOnly(r.procedureDate)}</span>
+            {r.startTime && r.endTime ? ` (${formatTimeRangeVn(r.startTime, r.endTime)})` : ''}
             {r.patientCode ? ` • BN: ${r.patientCode}` : ''}
           </div>
         </div>
@@ -382,33 +377,21 @@ export default function ProcedureListPage() {
             Xem chi tiết
           </button>
 
-          {!r.isPeriodLocked && isHrStaff && r.status === 'pending' && (
-            <>
-              <button
-                type="button"
-                onClick={() => handleOpenReview(r, 'hr_check', 'approve')}
-                className="button text-xs py-1 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600"
-              >
-                ✓ Duyệt
-              </button>
-              <button
-                type="button"
-                onClick={() => handleOpenReview(r, 'hr_check', 'reject')}
-                className="button text-xs py-1 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300"
-              >
-                ✕ Từ chối
-              </button>
-            </>
-          )}
-
-          {!r.isPeriodLocked && isAccountant && r.status === 'hr_checked' && (
+          {!r.isPeriodLocked && isAccountant && (r.status === 'pending' || r.status === 'hr_checked') && (
             <>
               <button
                 type="button"
                 onClick={() => handleOpenReview(r, 'accountant_verify', 'approve')}
-                className="button text-xs py-1 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600"
+                className="button text-xs py-1 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 font-semibold"
               >
-                ✓ Xác minh
+                ✓ Duyệt viện phí
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate(`/procedures/${r.slipId}/edit`)}
+                className="button text-xs py-1 px-2.5 text-sky-700 border-sky-300 bg-sky-50 hover:bg-sky-100 font-medium"
+              >
+                ✎ Sửa ca
               </button>
               <button
                 type="button"
@@ -487,7 +470,7 @@ export default function ProcedureListPage() {
     },
     {
       key: 'handoverChain',
-      label: 'Hành trình phiếu (Từ ai → Sang ai)',
+      label: 'Hành trình phiếu',
       render: (r) => (
         <div className="text-xs space-y-1 leading-relaxed">
           <div className="text-slate-700">
@@ -497,20 +480,24 @@ export default function ProcedureListPage() {
             </strong>
           </div>
           <div className="text-slate-700">
-            <span className="text-slate-400">2. Sang HR:</span>{' '}
-            <strong className="text-sky-800">
-              {r.hrCheckedByName || 'Phòng Nhân sự'}
+            <span className="text-slate-400">2. Kế toán xác minh:</span>{' '}
+            <strong className="text-emerald-800">
+              {r.verifiedByName ||
+                (r.status === 'pending'
+                  ? 'Chờ Kế toán duyệt'
+                  : r.status === 'rejected' && !r.verifiedByName
+                  ? 'Bị từ chối'
+                  : 'Phòng Kế toán')}
             </strong>
           </div>
           <div className="text-slate-700">
-            <span className="text-slate-400">3. Sang Kế toán:</span>{' '}
-            <strong className="text-emerald-800">
-              {r.verifiedByName ||
-                (r.status === 'hr_checked'
-                  ? 'Đang chờ Kế toán xác minh'
-                  : r.status === 'rejected' && r.rejectedReason?.startsWith('[HR')
-                  ? 'Dừng tại bước HR'
-                  : 'Phòng Kế toán')}
+            <span className="text-slate-400">3. Kíp thực hiện:</span>{' '}
+            <strong className="text-sky-800">
+              {r.status === 'completed'
+                ? `Đã hoàn thành (${r.completedByName || r.performingStaffName || 'Bác sĩ'})`
+                : r.status === 'verified'
+                ? `Chờ thực hiện (${r.performingStaffName || 'Kíp thủ thuật'})`
+                : 'Chưa thực hiện'}
             </strong>
           </div>
         </div>
@@ -569,7 +556,10 @@ export default function ProcedureListPage() {
           >
             {r.slipNumber}
           </button>
-          <div className="text-xs text-slate-500">{formatDateOnly(r.procedureDate)}</div>
+          <div className="text-xs text-slate-500">
+            {formatDateOnly(r.procedureDate)}
+            {r.startTime && r.endTime ? ` • ${formatTimeRangeVn(r.startTime, r.endTime)}` : ''}
+          </div>
         </div>
       ),
     },
@@ -611,16 +601,21 @@ export default function ProcedureListPage() {
     },
     {
       key: 'status',
-      label: 'Trạng thái duyệt',
+      label: 'Trạng thái',
       render: (r) => (
         <div>
           <span
-            className={`inline-block text-xs px-2.5 py-0.5 rounded-full font-medium ${getProcedureStatusBadgeClass(
+            className={`inline-block text-xs px-2.5 py-0.5 rounded-full font-semibold ${getProcedureStatusBadgeClass(
               r.status
             )}`}
           >
             {PROCEDURE_STATUS_LABELS[r.status] || r.status}
           </span>
+          {r.status === 'completed' && (
+            <div className="text-[11px] text-emerald-700 font-medium mt-1">
+              ✓ Hoàn thành {r.completedByName ? `(${r.completedByName})` : ''}
+            </div>
+          )}
           {r.status === 'rejected' && r.rejectedReason && (
             <div className="text-[11px] text-rose-600 mt-1 max-w-[240px]" title={r.rejectedReason}>
               Lý do: {r.rejectedReason}
@@ -634,6 +629,16 @@ export default function ProcedureListPage() {
       label: 'Thao tác',
       render: (r) => (
         <div className="flex items-center gap-1.5 justify-end">
+          {/* Nút Hoàn thành ca chỉ xuất hiện khi xem Thủ thuật được giao làm cho mình */}
+          {viewScope === 'assigned' && r.status === 'verified' && (
+            <button
+              type="button"
+              onClick={() => setCompleteModalSlip(r)}
+              className="button text-xs py-1 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 font-semibold"
+            >
+              ✓ Hoàn thành
+            </button>
+          )}
           <button
             type="button"
             onClick={() => navigate(`/procedures/${r.slipId}`)}
@@ -681,12 +686,10 @@ export default function ProcedureListPage() {
                 </span>
                 <div>
                   <h2 className="text-sm font-bold text-slate-900 m-0">
-                    {isHrStaff
-                      ? 'Danh sách phiếu chờ HR kiểm tra'
-                      : 'Danh sách phiếu chờ Kế toán xác minh'}
+                    Danh sách phiếu chờ Kế toán xác minh viện phí
                   </h2>
                   <p className="text-xs text-slate-600 m-0">
-                    Chỉ hiển thị các phiếu đang chờ bạn đánh giá. Ngay khi bấm Duyệt hoặc Từ chối, phiếu sẽ chuyển sang bảng Lịch sử duyệt bên dưới.
+                    Phiếu thủ thuật do Bác sĩ lập sẽ chuyển trực tiếp tới Kế toán xác minh. Khi duyệt, phiếu sẽ chuyển cho kíp Bác sĩ thực hiện ca.
                   </p>
                 </div>
               </div>
@@ -856,10 +859,8 @@ export default function ProcedureListPage() {
                     className="w-full h-9 min-h-[36px] rounded-lg border border-slate-300 px-3 py-1.5 text-xs bg-white"
                   >
                     <option value="all">Tất cả phiếu đã xử lý</option>
-                    {isHrStaff && (
-                      <option value="hr_checked">Đã duyệt chuyển Kế toán</option>
-                    )}
-                    <option value="verified">Đã xác minh (Verified)</option>
+                    <option value="verified">Đã xác minh / Chờ làm (Verified)</option>
+                    <option value="completed">Đã hoàn thành thủ thuật (Completed)</option>
                     <option value="rejected">Bị từ chối (Rejected)</option>
                   </select>
                 </div>
@@ -1047,14 +1048,18 @@ export default function ProcedureListPage() {
       <div className="page-heading flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1>
-            {isDeptHead
-              ? 'Phiếu thủ thuật cá nhân & Khoa quản lý'
-              : 'Phiếu thủ thuật y tế của tôi'}
+            {viewScope === 'assigned'
+              ? 'Thủ thuật y tế được giao làm'
+              : isDeptHead && viewScope === 'department'
+              ? 'Phiếu thủ thuật theo Khoa phụ trách'
+              : 'Phiếu thủ thuật y tế tôi lập / chỉ định'}
           </h1>
           <p className="muted">
-            {isDeptHead
-              ? 'Xem tổng số ca thủ thuật của cá nhân hoặc trong khoa bạn phụ trách và lập phiếu thủ thuật mới.'
-              : 'Theo dõi các ca thủ thuật của cá nhân theo thủ thuật, tháng/quý/năm, khung giờ và lập phiếu mới.'}
+            {viewScope === 'assigned'
+              ? 'Danh sách các ca thủ thuật bạn được phân công tham gia (Người thực hiện chính / Phụ mổ / Giúp việc). Khi hoàn thành ca, bấm Xác nhận hoàn thành.'
+              : isDeptHead && viewScope === 'department'
+              ? 'Xem tổng số ca thủ thuật trong toàn khoa và tình trạng xử lý của từng ca.'
+              : 'Theo dõi các ca thủ thuật bạn đã lập hoặc chỉ định và tình trạng phê duyệt của Kế toán.'}
           </p>
         </div>
 
@@ -1074,39 +1079,56 @@ export default function ProcedureListPage() {
 
       {/* Bộ lọc gọn gàng cho chế độ cá nhân / trưởng khoa */}
       <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-4">
-        {isDeptHead && (
-          <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-            <span className="text-xs font-semibold text-slate-600 mr-1">Phạm vi xem:</span>
-            <button
-              type="button"
-              onClick={() => {
-                setViewScope('mine');
-                setPage(1);
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition ${
-                viewScope === 'mine'
-                  ? 'bg-sky-700 text-white'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-            >
-              Của cá nhân tôi
-            </button>
+        <div className="flex flex-wrap items-center gap-2 pb-3 border-b border-slate-100">
+          <span className="text-xs font-semibold text-slate-600 mr-1">Phân hệ hiển thị:</span>
+          <button
+            type="button"
+            onClick={() => {
+              setViewScope('assigned');
+              setPage(1);
+            }}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition flex items-center gap-1.5 ${
+              viewScope === 'assigned'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            <span>🩺</span>
+            <span>Thủ thuật được giao làm (Kíp thực hiện)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setViewScope('mine');
+              setPage(1);
+            }}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition flex items-center gap-1.5 ${
+              viewScope === 'mine'
+                ? 'bg-sky-700 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            }`}
+          >
+            <span>📝</span>
+            <span>Phiếu tôi đã lập / chỉ định</span>
+          </button>
+          {isDeptHead && (
             <button
               type="button"
               onClick={() => {
                 setViewScope('department');
                 setPage(1);
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition flex items-center gap-1.5 ${
                 viewScope === 'department'
-                  ? 'bg-sky-700 text-white'
+                  ? 'bg-sky-700 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
-              Theo khoa của tôi
+              <span>🏥</span>
+              <span>Toàn bộ Khoa của tôi</span>
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-wrap items-end gap-3">
@@ -1244,9 +1266,11 @@ export default function ProcedureListPage() {
           <div className="bg-sky-50 border border-sky-200 rounded-xl px-5 py-2.5 flex items-center gap-4">
             <div>
               <span className="text-xs font-medium text-sky-800 block">
-                {isDeptHead && viewScope === 'department'
+                {viewScope === 'assigned'
+                  ? 'Tổng ca được phân công'
+                  : isDeptHead && viewScope === 'department'
                   ? 'Tổng số ca của Khoa'
-                  : 'Tổng số ca của tôi'}
+                  : 'Tổng số ca tôi lập'}
               </span>
               <strong className="text-2xl font-extrabold text-sky-900 font-[tabular-nums]">
                 {data?.allCount ?? 0} ca
@@ -1254,7 +1278,7 @@ export default function ProcedureListPage() {
             </div>
             <div className="text-xs text-slate-600 border-l border-sky-200 pl-3 space-y-0.5">
               <div>
-                Đã xác minh:{' '}
+                Đã hoàn thành / xác minh:{' '}
                 <strong className="text-emerald-700">{data?.verifiedCount ?? 0}</strong>
               </div>
               <div>
@@ -1285,7 +1309,11 @@ export default function ProcedureListPage() {
               columns={personalSlipColumns}
               rows={data?.items ?? []}
               rowKey={(r) => r.slipId}
-              emptyMessage="Không tìm thấy phiếu thủ thuật nào phù hợp với bộ lọc."
+              emptyMessage={
+                viewScope === 'assigned'
+                  ? 'Bạn chưa có ca thủ thuật nào được phân công trong kỳ này.'
+                  : 'Không tìm thấy phiếu thủ thuật nào phù hợp với bộ lọc.'
+              }
             />
 
             {(data?.total ?? 0) > 0 && (
@@ -1306,6 +1334,18 @@ export default function ProcedureListPage() {
           </>
         )}
       </div>
+
+      {/* Modal Xác nhận hoàn thành ca thủ thuật */}
+      <ProcedureCompleteModal
+        open={Boolean(completeModalSlip)}
+        slip={completeModalSlip}
+        onClose={() => setCompleteModalSlip(null)}
+        onSuccess={(_updated, msg) => {
+          setCompleteModalSlip(null);
+          setNotice(msg);
+          void loadData();
+        }}
+      />
     </div>
   );
 }

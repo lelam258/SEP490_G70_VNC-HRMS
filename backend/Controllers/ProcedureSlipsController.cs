@@ -31,6 +31,21 @@ public sealed class ProcedureSlipsController(IProcedureSlipService procedureSlip
         return procedureSlipService.GetLookupsAsync(userId, ct);
     }
 
+    [HttpGet("staff-availability")]
+    public Task<IReadOnlyList<ProcedureStaffAvailabilityDto>> GetStaffAvailability(
+        [FromQuery] DateOnly procedureDate,
+        [FromQuery] Guid? departmentId = null,
+        [FromQuery] Guid? facilityId = null,
+        [FromQuery] string? startTime = null,
+        [FromQuery] string? endTime = null,
+        [FromQuery] Guid? excludeSlipId = null,
+        CancellationToken ct = default)
+    {
+        _ = GetCurrentIdentity();
+        return procedureSlipService.GetStaffAvailabilityAsync(
+            procedureDate, departmentId, facilityId, startTime, endTime, excludeSlipId, ct);
+    }
+
     [HttpGet]
     public Task<ProcedureSlipListResponseDto> ListSlips(
         [FromQuery] string? periodType = null,
@@ -102,6 +117,14 @@ public sealed class ProcedureSlipsController(IProcedureSlipService procedureSlip
     {
         var (userId, role) = GetCurrentIdentity();
         return procedureSlipService.VerifySlipAsync(userId, role, id, request, ct);
+    }
+
+    [HttpPost("{id:guid}/complete")]
+    public Task<ProcedureSlipDetailDto> CompleteSlip(
+        Guid id, [FromBody] CompleteProcedureSlipRequest request, CancellationToken ct)
+    {
+        var (userId, role) = GetCurrentIdentity();
+        return procedureSlipService.CompleteSlipAsync(userId, role, id, request, ct);
     }
 
     [HttpPost("calculate-monthly-commission")]

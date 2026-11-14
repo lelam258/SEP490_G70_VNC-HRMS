@@ -70,7 +70,15 @@ public sealed record ProcedureSlipListItemDto(
     DateTime? VerifiedAt,
     string? RejectedReason,
     DateTime? CreatedAt,
-    bool IsPeriodLocked);
+    bool IsPeriodLocked,
+    string? StartTime = null,
+    string? EndTime = null,
+    Guid? FacilityId = null,
+    string? FacilityName = null,
+    Guid? CompletedBy = null,
+    string? CompletedByName = null,
+    DateTime? CompletedAt = null,
+    string? CompleteNote = null);
 
 public sealed record ProcedureSlipAuditItemDto(
     Guid LogId,
@@ -123,8 +131,17 @@ public sealed record ProcedureSlipDetailDto(
     bool CanEdit,
     bool CanHrCheck,
     bool CanAccountantVerify,
+    bool CanComplete,
     IReadOnlyList<ProcedureAssignmentDto> Assignments,
-    IReadOnlyList<ProcedureSlipAuditItemDto> AuditHistory);
+    IReadOnlyList<ProcedureSlipAuditItemDto> AuditHistory,
+    string? StartTime = null,
+    string? EndTime = null,
+    Guid? FacilityId = null,
+    string? FacilityName = null,
+    Guid? CompletedBy = null,
+    string? CompletedByName = null,
+    DateTime? CompletedAt = null,
+    string? CompleteNote = null);
 
 public sealed record ProcedureDepartmentSummaryDto(
     Guid? DepartmentId,
@@ -188,11 +205,42 @@ public sealed record SaveProcedureSlipRequest(
     bool IsAfterHours,
     decimal? DurationHours,
     Guid? IndicatingStaffId,
-    IReadOnlyList<SaveProcedureAssignmentInput> Assignments);
+    IReadOnlyList<SaveProcedureAssignmentInput> Assignments,
+    string? StartTime = null,
+    string? EndTime = null,
+    Guid? FacilityId = null);
+
+public sealed record StaffProcedureBookingDto(
+    Guid SlipId,
+    string SlipNumber,
+    string ServiceName,
+    string StartTime,
+    string EndTime,
+    string TimeRangeLabel);
+
+public sealed record ProcedureStaffAvailabilityDto(
+    Guid StaffId,
+    string StaffCode,
+    string FullName,
+    Guid? DepartmentId,
+    string? DepartmentName,
+    Guid? PositionId,
+    string? PositionName,
+    bool IsWorkingToday,
+    bool IsOnLeave,
+    IReadOnlyList<string> ShiftsToday,
+    string? OffReason,
+    bool IsBusyInRequestedTime,
+    string? BusyReason,
+    IReadOnlyList<StaffProcedureBookingDto> BookingsToday,
+    IReadOnlyList<string>? FreeTimeRangesUntil17h = null);
 
 public sealed record ReviewProcedureSlipRequest(
     string Decision,
     string? Reason = null,
+    string? Note = null);
+
+public sealed record CompleteProcedureSlipRequest(
     string? Note = null);
 
 public sealed record PreviewProcedureCommissionRequest(
@@ -225,10 +273,17 @@ public sealed record ProcedureLookupStaffDto(
     Guid? PositionId,
     string? PositionName);
 
+public sealed record ProcedureLookupFacilityDto(
+    Guid FacilityId,
+    string Name,
+    string Status);
+
 public sealed record ProcedureLookupDepartmentDto(
     Guid DepartmentId,
     string DeptCode,
-    string Name);
+    string Name,
+    IReadOnlyList<Guid>? FacilityIds = null,
+    string? FacilityLabel = null);
 
 public sealed record ProcedureLookupsDto(
     IReadOnlyList<ProcedureServiceOptionDto> Services,
@@ -237,7 +292,8 @@ public sealed record ProcedureLookupsDto(
     Guid? CurrentUserStaffId = null,
     string? CurrentUserStaffCode = null,
     string? CurrentUserFullName = null,
-    Guid? CurrentUserDepartmentId = null);
+    Guid? CurrentUserDepartmentId = null,
+    IReadOnlyList<ProcedureLookupFacilityDto>? Facilities = null);
 
 public sealed record CalculateMonthlyCommissionRequest(
     string PayMonth,

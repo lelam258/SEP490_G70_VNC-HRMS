@@ -8,13 +8,107 @@ export type AttendanceItem = {
   facilityId: string | null; facilityName: string | null; workDate: string; shiftType: string; checkIn: string | null; checkOut: string | null;
   actualHours: number | null; source: string; status: string; importId: string | null; onCallShiftId: string | null;
 };
-export type AttendanceList = PageResult<AttendanceItem> & { month: string; counts: { confirmed: number; unconfirmed: number; flagged: number } };
+export type AttendanceList = PageResult<AttendanceItem> & {
+  month: string;
+  counts: { confirmed: number; unconfirmed: number; flagged: number; reconciled?: number; pending?: number };
+};
+export type AttendanceDiscrepancy = { code: string; label: string; severity: 'error' | 'warning' | 'info' };
 export type AttendanceDetail = {
-  item: AttendanceItem; pairs: TimePair[]; deviceEnrollId: string | null; batch: { id: string; fileName: string; importDate: string; deviceSource?: string } | null;
+  item: AttendanceItem; pairs: TimePair[]; machinePairs?: TimePair[]; deviceEnrollId: string | null;
+  batch: { id: string; fileName: string; importDate: string; deviceSource?: string } | null;
+  importRow?: {
+    id: string; sheetName: string; rowNumber: number; deviceEnrollId: string; rawDate: string; rawValues: string[];
+    pairs: TimePair[]; actualHours: number | null; reportedHours: number | null; lateMinutes: number | null;
+    earlyMinutes: number | null; attendanceSymbol: string | null; validationStatus: string; errorCode: string | null;
+    validationNote: string | null; correctionReason: string | null;
+  } | null;
   note: string | null; reconcileNote: string | null; reconciledAt: string | null; reconciledBy: string | null;
   confirmedAt: string | null; confirmedBy: string | null; actors: { id: string; name: string }[]; createdAt: string; payslipId: string | null;
   lockedReason: string | null; schedules: { id: string; facilityId: string; date: string; shift: string }[];
+  scheduleDetails?: {
+    id: string; facilityId: string; facilityName: string | null; date: string; shift: string;
+    start: string; end: string; patientConfirmed: boolean; patientEvidence: string | null;
+    actualEndAt: string | null; endNote: string | null;
+  }[];
+  leaves?: { id: string; leaveType: string; startDate: string; endDate: string; totalDays: number | null; reason: string | null; status: string }[];
+  onCalls?: {
+    id: string; facilityId: string | null; facilityName: string | null; date: string; category: string;
+    start: string | null; end: string | null; status: string; note: string | null; deviationReason: string | null;
+    supervisorEvidence: string | null; reviewNote: string | null; confirmedBy: string | null; confirmedAt: string | null;
+  }[];
+  discrepancies?: AttendanceDiscrepancy[];
+  suggestedClassification?: string;
+  supervisorConfirmed?: boolean;
+  supervisorEvidence?: string | null;
+  version?: string;
   events: { logId: string; action: string; username: string | null; createdAt: string; result: string }[];
+};
+export type ManualAttendanceContext = {
+  staffId: string; facilityId: string; date: string; approvedLeave: boolean; lockedReason: string | null;
+  schedules: { id: string; facilityId: string; facilityName: string | null; shift: string; start: string; end: string }[];
+  leaves: { id: string; leaveType: string; startDate: string; endDate: string; reason: string | null }[];
+  existingRecords: { id: string; shiftType: string; facilityId: string | null; facilityName: string | null; checkIn: string | null; checkOut: string | null; actualHours: number | null; source: string; status: string }[];
+  onCalls: { id: string; category: string; start: string | null; end: string | null; status: string; supervisorEvidence: string | null }[];
+};
+export type ManualAttendanceInput = {
+  staffId: string; facilityId: string; workDate: string; shiftType: string;
+  pairs: { in: string; out: string }[]; sourceReference: string; reason: string; supervisorEvidence?: string;
+};
+export type ReconcileAttendanceInput = {
+  action: 'accept_machine' | 'accept_manual' | 'correct_time' | 'mark_unresolved';
+  pairs?: { in: string; out: string }[];
+  facilityId?: string | null;
+  reason: string;
+  supervisorEvidence?: string;
+  supervisorConfirmed: boolean;
+  version: string;
+};
+export type VerifyAttendanceInput = {
+  decision: 'confirm' | 'return';
+  reason?: string;
+  supervisorEvidence?: string;
+  version: string;
+};
+export type VerifyOnCallInput = {
+  decision: 'confirm' | 'return' | 'reject';
+  reason?: string;
+  supervisorEvidence?: string;
+  version: string;
+};
+export type ScopeMonthlyTotal = {
+  id: string; name: string; staffCount: number; confirmedMainDays: number;
+  confirmedNoonDuties: number; confirmedEveningDuties: number; confirmedHours: number;
+  paidLeaveDays: number; flaggedCount: number; unconfirmedCount: number;
+  unaccountedScheduleCount: number; completed: boolean;
+};
+export type StaffMonthlySummary = {
+  staffId: string; staffCode: string; staffName: string; departmentId: string | null; departmentName: string | null;
+  plannedMainDays: number; confirmedMainDays: number; confirmedNoonDuties: number; confirmedEveningDuties: number;
+  confirmedHours: number; overtimeHours: number; paidLeaveDays: number; unpaidLeaveDays: number;
+  machineRecordCount: number; manualRecordCount: number; flaggedCount: number; unconfirmedCount: number;
+  missingPunchCount: number; unaccountedScheduleCount: number; readyForPayroll: boolean;
+};
+export type MonthlyException = {
+  id: string; category: string; severity: 'error' | 'warning'; staffId: string; staffCode: string; staffName: string;
+  departmentId: string | null; departmentName: string | null; facilityId: string | null; facilityName: string | null;
+  date: string; shiftType: string; message: string; targetUrl: string | null;
+};
+export type MonthlyAttendanceSummary = {
+  payMonth: string; status: string; timesheetId: string | null; lockedBy: string | null; lockedByName: string | null;
+  lockedAt: string | null; consolidationOpenDate: string; standardLockDate: string; correctionDeadline: string;
+  windowStatus: 'open' | 'early' | 'reopened' | 'locked' | 'closed';
+  lockedReason: string | null; consolidationLockReason: string | null; canLock: boolean; version: string;
+  totals: {
+    totalStaff: number; confirmedMainDays: number; confirmedNoonDuties: number; confirmedEveningDuties: number;
+    confirmedHours: number; overtimeHours: number; paidLeaveDays: number; unpaidLeaveDays: number;
+    machineRecords: number; manualRecords: number; confirmedRecords: number; flaggedRecords: number;
+    unconfirmedRecords: number; missingPunchRecords: number; pendingOnCalls: number; unaccountedScheduledShifts: number;
+  };
+  facilityTotals: ScopeMonthlyTotal[];
+  departmentTotals: ScopeMonthlyTotal[];
+  staffSummaries: StaffMonthlySummary[];
+  exceptions: MonthlyException[];
+  incompleteScopes: string[];
 };
 export type ImportBatch = { id: string; fileName: string; payMonth: string; facilityId: string; deviceSource: string | null;
   importedBy: string; importDate: string; totalRows: number; successRows: number; errorRows: number; status: string; dateOrder?: 'auto' | 'dmy' | 'mdy' };

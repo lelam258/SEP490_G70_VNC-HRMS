@@ -73,6 +73,26 @@ export default function SchedulesPage() {
       setServerOffset(Date.parse(s.data.serverNow) - receivedAt);
       setClock(receivedAt);
       setOptions(o.data); setRows(r.data); setStatus(s.data); setSnapshotKey(queryKey);
+      void (async () => {
+        try {
+          const allRows =
+            facilityId || departmentId || staffFilter
+              ? (await api.get<ScheduleRow[]>('/schedules', { params: { date: monday } })).data
+              : r.data;
+          const payload = { monday, closed: s.data.closed, rows: allRows };
+          const raw = localStorage.getItem('vnc_schedule_weeks_cache_v1');
+          const cache = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+          cache[monday] = payload;
+          localStorage.setItem('vnc_schedule_weeks_cache_v1', JSON.stringify(cache));
+          await fetch('/api/shared-schedule-cache', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+        } catch {
+          // ignore sync errors
+        }
+      })();
       setNotice(current => current.includes('Chưa tải lại được lịch') ? 'Đã tải lại lịch.' : current);
       return true;
     } catch (cause) {
