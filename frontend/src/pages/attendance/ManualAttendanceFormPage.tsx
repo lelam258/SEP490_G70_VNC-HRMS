@@ -23,8 +23,8 @@ export default function ManualAttendanceFormPage() {
   const [searchParams] = useSearchParams();
   const options = useApiResource<AttendanceOptions>('/attendance/options');
 
-  const initialDate = searchParams.get('date') || clinicToday();
-  const initialShift = searchParams.get('shift') || 'main';
+  const initialDate = searchParams.get('date') || searchParams.get('workDate') || clinicToday();
+  const initialShift = searchParams.get('shift') || searchParams.get('shiftType') || 'main';
   const [staffId, setStaffId] = useState(searchParams.get('staffId') || '');
   const [facilityId, setFacilityId] = useState(searchParams.get('facilityId') || '');
   const [workDate, setWorkDate] = useState(initialDate);
@@ -218,7 +218,18 @@ export default function ManualAttendanceFormPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
                 <strong style={{ fontSize: 12.5, color: '#334155' }}>Các cặp giờ Vào / Ra (HH:mm) *</strong>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button type="button" className="button" style={{ padding: '4px 9px', fontSize: 11.5 }} onClick={() => setPairs(defaultPairsForShift(workDate, shiftType))}>
+                  <button
+                    type="button"
+                    className="button"
+                    style={{ padding: '4px 9px', fontSize: 11.5 }}
+                    onClick={() => {
+                      if (matchingPlans.length > 0) {
+                        setPairs(matchingPlans.map(s => ({ in: s.start, out: s.end })));
+                      } else {
+                        setPairs(defaultPairsForShift(workDate, shiftType));
+                      }
+                    }}
+                  >
                     Điền giờ chuẩn ca
                   </button>
                   {pairs.length < 3 && (

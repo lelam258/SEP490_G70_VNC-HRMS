@@ -279,17 +279,24 @@ public sealed class AttendanceRecordService(
             .AnyAsync(x => x.StaffId == staff.StaffId && x.Status == "approved" && x.StartDate <= request.WorkDate && x.EndDate >= request.WorkDate, ct);
         var plans = (await imports.PublishedPlans(request.WorkDate, request.WorkDate, ct)).Where(x => x.StaffId == staff.StaffId).ToArray();
         var candidateShifts = shiftType == "main" ? new[] { "morning", "afternoon" } : [shiftType];
+        var workedShifts = candidateShifts.Where(shift => {
+            var (from, to) = ScheduleRules.Hours(request.WorkDate, shift);
+            return pairs.Any(pair => pair.In < request.WorkDate.ToDateTime(to) && pair.Out > request.WorkDate.ToDateTime(from));
+        }).ToArray();
         var matchingPlans = plans.Where(x => candidateShifts.Contains(x.Shift)).ToArray();
+        var workedPlans = plans.Where(x => workedShifts.Contains(x.Shift)).ToArray();
 
         var conflicts = new List<string>();
         if (hasApprovedLeave)
             conflicts.Add("Trùng ngày nghỉ phép đã được duyệt");
         if (plans.Length == 0)
             conflicts.Add("Chưa có lịch phân công đã công bố trong ngày");
-        else if (matchingPlans.Length == 0)
-            conflicts.Add("Ca nhập thủ công không có trong lịch phân công đã công bố");
-        else if (matchingPlans.All(x => x.FacilityId != request.FacilityId))
+        else if (matchingPlans.Length == 0 || workedShifts.Length == 0 || workedShifts.Any(ws => !matchingPlans.Any(p => p.Shift == ws)))
+            conflicts.Add("Ca hoặc buổi làm việc nhập thủ công không khớp với lịch phân công đã công bố");
+        else if (workedPlans.Any(x => x.FacilityId != request.FacilityId) || matchingPlans.All(x => x.FacilityId != request.FacilityId))
             conflicts.Add("Cơ sở nhập thủ công khác với cơ sở trên lịch phân công");
+        else if (shiftType == "main" && matchingPlans.Any(p => p.FacilityId == request.FacilityId && !workedShifts.Contains(p.Shift)))
+            conflicts.Add("Thiếu cặp giờ vào/ra cho một buổi làm việc đã phân công tại cơ sở này");
 
         if (shiftType == "evening") {
             var plannedEveningEnd = ScheduleRules.Hours(request.WorkDate, "evening").End.ToTimeSpan();
@@ -330,6 +337,7 @@ public sealed class AttendanceRecordService(
         };
 
         db.AttendanceRecords.Add(record);
+        await MarkTimesheetReopenedIfModified(request.WorkDate.ToString("yyyy-MM"), now, ct);
         WriteAudit(user, "create_manual_attendance", "AttendanceRecord", record.AttendanceId, null, new {
             record.StaffId, record.DepartmentId, record.FacilityId, record.WorkDate, record.ShiftType,
             status = record.ValidationStatus, record.Source, record.ActualHours, sourceReference = sourceRef,
@@ -499,6 +507,7 @@ public sealed class AttendanceRecordService(
         record.ReconcileNote = formattedNote;
         record.ValidationStatus = "reconciled";
 
+        await MarkTimesheetReopenedIfModified(record.WorkDate.ToString("yyyy-MM"), now, ct);
         WriteAudit(user, "reconcile_attendance", "AttendanceRecord", record.AttendanceId, previousSnapshot, RecordSnapshot(record, action));
         await access.RequireOpenMonth(record.WorkDate.ToString("yyyy-MM"), ct);
         await db.SaveChangesAsync(ct);
@@ -637,7 +646,9 @@ public sealed class AttendanceRecordService(
                 && x.StaffId == record.StaffId && x.ShiftDate == record.WorkDate && x.Status == "pending")
             .ToArrayAsync(ct);
         foreach (var duty in linkedDuties) {
-            if (duty.ShiftCategory == record.ShiftType && duty.ShiftStart.HasValue && duty.ShiftEnd.HasValue) {
+            var pairsCoverDuty = duty.ShiftStart.HasValue && duty.ShiftEnd.HasValue
+                && pairs.Any(p => p.In <= duty.ShiftStart.Value && p.Out >= duty.ShiftEnd.Value);
+            if ((duty.ShiftCategory == record.ShiftType || pairsCoverDuty) && duty.ShiftStart.HasValue && duty.ShiftEnd.HasValue) {
                 var dutyPlanned = ScheduleRules.Hours(duty.ShiftDate, duty.ShiftCategory);
                 var earlyDuty = duty.ShiftCategory == "evening" && duty.ShiftEnd.Value.TimeOfDay < dutyPlanned.End.ToTimeSpan();
                 if (!earlyDuty || !string.IsNullOrWhiteSpace(duty.SupervisorEvidence) || !string.IsNullOrWhiteSpace(supervisorText)) {
@@ -651,6 +662,7 @@ public sealed class AttendanceRecordService(
             }
         }
 
+        await MarkTimesheetReopenedIfModified(record.WorkDate.ToString("yyyy-MM"), now, ct);
         WriteAudit(user, "verify_attendance_record", "AttendanceRecord", record.AttendanceId, previousSnapshot, RecordSnapshot(record, "confirm"));
         await access.RequireOpenMonth(record.WorkDate.ToString("yyyy-MM"), ct);
         await db.SaveChangesAsync(ct);
@@ -932,7 +944,11 @@ public sealed class AttendanceRecordService(
 
             var totalConfirmedHours = Math.Round(confirmedRecordHours + standaloneDutyHours, 2, MidpointRounding.AwayFromZero);
             var overtimeHours = Math.Round(
-                personRecords.Where(x => x.ValidationStatus == "confirmed" && x.ShiftType == "main" && (x.ActualHours ?? 0m) > 8m).Sum(x => (x.ActualHours ?? 0m) - 8m)
+                personRecords.Where(x => x.ValidationStatus == "confirmed" && x.ShiftType == "main").Sum(x => {
+                    var stdHours = StandardMainHours(x.WorkDate);
+                    var act = x.ActualHours ?? 0m;
+                    return act > stdHours + 0.05m ? act - stdHours : 0m;
+                })
                 + standaloneDutyHours
                 + personRecords.Where(x => x.ValidationStatus == "confirmed" && x.ShiftType is "noon" or "evening").Sum(x => x.ActualHours ?? 0m),
                 2, MidpointRounding.AwayFromZero);
@@ -1118,6 +1134,22 @@ public sealed class AttendanceRecordService(
             throw new AppException(403, "MSG38: Bạn không có quyền truy cập chức năng hoặc thực hiện nghiệp vụ chấm công này.");
     }
 
+    private static decimal StandardMainHours(DateOnly date)
+    {
+        var (mStart, mEnd) = ScheduleRules.Hours(date, "morning");
+        var (aStart, aEnd) = ScheduleRules.Hours(date, "afternoon");
+        return Math.Round((decimal)((mEnd - mStart) + (aEnd - aStart)).TotalHours, 2, MidpointRounding.AwayFromZero);
+    }
+
+    private async Task MarkTimesheetReopenedIfModified(string month, DateTime now, CancellationToken ct)
+    {
+        var ts = await db.MonthlyTimesheets.SingleOrDefaultAsync(x => x.PayMonth == month && x.Status == "locked", ct);
+        if (ts is not null) {
+            ts.Status = "reopened";
+            ts.UpdatedAt = now;
+        }
+    }
+
     private static AttendanceTimePair[] ParsePairs(AttendanceRecord record)
         => record.TimePairsJson is null
             ? (record.CheckIn.HasValue || record.CheckOut.HasValue ? [new AttendanceTimePair(record.CheckIn, record.CheckOut)] : [])
@@ -1165,12 +1197,38 @@ public sealed class AttendanceRecordService(
 
         var candidateShifts = (record.ShiftType ?? "main") == "main" ? new[] { "morning", "afternoon" } : [record.ShiftType!];
         var matchingPlans = plans.Where(x => candidateShifts.Contains(x.Shift)).ToArray();
+        var completePairs = pairs.Where(x => x.In.HasValue && x.Out.HasValue).OrderBy(x => x.In).ToArray();
+        var workedShifts = candidateShifts.Where(shift => {
+            var (from, to) = ScheduleRules.Hours(record.WorkDate, shift);
+            return completePairs.Any(pair => pair.In < record.WorkDate.ToDateTime(to) && pair.Out > record.WorkDate.ToDateTime(from));
+        }).ToArray();
+
         if (plans.Length == 0) {
             list.Add(("source_mismatch", "Chưa có lịch phân công đã công bố cho nhân viên trong ngày này.", "warning"));
-        } else if (matchingPlans.Length == 0) {
-            list.Add(("source_mismatch", "Loại ca chấm công chưa khớp với ca làm việc đã công bố trên lịch.", "warning"));
-        } else if (record.FacilityId.HasValue && matchingPlans.All(x => x.FacilityId != record.FacilityId)) {
+        } else if (matchingPlans.Length == 0 || (completePairs.Length > 0 && workedShifts.Any(ws => !matchingPlans.Any(p => p.Shift == ws)))) {
+            list.Add(("source_mismatch", "Loại ca hoặc buổi chấm công chưa khớp với ca làm việc đã công bố trên lịch.", "warning"));
+        } else if (record.FacilityId.HasValue && (matchingPlans.Where(p => workedShifts.Contains(p.Shift)).Any(x => x.FacilityId != record.FacilityId) || matchingPlans.All(x => x.FacilityId != record.FacilityId))) {
             list.Add(("source_mismatch", "Cơ sở ghi nhận chấm công khác với cơ sở phân công trên lịch.", "error"));
+        }
+
+        // Check missing session punch or seasonal late/early against scheduled clinic hours
+        int computedLateMinutes = 0;
+        int computedEarlyMinutes = 0;
+        foreach (var plan in matchingPlans.Where(p => !record.FacilityId.HasValue || p.FacilityId == record.FacilityId)) {
+            var (planStart, planEnd) = ScheduleRules.Hours(record.WorkDate, plan.Shift);
+            var sessionPairs = completePairs
+                .Where(p => p.In!.Value.TimeOfDay < planEnd.ToTimeSpan() && p.Out!.Value.TimeOfDay > planStart.ToTimeSpan())
+                .ToArray();
+            if (sessionPairs.Length == 0 && completePairs.Length > 0 && (record.ShiftType ?? "main") == "main") {
+                list.Add(("missing_punch", $"Thiếu cặp giờ Vào/Ra cho ca {ScheduleRules.ShiftName(plan.Shift)} ({planStart:HH\\:mm}–{planEnd:HH\\:mm}) theo lịch phân công.", "error"));
+            } else if (sessionPairs.Length > 0) {
+                var firstIn = sessionPairs.Min(p => p.In!.Value.TimeOfDay);
+                var lastOut = sessionPairs.Max(p => p.Out!.Value.TimeOfDay);
+                if (firstIn > planStart.ToTimeSpan())
+                    computedLateMinutes += (int)Math.Round((firstIn - planStart.ToTimeSpan()).TotalMinutes);
+                if (lastOut < planEnd.ToTimeSpan() && !(record.ShiftType == "evening"))
+                    computedEarlyMinutes += (int)Math.Round((planEnd.ToTimeSpan() - lastOut).TotalMinutes);
+            }
         }
 
         var checkOut = pairs.Where(x => x.Out.HasValue).Select(x => x.Out!.Value).DefaultIfEmpty().Max();
@@ -1186,6 +1244,8 @@ public sealed class AttendanceRecordService(
 
         if ((importRow?.LateMinutes ?? 0m) > 0m || (importRow?.EarlyMinutes ?? 0m) > 0m) {
             list.Add(("late_early", $"Ghi nhận đi muộn {importRow?.LateMinutes ?? 0m:0} phút / về sớm {importRow?.EarlyMinutes ?? 0m:0} phút.", "warning"));
+        } else if (computedLateMinutes > 0 || computedEarlyMinutes > 0) {
+            list.Add(("late_early", $"Lệch giờ chuẩn phòng khám: đi muộn {computedLateMinutes} phút / về sớm {computedEarlyMinutes} phút.", "warning"));
         }
 
         var suggested = list.FirstOrDefault().Code ?? "matched";

@@ -18,6 +18,7 @@ public static class PayrollPeriodRules
     /// </summary>
     public static DateOnly GetConsolidationOpenDate(int year, int month)
     {
+       
         var daysInMonth = DateTime.DaysInMonth(year, month);
         return new DateOnly(year, month, daysInMonth).AddDays(-2);
     }

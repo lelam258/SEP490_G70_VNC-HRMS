@@ -167,7 +167,8 @@ public sealed class OnCallService(AppDbContext db, AttendanceAccess access, Atte
 
     public async Task<object> Verify(ClaimsPrincipal user, Guid id, VerifyOnCallRequest request, CancellationToken ct)
     {
-        AttendanceAccess.RequireHrStaff(user);
+        if (!user.IsInRole("hr_staff"))
+            throw new AppException(403, "MSG38: Bạn không có quyền truy cập chức năng hoặc xác nhận hồ sơ trực này.");
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         var shift = await db.OnCallShifts.SingleOrDefaultAsync(x => x.ShiftId == id, ct)
             ?? throw new AppException(404, "Không tìm thấy hồ sơ trực.");
@@ -175,7 +176,7 @@ public sealed class OnCallService(AppDbContext db, AttendanceAccess access, Atte
         await access.RequireOpenMonth(shift.ShiftDate.ToString("yyyy-MM"), ct);
         var decision = request.Decision?.Trim().ToLowerInvariant();
         if (decision is not ("confirm" or "return" or "reject"))
-            throw new AppException(400, "Chọn Xác nhận hoặc Trả về để điều chỉnh.");
+            throw new AppException(400, "MSG02: Chọn Xác nhận hoặc Trả về để điều chỉnh.");
         var previous = Snapshot(shift);
         if (!string.IsNullOrWhiteSpace(request.SupervisorEvidence))
             shift.SupervisorEvidence = AttendanceRules.Text(request.SupervisorEvidence, "Căn cứ xác nhận quản lý");
@@ -205,7 +206,9 @@ public sealed class OnCallService(AppDbContext db, AttendanceAccess access, Atte
             shift.ReviewNote = string.IsNullOrWhiteSpace(request.Reason) ? null : AttendanceRules.Text(request.Reason, "Ghi chú xác nhận");
             audit.Log("verify_on_call", "OnCallShift", shift.ShiftId, previous, Snapshot(shift));
         } else {
-            var reason = AttendanceRules.Text(request.Reason, "Lý do trả về / yêu cầu đối chiếu lại", true);
+            if (string.IsNullOrWhiteSpace(request.Reason))
+                throw new AppException(400, "MSG02: Lý do trả về / yêu cầu đối chiếu lại là bắt buộc.");
+            var reason = AttendanceRules.Text(request.Reason, "MSG02: Lý do trả về / yêu cầu đối chiếu lại", true);
             shift.Status = decision == "reject" ? "rejected" : "pending";
             shift.ConfirmedBy = null;
             shift.ConfirmedAt = null;
@@ -213,6 +216,8 @@ public sealed class OnCallService(AppDbContext db, AttendanceAccess access, Atte
             shift.ReviewNote = "Cần đối chiếu lại: " + reason;
             audit.Log("return_on_call", "OnCallShift", shift.ShiftId, previous, Snapshot(shift));
         }
+        var ts = await db.MonthlyTimesheets.SingleOrDefaultAsync(x => x.PayMonth == shift.ShiftDate.ToString("yyyy-MM") && x.Status == "locked", ct);
+        if (ts is not null) { ts.Status = "reopened"; ts.UpdatedAt = access.Now.UtcDateTime; }
         await access.RequireOpenMonth(shift.ShiftDate.ToString("yyyy-MM"), ct);
         await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
         return new {

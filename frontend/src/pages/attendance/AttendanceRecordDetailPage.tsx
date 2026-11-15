@@ -7,7 +7,7 @@ import { attendanceApi } from '../../services/attendanceApi';
 import type { AttendanceDetail, ReconcileAttendanceInput } from '../../types/attendance';
 import { useAuthStore } from '../../store/useAuthStore';
 import { attendanceLabel, clockTime, instant } from '../../utils/attendance';
-import { shortDate } from '../../utils/schedule';
+import { shortDate, shiftHours } from '../../utils/schedule';
 
 export default function AttendanceRecordDetailPage() {
   const { id } = useParams();
@@ -39,12 +39,30 @@ export default function AttendanceRecordDetailPage() {
     } else {
       setActiveTab('reconcile');
     }
+    const shift = data.item.shiftType || 'main';
+    const [mStart, mEnd] = shiftHours(data.item.workDate, 'morning').split('–');
+    const [aStart, aEnd] = shiftHours(data.item.workDate, 'afternoon').split('–');
+    const [dStart, dEnd] = shift !== 'main' ? shiftHours(data.item.workDate, shift).split('–') : [mStart, aEnd];
+
     const initialPairs = data.pairs.length
-      ? data.pairs.map(p => ({
-          in: clockTime(p.in) !== '—' ? clockTime(p.in) : '07:00',
-          out: clockTime(p.out) !== '—' ? clockTime(p.out) : '17:00',
-        }))
-      : [{ in: '07:00', out: '17:00' }];
+      ? data.pairs.map((p, idx) => {
+          const rawIn = clockTime(p.in);
+          const rawOut = clockTime(p.out);
+          const fallbackIn = shift !== 'main' ? dStart : idx === 0 ? mStart : aStart;
+          const fallbackOut =
+            shift !== 'main'
+              ? dEnd
+              : idx === 0 && (data.pairs.length > 1 || (rawIn !== '—' && rawIn < '12:00'))
+              ? mEnd
+              : aEnd;
+          return {
+            in: rawIn !== '—' ? rawIn : fallbackIn,
+            out: rawOut !== '—' ? rawOut : fallbackOut,
+          };
+        })
+      : shift !== 'main'
+      ? [{ in: dStart, out: dEnd }]
+      : [{ in: mStart, out: mEnd }, { in: aStart, out: aEnd }];
     setEditPairs(initialPairs);
     setSupervisorConfirmed(Boolean(data.supervisorConfirmed));
     setSupervisorEvidence(data.supervisorEvidence || '');

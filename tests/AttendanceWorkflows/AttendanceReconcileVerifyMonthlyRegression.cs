@@ -431,6 +431,80 @@ internal static class AttendanceReconcileVerifyMonthlyRegression
                 var lockLogs = await auditDb.AuditLogs.CountAsync(x => x.Action == "lock_monthly_timesheet" && x.EntityType == "MonthlyTimesheet", ct);
                 check(lockLogs == 2, "Every monthly lock and re-lock preserves an immutable snapshot in AuditLogs");
             }
+
+            // Clinic domain checks: Winter standard hours (07:10-11:45 + 13:30-17:00 = 8.08h -> 0 overtime) & missing half-day session detection
+            var winterDate = new DateOnly(2026, 12, 10);
+            var winterWeekStart = new DateOnly(2026, 12, 7);
+            var winterWeekId = Guid.NewGuid();
+            await using (var winterDb = new AppDbContext(options))
+            {
+                winterDb.ScheduleWeeks.Add(new ScheduleWeek
+                {
+                    Id = winterWeekId,
+                    DepartmentId = department1,
+                    Monday = winterWeekStart,
+                    Published = true
+                });
+                winterDb.ScheduleAssignments.AddRange(
+                    new ScheduleAssignment
+                    {
+                        Id = Guid.NewGuid(),
+                        WeekId = winterWeekId,
+                        StaffId = staffA,
+                        CoverageId = coverageId,
+                        Date = winterDate,
+                        Shift = "morning",
+                        Reason = "Ca sáng mùa đông"
+                    },
+                    new ScheduleAssignment
+                    {
+                        Id = Guid.NewGuid(),
+                        WeekId = winterWeekId,
+                        StaffId = staffA,
+                        CoverageId = coverageId,
+                        Date = winterDate,
+                        Shift = "afternoon",
+                        Reason = "Ca chiều mùa đông"
+                    });
+                await winterDb.SaveChangesAsync(ct);
+            }
+
+            try
+            {
+                setClock(new DateTimeOffset(2026, 12, 15, 10, 0, 0, TimeSpan.FromHours(7)));
+                // Half-day punch when scheduled for both morning + afternoon is flagged with missing_punch
+                var halfDayRes = Json(await RecordCall(hr, s => s.CreateManual(hr, new CreateManualAttendanceRequest(
+                    staffA, facility1, winterDate, "main",
+                    [new TimePairInput("07:10", "11:45")],
+                    "TS-DEC-10", "Chỉ chấm công ca sáng khi lịch phân cả ngày", null), ct)));
+                var halfDayId = halfDayRes.GetProperty("id").GetGuid();
+                var halfDayDetail = Json(await RecordCall(hr, s => s.Detail(hr, halfDayId, ct)));
+                var halfDayCodes = halfDayDetail.GetProperty("discrepancies").EnumerateArray().Select(x => x.GetProperty("code").GetString()).ToArray();
+                check(halfDayRes.GetProperty("status").GetString() == "flagged" && halfDayCodes.Contains("missing_punch"),
+                    "Clinic split-session rule: Punching only Ca sáng when scheduled for both Ca sáng and Ca chiều flags missing_punch");
+
+                // Reconcile and confirm full winter day (07:10-11:45 and 13:30-17:00 = 8.08h)
+                var recWinter = Json(await RecordCall(hr, s => s.Reconcile(hr, halfDayId, new ReconcileAttendanceRequest(
+                    "correct_time", [new TimePairInput("07:10", "11:45"), new TimePairInput("13:30", "17:00")],
+                    facility1, "Bổ sung giờ ca chiều theo sổ ký trực mùa đông", null, false,
+                    halfDayDetail.GetProperty("version").GetString()!), ct)));
+                var recWinterDetail = Json(await RecordCall(hr, s => s.Detail(hr, halfDayId, ct)));
+                await RecordCall(hr, s => s.Verify(hr, halfDayId, new VerifyAttendanceRequest(
+                    "confirm", "Xác nhận ca chính mùa đông đủ 2 buổi", null, recWinterDetail.GetProperty("version").GetString()!), ct));
+
+                setClock(new DateTimeOffset(2026, 12, 30, 10, 0, 0, TimeSpan.FromHours(7)));
+                var decSummary = Json(await RecordCall(hr, s => s.MonthlySummary(hr, "2026-12", department1, null, ct)));
+                var decEmpRow = decSummary.GetProperty("staffSummaries").EnumerateArray().First(x => x.GetProperty("staffId").GetGuid() == staffA);
+                check(decEmpRow.GetProperty("confirmedMainDays").GetInt32() == 1 && decEmpRow.GetProperty("overtimeHours").GetDecimal() == 0m,
+                    "Clinic seasonal hours rule: Winter full-day shift (07:10-11:45 + 13:30-17:00 = 8.08h) counts as 1 workday with 0 overtime");
+            }
+            finally
+            {
+                await using var winterCleanup = new AppDbContext(options);
+                await winterCleanup.AttendanceRecords.Where(x => x.StaffId == staffA && x.WorkDate == winterDate).ExecuteDeleteAsync(ct);
+                await winterCleanup.ScheduleAssignments.Where(x => x.WeekId == winterWeekId).ExecuteDeleteAsync(ct);
+                await winterCleanup.ScheduleWeeks.Where(x => x.Id == winterWeekId).ExecuteDeleteAsync(ct);
+            }
         }
         finally
         {
