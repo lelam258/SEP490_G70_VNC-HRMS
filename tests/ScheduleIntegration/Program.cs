@@ -11,6 +11,7 @@ using Vnc.HRMS.Models.Users;
 using Vnc.HRMS.Models.Employees;
 using Vnc.HRMS.Models.Organization;
 using Vnc.HRMS.Persistence;
+using Vnc.HRMS.Repositories;
 using Vnc.HRMS.Services;
 using Vnc.HRMS.DTOs.Attendance;
 
@@ -67,6 +68,33 @@ try {
     Check(staffOptions.Single(s => s.GetProperty("id").GetGuid() == staff1).GetProperty("facilityId").GetGuid() == facility1
         && staffOptions.Single(s => s.GetProperty("id").GetGuid() == staff2).GetProperty("facilityId").GetGuid() == facility2,
         "Staff site IDs map to scheduling facility IDs even when names and IDs differ");
+    var policyId = Guid.NewGuid();
+    await using (var db = new AppDbContext(configuration)) {
+        db.SystemPolicies.Add(new SystemPolicy { PolicyId = policyId, PolicyKey = DepartmentRepository.DeptFacilityPolicyPrefix + department1,
+            PolicyValue = JsonSerializer.Serialize(new[] { facility2 }), ValueType = "json", UpdatedAt = DateTime.UtcNow });
+        await db.SaveChangesAsync();
+    }
+    var configuredOptions = JsonSerializer.SerializeToElement(await Call(c => c.Options(ct)));
+    var configuredFacilities = configuredOptions.GetProperty("departments").EnumerateArray().Single(d => d.GetProperty("id").GetGuid() == department1).GetProperty("facilityIds");
+    Check(configuredFacilities.GetArrayLength() == 1 && configuredFacilities[0].GetGuid() == facility2,
+        "Department facility settings override the home facilities of its staff");
+    await Reject(c => c.Create(Input(staff1, facility1, monday), ct), "Staff membership cannot bypass explicit department facility settings");
+    Guid oldCoverageId;
+    await using (var db = new AppDbContext(configuration)) {
+        (await db.SystemPolicies.FindAsync(policyId))!.PolicyValue = JsonSerializer.Serialize(new[] { facility1 });
+        oldCoverageId = await db.ScheduleCoverage.Where(x => x.DepartmentId == department1 && x.FacilityId == facility2).Select(x => x.Id).SingleAsync();
+        await db.SaveChangesAsync();
+    }
+    configuredOptions = JsonSerializer.SerializeToElement(await Call(c => c.Options(ct)));
+    configuredFacilities = configuredOptions.GetProperty("departments").EnumerateArray().Single(d => d.GetProperty("id").GetGuid() == department1).GetProperty("facilityIds");
+    Check(configuredFacilities.GetArrayLength() == 1 && configuredFacilities[0].GetGuid() == facility1,
+        "Department facility settings override retained historical coverage at another facility");
+    await Reject(c => c.Create(Input(staff1, facility2, monday), ct), "Historical coverage cannot bypass explicit department facility settings");
+    await Reject(c => c.Create(new(staff1, oldCoverageId, monday, "morning", null, null), ct), "Legacy coverage requests also respect department facility settings");
+    await using (var db = new AppDbContext(configuration)) {
+        db.SystemPolicies.Remove((await db.SystemPolicies.FindAsync(policyId))!);
+        await db.SaveChangesAsync();
+    }
     await Reject(c => c.Create(Input(staff2, facility1, monday), ct), "Cannot assign a department that does not belong to the selected facility");
     await using (var db = new AppDbContext(configuration)) {
         Check(!await db.ScheduleCoverage.AnyAsync(x => x.DepartmentId == department2 && x.FacilityId == facility1),

@@ -8,6 +8,7 @@ using Vnc.HRMS.Common.Exceptions;
 using Vnc.HRMS.DTOs.Schedules;
 using Vnc.HRMS.Models;
 using Vnc.HRMS.Persistence;
+using Vnc.HRMS.Repositories;
 using Vnc.HRMS.Services;
 
 namespace Vnc.HRMS.Controllers;
@@ -155,10 +156,28 @@ public sealed class SchedulesController(AppDbContext db, TimeProvider? timeProvi
         return result;
     }
 
+    private async Task<Dictionary<Guid, Guid[]>> DepartmentFacilityPolicies(CancellationToken ct)
+    {
+        var prefix = DepartmentRepository.DeptFacilityPolicyPrefix;
+        var policies = await db.SystemPolicies.AsNoTracking().Where(x => x.PolicyKey.StartsWith(prefix)).ToArrayAsync(ct);
+        var result = new Dictionary<Guid, Guid[]>();
+        foreach (var policy in policies) {
+            if (!Guid.TryParse(policy.PolicyKey[prefix.Length..], out var departmentId)) continue;
+            try {
+                var facilityIds = JsonSerializer.Deserialize<Guid[]>(policy.PolicyValue);
+                if (facilityIds is { Length: > 0 }) result[departmentId] = facilityIds.Distinct().ToArray();
+            } catch (JsonException) {
+                // Match the department directory's fallback for malformed settings.
+            }
+        }
+        return result;
+    }
+
     [HttpGet("options")]
     public async Task<object> Options(CancellationToken ct)
     {
         var facilitySites = await FacilitySites(ct);
+        var departmentFacilities = await DepartmentFacilityPolicies(ct);
         var facilities = await db.ScheduleFacilities.AsNoTracking().OrderBy(x => x.Name).ToArrayAsync(ct);
         var coverage = await db.ScheduleCoverage.AsNoTracking().ToArrayAsync(ct);
         var departments = await db.Departments.AsNoTracking().OrderBy(x => x.Name)
@@ -170,7 +189,8 @@ public sealed class SchedulesController(AppDbContext db, TimeProvider? timeProvi
         return new {
             facilities, coverage,
             departments = departments.Select(department => new { department.id, department.Name, department.Status,
-                facilityIds = coverage.Where(x => x.DepartmentId == department.id).Select(x => x.FacilityId)
+                facilityIds = departmentFacilities.TryGetValue(department.id, out var assignedFacilities) ? assignedFacilities
+                    : coverage.Where(x => x.DepartmentId == department.id).Select(x => x.FacilityId)
                     .Concat(facilitySites.Where(f => memberships.Any(m => m.DepartmentId == department.id && m.SiteId == f.Value)).Select(f => f.Key))
                     .Distinct().ToArray() }),
             staff = staff.Select(person => new { person.id, person.FullName, person.DepartmentId, person.DateJoined, person.DateLeft,
@@ -266,11 +286,13 @@ public sealed class SchedulesController(AppDbContext db, TimeProvider? timeProvi
         if (await db.LeaveRequests.AnyAsync(x => x.StaffId == staff.StaffId && x.Status == "approved" && x.StartDate <= request.Date && x.EndDate >= request.Date, ct))
             throw new AppException(400, "Nhân viên đã có nghỉ phép được duyệt.");
 
+        var departmentFacilities = await DepartmentFacilityPolicies(ct);
+        var assignedFacilities = departmentFacilities.GetValueOrDefault(department);
         ScheduleCoverage coverage;
         if (request.FacilityId.HasValue) {
             if (!await db.ScheduleFacilities.AnyAsync(x => x.Id == request.FacilityId, ct)) throw new AppException(400, "Cơ sở không tồn tại.");
             var hasCoverage = await db.ScheduleCoverage.AnyAsync(x => x.DepartmentId == department && x.FacilityId == request.FacilityId, ct);
-            if (!hasCoverage) {
+            if (!hasCoverage && assignedFacilities == null) {
                 var facilitySites = await FacilitySites(ct);
                 if (!facilitySites.TryGetValue(request.FacilityId.Value, out var siteId)
                     || !await db.Staff.AnyAsync(x => x.Status == "active" && x.DepartmentId == department && x.SiteId == siteId, ct))
@@ -284,6 +306,8 @@ public sealed class SchedulesController(AppDbContext db, TimeProvider? timeProvi
             coverage = await db.ScheduleCoverage.SingleOrDefaultAsync(x => x.Id == request.CoverageId && x.DepartmentId == department, ct)
                 ?? throw new AppException(400, "Vui lòng chọn cơ sở hợp lệ.");
         }
+        if (assignedFacilities != null && !assignedFacilities.Contains(coverage.FacilityId))
+            throw new AppException(400, "Khoa/phòng của nhân viên không thuộc cơ sở đã chọn.");
         if (!await db.ScheduleFacilities.AnyAsync(x => x.Id == coverage.FacilityId && x.Status == "active", ct))
             throw new AppException(400, "Cơ sở không tồn tại hoặc đã ngừng hoạt động.");
         if (await db.ScheduleAssignments.AnyAsync(x => !x.Cancelled && x.Id != (id ?? Guid.Empty) && x.StaffId == staff.StaffId && x.Date == request.Date && x.Shift == request.Shift, ct))
