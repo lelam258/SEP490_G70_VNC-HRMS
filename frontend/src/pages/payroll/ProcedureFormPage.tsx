@@ -437,7 +437,12 @@ export default function ProcedureFormPage() {
   const departmentStaffList = useMemo<EvaluatedDepartmentStaff[]>(() => {
     if (!departmentId) return [];
 
-    const rawDeptStaff = staffAvailabilityList.filter((s) => s.departmentId === departmentId);
+    const rawDeptStaff = staffAvailabilityList.filter(
+      (s) =>
+        !s.departmentId ||
+        !departmentId ||
+        s.departmentId.toLowerCase() === departmentId.toLowerCase()
+    );
 
     return rawDeptStaff.map((merged) => {
 
@@ -459,9 +464,19 @@ export default function ProcedureFormPage() {
 
       if (!merged.isWorkingToday) {
         const offLabel = merged.offReason || 'Nghỉ hôm nay';
+        if (isAfterHours && !isBusy) {
+          return {
+            ...merged,
+            status: 'available' as const,
+            canSelect: true,
+            busyTimeRangeText: null,
+            freeUntil17hText: 'Ngoài giờ HC / Trực',
+            statusText: `Ngoài giờ HC • (Huy động ngoài ca)`,
+          };
+        }
         return {
           ...merged,
-          status: 'off',
+          status: 'off' as const,
           canSelect: false,
           busyTimeRangeText: isBusy ? busyRanges : null,
           freeUntil17hText: null,
@@ -486,7 +501,7 @@ export default function ProcedureFormPage() {
       if (isBusy) {
         return {
           ...merged,
-          status: 'busy',
+          status: 'busy' as const,
           canSelect: false,
           busyTimeRangeText: busyRanges,
           freeUntil17hText,
@@ -499,14 +514,19 @@ export default function ProcedureFormPage() {
 
       return {
         ...merged,
-        status: 'available',
+        status: 'available' as const,
         canSelect: true,
         busyTimeRangeText: null,
         freeUntil17hText,
         statusText: `Đang rảnh${shiftSuffix} • ${freeUntil17hText}`,
       };
+    })
+    .sort((a, b) => {
+      if (a.canSelect !== b.canSelect) return a.canSelect ? -1 : 1;
+      if (a.isWorkingToday !== b.isWorkingToday) return a.isWorkingToday ? -1 : 1;
+      return a.staffCode.localeCompare(b.staffCode);
     });
-  }, [departmentId, staffAvailabilityList, parsedTimeRange]);
+  }, [departmentId, staffAvailabilityList, parsedTimeRange, isAfterHours]);
 
   const departmentStaffMap = useMemo(() => {
     const map = new Map<string, EvaluatedDepartmentStaff>();
@@ -559,6 +579,37 @@ export default function ProcedureFormPage() {
     parsedTimeRange,
     assignments,
   ]);
+
+  const isAnesthesiaService = useMemo(() => {
+    const s = lookups?.services.find((srv) => srv.id === serviceId);
+    const name = (s?.name || '').toLowerCase();
+    const cat = (s?.category || '').toLowerCase();
+    return name.includes('gây mê') || name.includes('gay me') || cat.includes('gây mê') || cat.includes('gay me');
+  }, [lookups?.services, serviceId]);
+
+  const hasAnesthetistInTeam = useMemo(() => {
+    return assignments.some((a) => {
+      if (!a.staffId) return false;
+      const st = departmentStaffMap.get(a.staffId);
+      const pos = (st?.positionName || '').toLowerCase();
+      return a.role === 'assisting' || pos.includes('mê') || pos.includes('gây mê');
+    });
+  }, [assignments, departmentStaffMap]);
+
+  const handleSetQuickDuration = useCallback((mins: number) => {
+    let startMin = 13 * 60; // 13:00 default
+    if (parsedTimeRange) {
+      startMin = parsedTimeRange.startMinutes;
+    }
+    const endMin = Math.min(23 * 60 + 59, startMin + mins);
+    const sH = Math.floor(startMin / 60);
+    const sM = startMin % 60;
+    const eH = Math.floor(endMin / 60);
+    const eM = endMin % 60;
+    const sStr = sM === 0 ? `${sH}h` : `${sH}h${String(sM).padStart(2, '0')}`;
+    const eStr = eM === 0 ? `${eH}h` : `${eH}h${String(eM).padStart(2, '0')}`;
+    setTimeRangeInput(`${sStr}-${eStr}`);
+  }, [parsedTimeRange]);
 
   const handleServiceChange = (newServiceId: string) => {
     setServiceId(newServiceId);
@@ -962,6 +1013,24 @@ export default function ProcedureFormPage() {
                   </span>
                 )}
               </div>
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                <span className="text-[11px] text-slate-500 font-medium">Thời lượng nhanh:</span>
+                {[
+                  { label: '30p', mins: 30 },
+                  { label: '45p', mins: 45 },
+                  { label: '60p', mins: 60 },
+                  { label: '90p', mins: 90 },
+                ].map((btn) => (
+                  <button
+                    key={btn.mins}
+                    type="button"
+                    onClick={() => handleSetQuickDuration(btn.mins)}
+                    className="text-[11px] px-2 py-0.5 rounded border border-slate-200 bg-slate-50 hover:bg-sky-50 hover:border-sky-300 text-slate-700 hover:text-sky-700 font-medium transition-colors cursor-pointer"
+                  >
+                    +{btn.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div>
@@ -1040,6 +1109,18 @@ export default function ProcedureFormPage() {
               + Thêm nhân sự vào kíp
             </button>
           </div>
+
+          {isAnesthesiaService && !hasAnesthetistInTeam && (
+            <div className="bg-amber-50 border border-amber-300 rounded-xl p-3.5 text-amber-950 text-xs flex items-start gap-2.5">
+              <span className="text-base shrink-0">💡</span>
+              <div className="space-y-0.5">
+                <div className="font-bold text-amber-900">Khuyến nghị kíp thủ thuật gây mê:</div>
+                <div>
+                  Dịch vụ kỹ thuật đã chọn có tính chất gây mê / phẫu thuật. Khuyến nghị kíp thực hiện nên phân công thêm <strong>01 Bác sĩ gây mê (Anesthetist)</strong> và <strong>01 Phụ tá (Assisting)</strong> để đảm bảo quy trình chuyên môn.
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Chọn Khoa / Phòng thực hiện & Bảng đối chiếu lịch làm việc / thời gian rảnh */}
           <div className="p-4 rounded-xl border border-sky-200/80 bg-sky-50/40 space-y-3">
@@ -1164,6 +1245,8 @@ export default function ProcedureFormPage() {
                                   {st.positionName || 'Nhân viên y tế'}
                                   {st.isWorkingToday && st.shiftsToday.length > 0
                                     ? ` • Ca ${st.shiftsToday.join(', ')}`
+                                    : !st.isWorkingToday && st.offReason
+                                    ? ` • ${st.offReason}`
                                     : ''}
                                 </div>
                                 {st.isWorkingToday && st.freeUntil17hText && (
@@ -1316,7 +1399,7 @@ export default function ProcedureFormPage() {
             {submitting
               ? 'Đang lưu...'
               : isAccountant
-              ? '💾 Lưu điều chỉnh ca & Gửi thông báo cho Bác sĩ'
+              ? '💾 Lưu điều chỉnh & Chuyển sang Đang thực hiện'
               : isEditMode
               ? existingSlip?.status === 'rejected'
                 ? 'Lưu cập nhật & Gửi duyệt lại (Pending)'

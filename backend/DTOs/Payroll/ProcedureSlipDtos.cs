@@ -132,6 +132,7 @@ public sealed record ProcedureSlipDetailDto(
     bool CanHrCheck,
     bool CanAccountantVerify,
     bool CanComplete,
+    bool CanCancel,
     IReadOnlyList<ProcedureAssignmentDto> Assignments,
     IReadOnlyList<ProcedureSlipAuditItemDto> AuditHistory,
     string? StartTime = null,
@@ -241,7 +242,11 @@ public sealed record ReviewProcedureSlipRequest(
     string? Note = null);
 
 public sealed record CompleteProcedureSlipRequest(
-    string? Note = null);
+    string? Note = null,
+    decimal? ActualDurationHours = null);
+
+public sealed record CancelProcedureSlipRequest(
+    string Reason);
 
 public sealed record PreviewProcedureCommissionRequest(
     Guid ServiceId,

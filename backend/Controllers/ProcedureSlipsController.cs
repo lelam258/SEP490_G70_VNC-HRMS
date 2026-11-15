@@ -127,6 +127,14 @@ public sealed class ProcedureSlipsController(IProcedureSlipService procedureSlip
         return procedureSlipService.CompleteSlipAsync(userId, role, id, request, ct);
     }
 
+    [HttpPost("{id:guid}/cancel")]
+    public Task<ProcedureSlipDetailDto> CancelSlip(
+        Guid id, [FromBody] CancelProcedureSlipRequest request, CancellationToken ct)
+    {
+        var (userId, role) = GetCurrentIdentity();
+        return procedureSlipService.CancelSlipAsync(userId, role, id, request, ct);
+    }
+
     [HttpPost("calculate-monthly-commission")]
     [Authorize(Roles = "accountant")]
     public Task<CalculateMonthlyCommissionResultDto> CalculateMonthlyCommission(

@@ -6,6 +6,7 @@ export const PROCEDURE_STATUS_LABELS: Record<ProcedureSlipStatus | string, strin
   completed: 'Đã hoàn thành',
   rejected: 'Bị từ chối',
   hr_checked: 'Chờ Kế toán duyệt',
+  cancelled: 'Đã hủy ca',
 };
 
 export function getProcedureStatusBadgeClass(status: string): string {
@@ -20,9 +21,20 @@ export function getProcedureStatusBadgeClass(status: string): string {
       return 'bg-rose-50 text-rose-700 border border-rose-300 font-medium';
     case 'hr_checked':
       return 'bg-sky-50 text-sky-700 border border-sky-200/80 font-medium';
+    case 'cancelled':
+      return 'bg-slate-100 text-slate-600 border border-slate-300 font-medium';
     default:
       return 'bg-slate-100 text-slate-600 border border-slate-200';
   }
+}
+
+export function getProcedureStatusLabel(status?: string | null, userRole?: string): string {
+  const s = (status || '').toLowerCase();
+  if (s === 'verified') {
+    if (userRole === 'accountant') return 'Đã duyệt viện phí (Chờ thực hiện)';
+    return 'Chờ thực hiện';
+  }
+  return PROCEDURE_STATUS_LABELS[s] || status || 'Chưa rõ';
 }
 
 export const PROCEDURE_ROLE_LABELS: Record<ProcedureCommissionRole | string, string> = {

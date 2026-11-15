@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Alert from '../../components/ui/Alert';
+import Modal from '../../components/ui/Modal';
 import DataTable, { type Column } from '../../components/ui/DataTable';
 import ProcedureReviewModal from '../../components/payroll/ProcedureReviewModal';
 import ProcedureCompleteModal from '../../components/payroll/ProcedureCompleteModal';
@@ -37,6 +38,29 @@ export default function ProcedureDetailPage() {
   const [reviewMode, setReviewMode] = useState<'hr_check' | 'accountant_verify'>('accountant_verify');
   const [reviewDecision, setReviewDecision] = useState<'approve' | 'reject'>('approve');
   const [completeOpen, setCompleteOpen] = useState<boolean>(false);
+  const [cancelOpen, setCancelOpen] = useState<boolean>(false);
+  const [cancelReason, setCancelReason] = useState<string>('');
+  const [cancelSubmitting, setCancelSubmitting] = useState<boolean>(false);
+  const [cancelError, setCancelError] = useState<string>('');
+
+  const handleCancelSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!detail) return;
+    setCancelError('');
+    setCancelSubmitting(true);
+    try {
+      const updated = await procedureSlipApi.cancelSlip(detail.slipId, {
+        reason: cancelReason.trim(),
+      });
+      setCancelOpen(false);
+      setDetail(updated);
+      setNotice(`Đã hủy ca thủ thuật ${detail.slipNumber} thành công.`);
+    } catch (err: unknown) {
+      setCancelError(err instanceof Error ? err.message : 'Không thể hủy ca thủ thuật.');
+    } finally {
+      setCancelSubmitting(false);
+    }
+  };
 
   const loadDetail = useCallback(async () => {
     if (!id) return;
@@ -204,13 +228,13 @@ export default function ProcedureDetailPage() {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 flex-wrap">
-          {canShowEditButton && (
+          {canShowEditButton && !isAccountant && (
             <button
               type="button"
               onClick={() => navigate(`/procedures/${detail.slipId}/edit`)}
               className="button text-sky-700 border-sky-300 bg-sky-50 hover:bg-sky-100"
             >
-              ✎ {isAccountant ? 'Điều chỉnh nhân sự & thời gian ca' : detail.status === 'rejected' ? 'Chỉnh sửa & Gửi duyệt lại' : 'Chỉnh sửa phiếu'}
+              ✎ {detail.status === 'rejected' ? 'Chỉnh sửa & Gửi duyệt lại' : 'Chỉnh sửa phiếu'}
             </button>
           )}
 
@@ -233,9 +257,16 @@ export default function ProcedureDetailPage() {
                   setReviewDecision('approve');
                   setReviewOpen(true);
                 }}
-                className="button primary bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="button primary bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
               >
                 ✓ Duyệt viện phí (Chuyển Bác sĩ)
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate(`/procedures/${detail.slipId}/edit`)}
+                className="button bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 font-medium"
+              >
+                ✏ Điều chỉnh ca & Duyệt
               </button>
               <button
                 type="button"
@@ -250,10 +281,40 @@ export default function ProcedureDetailPage() {
               </button>
             </>
           )}
+
+          {detail.canCancel && detail.status !== 'cancelled' && (
+            <button
+              type="button"
+              onClick={() => {
+                setCancelReason('');
+                setCancelError('');
+                setCancelOpen(true);
+              }}
+              className="button bg-slate-50 text-slate-700 border-slate-300 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300"
+            >
+              ✕ Hủy ca thủ thuật
+            </button>
+          )}
         </div>
       </div>
 
       {notice && <Alert variant="success">{notice}</Alert>}
+
+      {/* Banner Cảnh báo khi Phiếu bị Hủy ca */}
+      {detail.status === 'cancelled' && (
+        <div className="bg-slate-100 border border-slate-300 rounded-xl p-4 text-slate-800 flex items-start gap-3">
+          <span className="text-xl shrink-0">🚫</span>
+          <div>
+            <div className="font-bold text-sm text-slate-900">
+              Ca thủ thuật này đã bị hủy
+            </div>
+            <div className="text-sm mt-1">
+              <strong>Lý do hủy:</strong>{' '}
+              {detail.rejectedReason?.replace('[Đã hủy ca]', '').trim() || 'Bệnh nhân hoặc kíp thực hiện đã xin hủy ca.'}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Banner Cảnh báo khi Phiếu bị Từ chối */}
       {detail.status === 'rejected' && (
@@ -372,9 +433,21 @@ export default function ProcedureDetailPage() {
                   </div>
                 )}
                 {detail.verifyNote && (
-                  <div className="text-xs text-slate-600 mt-1 italic">
-                    Ghi chú: &ldquo;{detail.verifyNote}&rdquo;
-                  </div>
+                  detail.verifyNote.includes('[Kế toán đã điều chỉnh ca]') ? (
+                    <div className="mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-300 text-xs text-amber-950 space-y-1">
+                      <div className="font-bold flex items-center gap-1.5 text-amber-900">
+                        <span>🔄</span>
+                        <span>Kế toán đã điều chỉnh ca:</span>
+                      </div>
+                      <div className="text-[11px] font-medium leading-relaxed">
+                        {detail.verifyNote.replace('[Kế toán đã điều chỉnh ca]', '').replace('(Chuyển Bác sĩ thực hiện).', '').trim()}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-600 mt-1 italic">
+                      Ghi chú: &ldquo;{detail.verifyNote}&rdquo;
+                    </div>
+                  )
                 )}
               </>
             ) : detail.status === 'rejected' ? (
@@ -413,6 +486,8 @@ export default function ProcedureDetailPage() {
                     ? 'bg-emerald-100 text-emerald-800'
                     : detail.status === 'verified'
                     ? 'bg-sky-100 text-sky-800'
+                    : detail.status === 'cancelled'
+                    ? 'bg-slate-200 text-slate-700'
                     : 'bg-slate-200 text-slate-600'
                 }`}
               >
@@ -420,11 +495,17 @@ export default function ProcedureDetailPage() {
                   ? 'Đã hoàn thành'
                   : detail.status === 'verified'
                   ? 'Sẵn sàng thực hiện'
+                  : detail.status === 'cancelled'
+                  ? 'Đã hủy ca'
                   : 'Chưa đến bước'}
               </span>
             </div>
 
-            {detail.status === 'completed' ? (
+            {detail.status === 'cancelled' ? (
+              <div className="text-xs text-slate-500 mt-2">
+                ✕ Ca thủ thuật đã bị hủy trước khi hoàn tất.
+              </div>
+            ) : detail.status === 'completed' ? (
               <>
                 <div className="text-sm font-semibold text-emerald-800 mt-2">
                   ✓ Người hoàn thành: {detail.completedByName || performingLabel}
@@ -621,6 +702,55 @@ export default function ProcedureDetailPage() {
           setNotice(message);
         }}
       />
+
+      {/* Modal Hủy ca thủ thuật */}
+      {cancelOpen && (
+        <Modal
+          title={`Hủy ca thủ thuật: ${detail.slipNumber}`}
+          onClose={() => setCancelOpen(false)}
+          busy={cancelSubmitting}
+        >
+          <form onSubmit={handleCancelSubmit} className="space-y-4 text-sm">
+            {cancelError && <Alert variant="error">{cancelError}</Alert>}
+
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-900 leading-relaxed">
+              <strong>Lưu ý:</strong> Khi hủy ca thủ thuật, phiếu sẽ chuyển sang trạng thái <strong>Đã hủy ca</strong>, không tính hoa hồng và hệ thống sẽ gửi thông báo đến Bác sĩ chỉ định, Bác sĩ thực hiện và Kế toán.
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Lý do hủy ca thủ thuật *
+              </label>
+              <textarea
+                rows={3}
+                required
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="VD: Bệnh nhân xin hoãn, không đủ điều kiện sức khỏe làm thủ thuật..."
+                className="w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                className="button"
+                disabled={cancelSubmitting}
+                onClick={() => setCancelOpen(false)}
+              >
+                Đóng
+              </button>
+              <button
+                type="submit"
+                disabled={cancelSubmitting || cancelReason.trim().length < 3}
+                className="button bg-rose-600 hover:bg-rose-700 text-white font-semibold border-rose-600"
+              >
+                {cancelSubmitting ? 'Đang hủy...' : '✕ Xác nhận hủy ca'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 }

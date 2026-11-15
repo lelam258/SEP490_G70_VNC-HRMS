@@ -18,6 +18,7 @@ import { formatDateOnly, formatVnd } from '../../utils/format';
 import {
   formatTimeRangeVn,
   getProcedureStatusBadgeClass,
+  getProcedureStatusLabel,
   PROCEDURE_STATUS_LABELS,
 } from '../../utils/procedureHelpers';
 
@@ -513,11 +514,16 @@ export default function ProcedureListPage() {
               r.status
             )}`}
           >
-            {PROCEDURE_STATUS_LABELS[r.status] || r.status}
+            {getProcedureStatusLabel(r.status, role)}
           </span>
           {r.status === 'rejected' && (
             <div className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-md px-2 py-1 mt-1.5">
               <strong>Lý do:</strong> {r.rejectedReason || 'Không đạt yêu cầu kiểm duyệt.'}
+            </div>
+          )}
+          {r.status === 'cancelled' && (
+            <div className="text-xs text-slate-600 bg-slate-100 border border-slate-200 rounded-md px-2 py-1 mt-1.5">
+              <strong>Hủy ca:</strong> {r.rejectedReason?.replace('[Đã hủy ca]', '').trim() || 'Đã hủy'}
             </div>
           )}
         </div>
@@ -609,7 +615,7 @@ export default function ProcedureListPage() {
               r.status
             )}`}
           >
-            {PROCEDURE_STATUS_LABELS[r.status] || r.status}
+            {getProcedureStatusLabel(r.status, role)}
           </span>
           {r.status === 'completed' && (
             <div className="text-[11px] text-emerald-700 font-medium mt-1">
@@ -619,6 +625,11 @@ export default function ProcedureListPage() {
           {r.status === 'rejected' && r.rejectedReason && (
             <div className="text-[11px] text-rose-600 mt-1 max-w-[240px]" title={r.rejectedReason}>
               Lý do: {r.rejectedReason}
+            </div>
+          )}
+          {r.status === 'cancelled' && r.rejectedReason && (
+            <div className="text-[11px] text-slate-500 mt-1 max-w-[240px]" title={r.rejectedReason}>
+              Hủy: {r.rejectedReason?.replace('[Đã hủy ca]', '').trim()}
             </div>
           )}
         </div>

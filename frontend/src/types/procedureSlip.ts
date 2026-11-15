@@ -1,6 +1,6 @@
 import type { ProcedureServiceOption } from './payroll';
 
-export type ProcedureSlipStatus = 'pending' | 'hr_checked' | 'verified' | 'completed' | 'rejected';
+export type ProcedureSlipStatus = 'pending' | 'hr_checked' | 'verified' | 'completed' | 'rejected' | 'cancelled';
 
 export type ProcedureCommissionRole = 'indicating' | 'performing' | 'assisting' | 'lab' | 'typist';
 
@@ -104,6 +104,7 @@ export interface ProcedureSlipDetail extends ProcedureSlipListItem {
   canHrCheck: boolean;
   canAccountantVerify: boolean;
   canComplete: boolean;
+  canCancel?: boolean;
   assignments: ProcedureAssignmentItem[];
   auditHistory: ProcedureSlipAuditItem[];
 }

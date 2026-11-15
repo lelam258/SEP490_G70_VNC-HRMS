@@ -162,7 +162,7 @@ export default function ProcedureReviewModal({
               <div className="text-[11px] text-slate-500 mt-0.5">
                 {isHr
                   ? 'Chuyển tiếp sang Kế toán thẩm định'
-                  : 'Đổi trạng thái sang Verified để tính hoa hồng'}
+                  : 'Duyệt viện phí và chuyển phiếu cho Bác sĩ thực hiện'}
               </div>
             </button>
 
@@ -242,7 +242,7 @@ export default function ProcedureReviewModal({
               : decision === 'approve'
               ? isHr
                 ? 'Xác nhận Đạt & Chuyển Kế toán'
-                : 'Xác minh phiếu (Verify)'
+                : 'Duyệt viện phí & Chuyển Bác sĩ (Verify)'
               : 'Xác nhận Từ chối & Gửi thông báo'}
           </button>
         </div>

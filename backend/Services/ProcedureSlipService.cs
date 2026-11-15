@@ -284,31 +284,6 @@ public sealed partial class ProcedureSlipService(
 
         // 2. Check published weekly work schedule (Khi chốt lịch tuần) for department & facility
         var targetMonday = ScheduleRules.Monday(procedureDate);
-        var effectiveMonday = targetMonday;
-
-        var hasPublishedTargetWeek = await db.ScheduleWeeks.AsNoTracking()
-            .AnyAsync(w => w.Published &&
-                           w.Monday == targetMonday &&
-                           (!departmentId.HasValue || w.DepartmentId == departmentId.Value), ct);
-
-        if (!hasPublishedTargetWeek)
-        {
-            var publishedMondays = await db.ScheduleWeeks.AsNoTracking()
-                .Where(w => w.Published && (!departmentId.HasValue || w.DepartmentId == departmentId.Value))
-                .Select(w => w.Monday)
-                .Distinct()
-                .ToListAsync(ct);
-
-            if (publishedMondays.Count > 0)
-            {
-                effectiveMonday = publishedMondays
-                    .OrderBy(m => Math.Abs(m.DayNumber - targetMonday.DayNumber))
-                    .First();
-            }
-        }
-
-        int dayOffset = ((int)procedureDate.DayOfWeek + 6) % 7;
-        var effectiveDate = effectiveMonday.AddDays(dayOffset);
 
         var weekScheduleAssignments = await (
             from a in db.ScheduleAssignments.AsNoTracking()
@@ -316,7 +291,7 @@ public sealed partial class ProcedureSlipService(
             join c in db.ScheduleCoverage.AsNoTracking() on a.CoverageId equals c.Id
             join f in db.ScheduleFacilities.AsNoTracking() on c.FacilityId equals f.Id
             where w.Published &&
-                  w.Monday == effectiveMonday &&
+                  w.Monday == targetMonday &&
                   !a.Cancelled &&
                   staffIds.Contains(a.StaffId) &&
                   (!departmentId.HasValue || w.DepartmentId == departmentId.Value || c.DepartmentId == departmentId.Value)
@@ -342,27 +317,11 @@ public sealed partial class ProcedureSlipService(
             .ToListAsync(ct);
         var attendanceSet = new HashSet<Guid>(attendanceStaffIds);
 
-        // Filter staff to those assigned to the selected department & facility in the published weekly schedule
-        var scheduledInWeekStaffSet = weekScheduleAssignments
-            .Where(x => !facilityId.HasValue || x.FacilityId == facilityId.Value)
-            .Select(x => x.StaffId)
-            .Concat(onCallShifts.Select(o => o.StaffId))
-            .Concat(attendanceStaffIds)
-            .ToHashSet();
-
-        staffRows = staffRows
-            .Where(s => scheduledInWeekStaffSet.Contains(s.StaffId))
-            .ToList();
-
-        if (staffRows.Count == 0)
-        {
-            return Array.Empty<ProcedureStaffAvailabilityDto>();
-        }
-
+        // Keep all active staff belonging to the department; their work/off status is evaluated below
         staffIds = staffRows.Select(s => s.StaffId).ToList();
 
         var scheduleAssignments = weekScheduleAssignments
-            .Where(x => x.Date == effectiveDate && staffIds.Contains(x.StaffId))
+            .Where(x => x.Date == procedureDate && staffIds.Contains(x.StaffId))
             .ToList();
 
         var shiftsByStaff = new Dictionary<Guid, List<string>>();
@@ -438,7 +397,7 @@ public sealed partial class ProcedureSlipService(
         ).ToListAsync(ct);
 
         var activeSlipsOnDate = rawSlipsOnDate
-            .Where(x => NormalizeSlipStatus(x.Status) != "rejected")
+            .Where(x => NormalizeSlipStatus(x.Status) != "rejected" && NormalizeSlipStatus(x.Status) != "cancelled")
             .ToList();
 
         var bookingsByStaff = staffIds.ToDictionary(id => id, _ => new List<StaffProcedureBookingDto>());
@@ -1211,7 +1170,7 @@ public sealed partial class ProcedureSlipService(
             hrCheckNote = ExtractNoteFromJson(latestHrLog.Log.NewValue);
         }
 
-        var latestAccVerify = rawLogs.FirstOrDefault(x => x.Log.Action == "accountant_verify_approve");
+        var latestAccVerify = rawLogs.FirstOrDefault(x => x.Log.Action == "accountant_verify_approve" || x.Log.Action == "accountant_adjust_slip");
         if (latestAccVerify != null)
         {
             verifyNote = ExtractNoteFromJson(latestAccVerify.Log.NewValue);
@@ -1287,6 +1246,14 @@ public sealed partial class ProcedureSlipService(
                            normStatus == "verified" &&
                            isUserInAssignments;
 
+        bool canCancel = !isLocked &&
+                         (normStatus == "pending" || normStatus == "verified") &&
+                         (row.Slip.RecordedBy == currentUserId ||
+                          isUserInAssignments ||
+                          currentUserRole == AccountRoles.Accountant ||
+                          currentUserRole == AccountRoles.Administrator ||
+                          currentUserRole == AccountRoles.DepartmentManager);
+
         var latestCompleteLog = rawLogs.FirstOrDefault(l => l.Log.Action == "complete_procedure");
         Guid? completedBy = latestCompleteLog?.Log.UserId;
         string? completedByName = latestCompleteLog?.ActorFullName;
@@ -1340,6 +1307,7 @@ public sealed partial class ProcedureSlipService(
             canHrCheck,
             canAccountantVerify,
             canComplete,
+            canCancel,
             assignments,
             auditHistory,
             startTime,
@@ -1644,7 +1612,7 @@ public sealed partial class ProcedureSlipService(
                     throw new AppException(400, "Nhân sự tham gia phải thuộc Khoa / Phòng thực hiện đã chọn.");
                 }
 
-                if (!stAvail.IsWorkingToday)
+                if (!stAvail.IsWorkingToday && !request.IsAfterHours)
                 {
                     throw new AppException(400, $"Nhân sự {stAvail.StaffCode} - {stAvail.FullName} không có lịch làm việc tại cơ sở/phòng ban hôm nay ({stAvail.OffReason ?? "Nghỉ hôm nay"}).");
                 }
@@ -1943,15 +1911,27 @@ public sealed partial class ProcedureSlipService(
                 ?? calculatedAssignments.FirstOrDefault(x => x.Role == "indicating")?.StaffId;
         }
 
-        // Reset to pending so Accountant verifies the updated slip
-        slip.Status = "pending";
-        slip.RejectedReason = null;
-        slip.VerifiedBy = null;
-        slip.VerifiedAt = null;
+        if (isAccountant)
+        {
+            // Kế toán điều chỉnh xong -> Duyệt xác minh luôn và chuyển thẳng cho Bác sĩ thực hiện (trạng thái verified)
+            slip.Status = "verified";
+            slip.VerifiedBy = currentUserId;
+            slip.VerifiedAt = DateTime.UtcNow;
+            slip.RejectedReason = null;
+        }
+        else
+        {
+            // Bác sĩ sửa phiếu -> Reset về pending để Kế toán thẩm định
+            slip.Status = "pending";
+            slip.RejectedReason = null;
+            slip.VerifiedBy = null;
+            slip.VerifiedAt = null;
+        }
 
         var existingAssignments = await db.ProcedureAssignments
             .Where(a => a.SlipId == slip.SlipId)
             .ToListAsync(ct);
+        var oldStaffIds = existingAssignments.Select(a => a.StaffId).Distinct().ToList();
         db.ProcedureAssignments.RemoveRange(existingAssignments);
 
         foreach (var a in calculatedAssignments)
@@ -1964,9 +1944,39 @@ public sealed partial class ProcedureSlipService(
                 Role = a.Role,
                 RuleId = a.RuleId,
                 CommissionAmount = a.CommissionAmount,
-                Status = "pending"
+                Status = isAccountant ? "verified" : "pending"
             });
         }
+
+        var newStaffIds = calculatedAssignments.Select(a => a.StaffId).Distinct().ToList();
+        var changeItems = new List<string>();
+        if (!string.IsNullOrWhiteSpace(normalizedStart) && !string.IsNullOrWhiteSpace(normalizedEnd))
+        {
+            changeItems.Add($"Giờ thực hiện: {normalizedStart} - {normalizedEnd}");
+        }
+
+        var newStaffMap = await db.Staff.AsNoTracking()
+            .Where(s => newStaffIds.Contains(s.StaffId))
+            .ToDictionaryAsync(s => s.StaffId, s => $"{s.StaffCode} - {s.FullName}", ct);
+
+        var newStaffList = calculatedAssignments
+            .Select(a => newStaffMap.TryGetValue(a.StaffId, out var name) ? name : "Nhân viên")
+            .Distinct()
+            .ToList();
+
+        bool staffChanged = !oldStaffIds.OrderBy(x => x).SequenceEqual(newStaffIds.OrderBy(x => x));
+        if (staffChanged)
+        {
+            changeItems.Add($"Đổi nhân sự thực hiện sang: {string.Join(", ", newStaffList)}");
+        }
+        else if (newStaffList.Count > 0)
+        {
+            changeItems.Add($"Nhân sự thực hiện: {string.Join(", ", newStaffList)}");
+        }
+
+        var adjustmentSummary = changeItems.Count > 0
+            ? string.Join("; ", changeItems)
+            : "Kế toán đã điều chỉnh ca thủ thuật.";
 
         if (isAccountant)
         {
@@ -1978,11 +1988,12 @@ public sealed partial class ProcedureSlipService(
                 endTime = normalizedEnd,
                 slip.IsAfterHours,
                 slip.DurationHours,
-                note = "Kế toán đã sửa lại nhân viên thực hiện hoặc giờ dự kiến công việc.",
+                slip.Status,
+                note = $"[Kế toán đã điều chỉnh ca] {adjustmentSummary} (Chuyển Bác sĩ thực hiện).",
                 assignments = calculatedAssignments.Select(a => new { a.StaffId, a.Role, a.CommissionAmount })
             });
 
-            await NotifyDoctorOnAccountantAdjustmentAsync(slip, calculatedAssignments, ct);
+            await NotifyDoctorOnAccountantAdjustmentAsync(slip, adjustmentSummary, normalizedStart, normalizedEnd, calculatedAssignments, ct);
         }
         else
         {
@@ -2015,37 +2026,24 @@ public sealed partial class ProcedureSlipService(
     }
 
     private async Task NotifyDoctorOnAccountantAdjustmentAsync(
-        ProcedureSlip slip, IReadOnlyList<PreviewAssignmentCommissionDto> assignments, CancellationToken ct)
+        ProcedureSlip slip,
+        string adjustmentSummary,
+        string? startTime,
+        string? endTime,
+        IReadOnlyList<PreviewAssignmentCommissionDto> assignments,
+        CancellationToken ct)
     {
-        var recipientUserIds = new HashSet<Guid>();
+        // 1. Gửi thông báo chi tiết nội dung sửa cho người tạo phiếu (Bác sĩ chỉ định / người lập)
         if (slip.RecordedBy.HasValue)
-        {
-            recipientUserIds.Add(slip.RecordedBy.Value);
-        }
-
-        var staffIds = assignments.Select(a => a.StaffId).Distinct().ToList();
-        if (staffIds.Count > 0)
-        {
-            var staffUserIds = await db.Staff.AsNoTracking()
-                .Where(s => staffIds.Contains(s.StaffId))
-                .Select(s => s.UserId)
-                .ToListAsync(ct);
-            foreach (var uid in staffUserIds)
-            {
-                if (uid != Guid.Empty) recipientUserIds.Add(uid);
-            }
-        }
-
-        foreach (var recipientId in recipientUserIds)
         {
             db.Notifications.Add(new Notification
             {
                 NotificationId = Guid.NewGuid(),
-                RecipientId = recipientId,
+                RecipientId = slip.RecordedBy.Value,
                 SenderService = "payroll",
                 Type = "procedure_accountant_adjusted",
-                Title = $"Phiếu thủ thuật {slip.SlipNumber} đã được Kế toán điều chỉnh",
-                Body = $"Phiếu thủ thuật {slip.SlipNumber} đã được Kế toán sửa lại nhân viên thực hiện hoặc giờ dự kiến công việc.",
+                Title = $"Phiếu thủ thuật {slip.SlipNumber} đã được Kế toán điều chỉnh & chuyển thực hiện",
+                Body = $"Phiếu {slip.SlipNumber} đã được Kế toán điều chỉnh: {adjustmentSummary}. Ca thủ thuật hiện chuyển sang trạng thái Đang thực hiện.",
                 ActionUrl = $"/procedures/{slip.SlipId}",
                 EntityType = "ProcedureSlip",
                 EntityId = slip.SlipId,
@@ -2053,6 +2051,42 @@ public sealed partial class ProcedureSlipService(
                 IsRead = false,
                 CreatedAt = DateTime.UtcNow
             });
+        }
+
+        // 2. Gửi phiếu cho các nhân sự trong kíp thực hiện (chuyển sang đang thực hiện ca)
+        var staffIds = assignments.Select(a => a.StaffId).Distinct().ToList();
+        if (staffIds.Count > 0)
+        {
+            var performingStaff = await db.Staff.AsNoTracking()
+                .Where(s => staffIds.Contains(s.StaffId))
+                .Select(s => new { s.StaffId, s.UserId, s.FullName })
+                .ToListAsync(ct);
+
+            foreach (var staff in performingStaff)
+            {
+                if (staff.UserId == Guid.Empty) continue;
+                if (slip.RecordedBy.HasValue && staff.UserId == slip.RecordedBy.Value) continue;
+
+                var timeStr = (!string.IsNullOrWhiteSpace(startTime) && !string.IsNullOrWhiteSpace(endTime))
+                    ? $" ({startTime} - {endTime})"
+                    : "";
+
+                db.Notifications.Add(new Notification
+                {
+                    NotificationId = Guid.NewGuid(),
+                    RecipientId = staff.UserId,
+                    SenderService = "payroll",
+                    Type = "procedure_assigned_ready",
+                    Title = $"Bạn được giao thực hiện thủ thuật: {slip.SlipNumber}",
+                    Body = $"Kế toán đã duyệt ca và phân công bạn vào kíp thực hiện thủ thuật {slip.SlipNumber}{timeStr}. Vui lòng vào danh sách ca được giao để thực hiện.",
+                    ActionUrl = "/procedures",
+                    EntityType = "ProcedureSlip",
+                    EntityId = slip.SlipId,
+                    Channel = "in_app",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
         }
     }
 
@@ -2319,6 +2353,11 @@ public sealed partial class ProcedureSlipService(
             ? "Bác sĩ / Kíp thực hiện đã hoàn thành ca thủ thuật y tế."
             : request.Note.Trim();
 
+        if (request.ActualDurationHours.HasValue && request.ActualDurationHours.Value > 0)
+        {
+            slip.DurationHours = Math.Round(request.ActualDurationHours.Value, 2, MidpointRounding.AwayFromZero);
+        }
+
         var oldStatus = slip.Status;
         slip.Status = "completed";
 
@@ -2332,6 +2371,7 @@ public sealed partial class ProcedureSlipService(
             status = slip.Status,
             completedBy = currentUserId,
             completedAt = DateTime.UtcNow,
+            actualDurationHours = slip.DurationHours,
             note
         });
 
@@ -2344,7 +2384,127 @@ public sealed partial class ProcedureSlipService(
                 SenderService = "payroll",
                 Type = "procedure_completed",
                 Title = $"Ca thủ thuật {slip.SlipNumber} đã hoàn thành",
-                Body = $"Bác sĩ thực hiện đã xác nhận hoàn thành ca thủ thuật {slip.SlipNumber}. Ghi chú: {note}",
+                Body = $"Bác sĩ thực hiện đã hoàn thành ca thủ thuật {slip.SlipNumber}. Ghi chú: {note}",
+                ActionUrl = $"/procedures/{slip.SlipId}",
+                EntityType = "ProcedureSlip",
+                EntityId = slip.SlipId,
+                Channel = "in_app",
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        if (slip.VerifiedBy.HasValue && slip.VerifiedBy.Value != currentUserId && slip.VerifiedBy.Value != slip.RecordedBy)
+        {
+            db.Notifications.Add(new Notification
+            {
+                NotificationId = Guid.NewGuid(),
+                RecipientId = slip.VerifiedBy.Value,
+                SenderService = "payroll",
+                Type = "procedure_completed",
+                Title = $"Ca thủ thuật {slip.SlipNumber} đã hoàn thành",
+                Body = $"Bác sĩ thực hiện đã hoàn thành ca thủ thuật {slip.SlipNumber}. Ca sẵn sàng tính hoa hồng kỳ này.",
+                ActionUrl = $"/procedures/{slip.SlipId}",
+                EntityType = "ProcedureSlip",
+                EntityId = slip.SlipId,
+                Channel = "in_app",
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        await unitOfWork.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
+        return await GetSlipDetailAsync(currentUserId, currentUserRole, slip.SlipId, ct);
+    }
+
+    public async Task<ProcedureSlipDetailDto> CancelSlipAsync(
+        Guid currentUserId, string currentUserRole, Guid slipId, CancelProcedureSlipRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length < 3)
+        {
+            throw new AppException(400, "Vui lòng nhập lý do hủy ca thủ thuật (tối thiểu 3 ký tự).");
+        }
+
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+
+        var slip = await db.ProcedureSlips.FirstOrDefaultAsync(s => s.SlipId == slipId, ct)
+            ?? throw new AppException(404, "Không tìm thấy phiếu thủ thuật y tế.");
+
+        await ValidateAndEnsureUnlockedMonthAsync(slip.ProcedureDate, ct);
+
+        var currentStatus = NormalizeSlipStatus(slip.Status);
+        if (currentStatus == "completed")
+        {
+            throw new AppException(409, "Phiếu thủ thuật đã hoàn thành, không thể hủy.");
+        }
+        if (currentStatus == "cancelled")
+        {
+            throw new AppException(409, "Phiếu thủ thuật này đã được hủy trước đó.");
+        }
+
+        var assignments = await db.ProcedureAssignments.Where(a => a.SlipId == slipId).ToListAsync(ct);
+        var currentStaff = await db.Staff.AsNoTracking().FirstOrDefaultAsync(s => s.UserId == currentUserId, ct);
+        var currentStaffId = currentStaff?.StaffId;
+
+        bool isCreator = slip.RecordedBy.HasValue && slip.RecordedBy.Value == currentUserId;
+        bool isPerforming = currentStaffId.HasValue && assignments.Any(a => a.StaffId == currentStaffId.Value);
+        bool isPrivileged = currentUserRole == AccountRoles.Accountant || currentUserRole == AccountRoles.Administrator || currentUserRole == AccountRoles.DepartmentManager;
+
+        if (!isCreator && !isPerforming && !isPrivileged)
+        {
+            throw new AppException(403, "Bạn không có quyền hủy ca thủ thuật này.");
+        }
+
+        var oldStatus = slip.Status;
+        slip.Status = "cancelled";
+        var formattedReason = $"[Đã hủy ca] {request.Reason.Trim()}";
+        slip.RejectedReason = formattedReason;
+
+        foreach (var a in assignments)
+        {
+            a.Status = "cancelled";
+        }
+
+        auditHelper.Log("cancel_procedure", "ProcedureSlip", slip.SlipId, new { status = oldStatus }, new
+        {
+            status = slip.Status,
+            cancelledBy = currentUserId,
+            cancelledAt = DateTime.UtcNow,
+            reason = formattedReason
+        });
+
+        // Gửi thông báo hủy ca cho các bên liên quan
+        var recipientUserIds = new HashSet<Guid>();
+        if (slip.RecordedBy.HasValue && slip.RecordedBy.Value != currentUserId)
+        {
+            recipientUserIds.Add(slip.RecordedBy.Value);
+        }
+        if (slip.VerifiedBy.HasValue && slip.VerifiedBy.Value != currentUserId)
+        {
+            recipientUserIds.Add(slip.VerifiedBy.Value);
+        }
+        var staffIds = assignments.Select(a => a.StaffId).Distinct().ToList();
+        if (staffIds.Count > 0)
+        {
+            var uids = await db.Staff.AsNoTracking()
+                .Where(s => staffIds.Contains(s.StaffId) && s.UserId != Guid.Empty && s.UserId != currentUserId)
+                .Select(s => s.UserId)
+                .ToListAsync(ct);
+            foreach (var uid in uids) recipientUserIds.Add(uid);
+        }
+
+        foreach (var rid in recipientUserIds)
+        {
+            db.Notifications.Add(new Notification
+            {
+                NotificationId = Guid.NewGuid(),
+                RecipientId = rid,
+                SenderService = "payroll",
+                Type = "procedure_cancelled",
+                Title = $"Ca thủ thuật {slip.SlipNumber} đã bị hủy",
+                Body = $"Ca thủ thuật {slip.SlipNumber} đã bị hủy. Lý do: {request.Reason.Trim()}",
                 ActionUrl = $"/procedures/{slip.SlipId}",
                 EntityType = "ProcedureSlip",
                 EntityId = slip.SlipId,
@@ -2426,7 +2586,7 @@ public sealed partial class ProcedureSlipService(
 
         var slipsQuery = db.ProcedureSlips.AsNoTracking()
             .Where(s => s.ProcedureDate >= monthStart && s.ProcedureDate <= monthEnd &&
-                        (s.Status == "verified" || s.Status == "approved"));
+                        (s.Status == "verified" || s.Status == "approved" || s.Status == "completed"));
 
         if (request.DepartmentId.HasValue)
         {
@@ -2578,7 +2738,7 @@ public sealed partial class ProcedureSlipService(
 
         var slipsQuery = db.ProcedureSlips.AsNoTracking()
             .Where(s => s.ProcedureDate >= monthStart && s.ProcedureDate <= monthEnd &&
-                        (s.Status == "verified" || s.Status == "approved"));
+                        (s.Status == "verified" || s.Status == "approved" || s.Status == "completed"));
 
         if (targetDeptId.HasValue)
         {
@@ -2724,7 +2884,7 @@ public sealed partial class ProcedureSlipService(
             where a.StaffId == staffId
             join slip in db.ProcedureSlips.AsNoTracking() on a.SlipId equals slip.SlipId
             where slip.ProcedureDate >= monthStart && slip.ProcedureDate <= monthEnd &&
-                  (slip.Status == "verified" || slip.Status == "approved")
+                  (slip.Status == "verified" || slip.Status == "approved" || slip.Status == "completed")
             join svc in db.ProcedureServices.AsNoTracking() on slip.ServiceId equals svc.ServiceId into svcJoin
             from svc in svcJoin.DefaultIfEmpty()
             orderby slip.ProcedureDate descending, slip.SlipNumber descending
