@@ -139,14 +139,44 @@ public sealed class SchedulesController(AppDbContext db, TimeProvider? timeProvi
         return new { staffId, monday, assignments, leave };
     }
 
+    // Staff profiles use Sites; schedules keep their existing ScheduleFacilities IDs.
+    private async Task<Dictionary<Guid, Guid>> FacilitySites(CancellationToken ct)
+    {
+        var facilities = await db.ScheduleFacilities.AsNoTracking().ToArrayAsync(ct);
+        var sites = await db.Sites.AsNoTracking().ToArrayAsync(ct);
+        var result = new Dictionary<Guid, Guid>();
+        foreach (var facility in facilities) {
+            var code = facility.Name switch { "Cơ sở 1" => "CS1", "Cơ sở 2" => "CS2", _ => null };
+            var site = sites.FirstOrDefault(x => x.SiteId == facility.Id)
+                ?? sites.FirstOrDefault(x => code != null && string.Equals(x.SiteCode, code, StringComparison.OrdinalIgnoreCase))
+                ?? sites.FirstOrDefault(x => string.Equals(x.Name, facility.Name, StringComparison.OrdinalIgnoreCase));
+            if (site != null) result[facility.Id] = site.SiteId;
+        }
+        return result;
+    }
+
     [HttpGet("options")]
-    public async Task<object> Options(CancellationToken ct) => new {
-        facilities = await db.ScheduleFacilities.AsNoTracking().OrderBy(x => x.Name).ToArrayAsync(ct),
-        coverage = await db.ScheduleCoverage.AsNoTracking().ToArrayAsync(ct),
-        departments = await db.Departments.AsNoTracking().Select(x => new { id = x.DepartmentId, x.Name, x.Status }).ToArrayAsync(ct),
-        staff = await db.Staff.AsNoTracking().Where(x => x.Status == "active" && (Reader || x.UserId == Actor))
-            .OrderBy(x => x.FullName).Select(x => new { id = x.StaffId, x.FullName, x.DepartmentId, x.DateJoined, x.DateLeft }).ToArrayAsync(ct)
-    };
+    public async Task<object> Options(CancellationToken ct)
+    {
+        var facilitySites = await FacilitySites(ct);
+        var facilities = await db.ScheduleFacilities.AsNoTracking().OrderBy(x => x.Name).ToArrayAsync(ct);
+        var coverage = await db.ScheduleCoverage.AsNoTracking().ToArrayAsync(ct);
+        var departments = await db.Departments.AsNoTracking().OrderBy(x => x.Name)
+            .Select(x => new { id = x.DepartmentId, x.Name, x.Status }).ToArrayAsync(ct);
+        var memberships = await db.Staff.AsNoTracking().Where(x => x.Status == "active" && x.DepartmentId != null && x.SiteId != null)
+            .Select(x => new { x.DepartmentId, x.SiteId }).Distinct().ToArrayAsync(ct);
+        var staff = await db.Staff.AsNoTracking().Where(x => x.Status == "active" && (Reader || x.UserId == Actor))
+            .OrderBy(x => x.FullName).Select(x => new { id = x.StaffId, x.FullName, x.DepartmentId, x.SiteId, x.DateJoined, x.DateLeft }).ToArrayAsync(ct);
+        return new {
+            facilities, coverage,
+            departments = departments.Select(department => new { department.id, department.Name, department.Status,
+                facilityIds = coverage.Where(x => x.DepartmentId == department.id).Select(x => x.FacilityId)
+                    .Concat(facilitySites.Where(f => memberships.Any(m => m.DepartmentId == department.id && m.SiteId == f.Value)).Select(f => f.Key))
+                    .Distinct().ToArray() }),
+            staff = staff.Select(person => new { person.id, person.FullName, person.DepartmentId, person.DateJoined, person.DateLeft,
+                facilityId = facilitySites.Where(f => f.Value == person.SiteId).Select(f => (Guid?)f.Key).FirstOrDefault() })
+        };
+    }
 
     [HttpGet("week-status")]
     public async Task<object> Status(DateOnly date, CancellationToken ct)
@@ -239,6 +269,13 @@ public sealed class SchedulesController(AppDbContext db, TimeProvider? timeProvi
         ScheduleCoverage coverage;
         if (request.FacilityId.HasValue) {
             if (!await db.ScheduleFacilities.AnyAsync(x => x.Id == request.FacilityId, ct)) throw new AppException(400, "Cơ sở không tồn tại.");
+            var hasCoverage = await db.ScheduleCoverage.AnyAsync(x => x.DepartmentId == department && x.FacilityId == request.FacilityId, ct);
+            if (!hasCoverage) {
+                var facilitySites = await FacilitySites(ct);
+                if (!facilitySites.TryGetValue(request.FacilityId.Value, out var siteId)
+                    || !await db.Staff.AnyAsync(x => x.Status == "active" && x.DepartmentId == department && x.SiteId == siteId, ct))
+                    throw new AppException(400, "Khoa/phòng của nhân viên không thuộc cơ sở đã chọn.");
+            }
             var name = await db.Departments.Where(x => x.DepartmentId == department).Select(x => x.Name).SingleAsync(ct);
             coverage = await db.ScheduleCoverage.FirstOrDefaultAsync(x => x.DepartmentId == department && x.FacilityId == request.FacilityId && x.Name == name, ct)
                 ?? new ScheduleCoverage { Id = Guid.NewGuid(), DepartmentId = department, FacilityId = request.FacilityId.Value, Name = name };

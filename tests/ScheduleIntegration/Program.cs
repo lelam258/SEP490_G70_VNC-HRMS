@@ -21,6 +21,7 @@ var configuration = new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(con
 var created = false;
 var actor = Guid.NewGuid(); var employeeUser = Guid.NewGuid();
 var staff1 = Guid.NewGuid(); var staff2 = Guid.NewGuid(); var department1 = Guid.NewGuid(); var department2 = Guid.NewGuid(); var facility1 = Guid.NewGuid(); var facility2 = Guid.NewGuid();
+var site1 = Guid.NewGuid(); var site2 = Guid.NewGuid();
 var monday = new DateOnly(2026, 11, 9);
 var clock = new TestClock { Now = new(2026, 11, 6, 10, 0, 0, TimeSpan.FromHours(7)) };
 var ct = CancellationToken.None;
@@ -47,10 +48,31 @@ try {
         seed.Users.AddRange(new User { UserId = actor, Username = "hr.test", NormalizedUsername = "HR.TEST", Role = "hr_staff", Email = "hr@test.invalid" },
             new User { UserId = employeeUser, Username = "employee.test", NormalizedUsername = "EMPLOYEE.TEST", Role = "employee", Email = "employee@test.invalid" });
         seed.Departments.AddRange(new Department { DepartmentId = department1, DeptCode = "D1", Name = "Nursing" }, new Department { DepartmentId = department2, DeptCode = "D2", Name = "Doctors" });
-        seed.Staff.AddRange(new Staff { StaffId = staff1, UserId = employeeUser, StaffCode = "S1", FullName = "Staff One", DepartmentId = department1, DateJoined = monday.AddYears(-1) },
-            new Staff { StaffId = staff2, UserId = actor, StaffCode = "S2", FullName = "Staff Two", DepartmentId = department2, DateJoined = monday.AddYears(-1) });
-        seed.ScheduleFacilities.AddRange(new ScheduleFacility { Id = facility1, Name = "Site 1" }, new ScheduleFacility { Id = facility2, Name = "Site 2" });
+        seed.Sites.AddRange(new Site { SiteId = site1, SiteCode = "CS1", Name = "Cơ sở 1 - Phòng khám Đa khoa Việt Nhật" },
+            new Site { SiteId = site2, SiteCode = "CS2", Name = "Cơ sở 2" });
+        seed.Staff.AddRange(new Staff { StaffId = staff1, UserId = employeeUser, StaffCode = "S1", FullName = "Staff One", DepartmentId = department1, SiteId = site1, DateJoined = monday.AddYears(-1) },
+            new Staff { StaffId = staff2, UserId = actor, StaffCode = "S2", FullName = "Staff Two", DepartmentId = department2, SiteId = site2, DateJoined = monday.AddYears(-1) });
+        seed.ScheduleFacilities.AddRange(new ScheduleFacility { Id = facility1, Name = "Cơ sở 1" }, new ScheduleFacility { Id = facility2, Name = "Cơ sở 2" });
+        seed.ScheduleCoverage.Add(new ScheduleCoverage { Id = Guid.NewGuid(), DepartmentId = department1, FacilityId = facility2, Name = "Nursing" });
         await seed.SaveChangesAsync();
+    }
+    var organizationOptions = JsonSerializer.SerializeToElement(await Call(c => c.Options(ct)));
+    var departmentOptions = organizationOptions.GetProperty("departments").EnumerateArray().ToArray();
+    Check(departmentOptions.Single(d => d.GetProperty("id").GetGuid() == department1).GetProperty("facilityIds").GetArrayLength() == 2,
+        "Shared department belongs to its staff's home facility and its configured second facility before scheduling");
+    var secondDepartmentFacilities = departmentOptions.Single(d => d.GetProperty("id").GetGuid() == department2).GetProperty("facilityIds");
+    Check(secondDepartmentFacilities.GetArrayLength() == 1 && secondDepartmentFacilities[0].GetGuid() == facility2,
+        "Department with staff at only one facility is not offered at the other facility");
+    var staffOptions = organizationOptions.GetProperty("staff").EnumerateArray().ToArray();
+    Check(staffOptions.Single(s => s.GetProperty("id").GetGuid() == staff1).GetProperty("facilityId").GetGuid() == facility1
+        && staffOptions.Single(s => s.GetProperty("id").GetGuid() == staff2).GetProperty("facilityId").GetGuid() == facility2,
+        "Staff site IDs map to scheduling facility IDs even when names and IDs differ");
+    await Reject(c => c.Create(Input(staff2, facility1, monday), ct), "Cannot assign a department that does not belong to the selected facility");
+    await using (var db = new AppDbContext(configuration)) {
+        Check(!await db.ScheduleCoverage.AnyAsync(x => x.DepartmentId == department2 && x.FacilityId == facility1),
+            "Rejected assignment does not create a phantom department at the facility");
+        db.ScheduleCoverage.Add(new ScheduleCoverage { Id = Guid.NewGuid(), DepartmentId = department2, FacilityId = facility1, Name = "Doctors" });
+        await db.SaveChangesAsync();
     }
     await Reject(c => c.Publish(monday, ct), "Empty week cannot close");
     await Reject(c => c.Create(Input(staff1, facility1, monday.AddDays(7)), ct), "Cannot plan two weeks ahead before its window");

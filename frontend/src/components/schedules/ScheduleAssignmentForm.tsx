@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import type { ScheduleAvailability, ScheduleDraft, ScheduleOptions, ScheduleRow } from '../../types/schedules';
-import { addDays, canChangeShift, dayNames, shiftNames, shortDate, weekStart } from '../../utils/schedule';
+import { addDays, canChangeShift, dayNames, scheduleDepartments, scheduleStaff, shiftNames, shortDate, weekStart } from '../../utils/schedule';
 import { axiosClient as api } from '../../services/axiosClient';
 import Icon from '../ui/Icon';
 import SelectOrTextField from '../ui/SelectOrTextField';
@@ -8,8 +8,9 @@ import SelectOrTextField from '../ui/SelectOrTextField';
 const reasons = ['Phân công lịch làm việc tuần', 'Phân công trực trưa', 'Phân công trực tối', 'Bố trí người thay thế nhân viên nghỉ', 'Hỗ trợ cơ sở thiếu nhân sự', 'Điều chỉnh lịch làm việc'];
 const shiftHints: Record<string, string> = { morning: 'Giờ theo mùa', noon: 'Sau ca sáng – 13:30', afternoon: '13:30–17:00', evening: '17:00–19:00 dự kiến' };
 
-export default function ScheduleAssignmentForm({ date, options, existing, slot, now, busy, error, onSave, onClose }: {
+export default function ScheduleAssignmentForm({ date, options, existing, slot, initialFacilityId = '', initialDepartmentId = '', now, busy, error, onSave, onClose }: {
   date: string; options: ScheduleOptions; existing?: ScheduleRow; slot?: { date: string; shift: string };
+  initialFacilityId?: string; initialDepartmentId?: string;
   now: number; busy: boolean; error: string; onSave: (draft: ScheduleDraft) => Promise<void>; onClose: () => void;
 }) {
   const initialDate = existing?.assignment.date || slot?.date || date;
@@ -23,10 +24,16 @@ export default function ScheduleAssignmentForm({ date, options, existing, slot, 
   const [availabilityError, setAvailabilityError] = useState('');
   const [refresh, setRefresh] = useState(0);
   const [form, setForm] = useState({
-    staffId: existing?.assignment.staffId || '', facilityId: existing?.facilityId || '',
+    staffId: existing?.assignment.staffId || '', facilityId: existing?.facilityId || initialFacilityId,
+    departmentId: existing?.departmentId || options.staff.find(staff => staff.id === existing?.assignment.staffId)?.departmentId || initialDepartmentId,
     date: initialDate, shift: existing?.assignment.shift || slot?.shift || 'full-day',
     reason: existing?.assignment.reason || 'Phân công lịch làm việc tuần', transferConsent: existing?.assignment.transferConsent || '',
   });
+  const departments = scheduleDepartments(options, form.facilityId)
+    .filter(department => department.status !== 'inactive' || department.id === form.departmentId);
+  const staff = scheduleStaff(options, form.facilityId, form.departmentId);
+  const validSelection = departments.some(department => department.id === form.departmentId && department.status !== 'inactive')
+    && staff.some(person => person.id === form.staffId);
   const count = weekly ? days.length * shifts.length : form.shift === 'full-day' ? 2 : 1;
   const dates = weekly ? days.map(day => addDays(monday, day)) : [form.date];
   const chosenShifts = weekly ? shifts : form.shift === 'full-day' ? ['morning', 'afternoon'] : [form.shift];
@@ -41,7 +48,7 @@ export default function ScheduleAssignmentForm({ date, options, existing, slot, 
   const conflictError = approvedLeave.length ? 'Nhân viên đã có nghỉ phép được duyệt trong ngày được chọn.'
     : duplicate ? 'Nhân viên đã có phân công trong ngày và ca được chọn.' : '';
   const inactiveFacility = options.facilities.find(item => item.id === form.facilityId)?.status === 'inactive';
-  const blocked = busy || count === 0 || !!timeError || !!conflictError || inactiveFacility || !previewReady;
+  const blocked = busy || !validSelection || count === 0 || !!timeError || !!conflictError || inactiveFacility || !previewReady;
 
   useEffect(() => {
     setAvailability(undefined); setAvailabilityError('');
@@ -72,11 +79,13 @@ export default function ScheduleAssignmentForm({ date, options, existing, slot, 
     <fieldset disabled={busy} className="schedule-form-body">
       {(validationError || error) && <p className="alert error" role="alert">{validationError || error}</p>}
       <div className="schedule-fields">
-        <label htmlFor="schedule-staff">Nhân viên<select id="schedule-staff" required value={form.staffId} onChange={event => setForm({ ...form, staffId: event.target.value })}><option value="">Chọn nhân viên</option>{options.staff.filter(staff => staff.departmentId && options.departments.find(d => d.id === staff.departmentId)?.status !== 'inactive').map(staff => <option key={staff.id} value={staff.id}>{staff.fullName} · {options.departments.find(d => d.id === staff.departmentId)?.name}</option>)}</select></label>
-        <label htmlFor="schedule-facility">Cơ sở<select id="schedule-facility" required value={form.facilityId} onChange={event => setForm({ ...form, facilityId: event.target.value })}><option value="">Chọn cơ sở</option>{options.facilities.filter(unit => unit.status !== 'inactive' || unit.id === form.facilityId).map(unit => <option key={unit.id} value={unit.id} disabled={unit.status === 'inactive'}>{unit.name}{unit.status === 'inactive' ? ' · Ngừng hoạt động' : ''}</option>)}</select></label>
+        <label htmlFor="schedule-facility">Cơ sở<select id="schedule-facility" required value={form.facilityId} onChange={event => { setForm({ ...form, facilityId: event.target.value, departmentId: '', staffId: '' }); setValidationError(''); }}><option value="">Chọn cơ sở</option>{options.facilities.filter(unit => unit.status !== 'inactive' || unit.id === form.facilityId).map(unit => <option key={unit.id} value={unit.id} disabled={unit.status === 'inactive'}>{unit.name}{unit.status === 'inactive' ? ' · Ngừng hoạt động' : ''}</option>)}</select></label>
+        <label htmlFor="schedule-department">Khoa/phòng<select id="schedule-department" required disabled={!form.facilityId} value={form.departmentId} onChange={event => { setForm({ ...form, departmentId: event.target.value, staffId: '' }); setValidationError(''); }}><option value="">{!form.facilityId ? 'Chọn cơ sở trước' : departments.length ? 'Chọn khoa/phòng' : 'Cơ sở chưa có khoa/phòng'}</option>{departments.map(department => <option key={department.id} value={department.id} disabled={department.status === 'inactive'}>{department.name}{department.status === 'inactive' ? ' · Ngừng hoạt động' : ''}</option>)}</select></label>
+        <label htmlFor="schedule-staff">Nhân viên<select id="schedule-staff" required disabled={!form.facilityId || !form.departmentId} value={form.staffId} onChange={event => { setForm({ ...form, staffId: event.target.value }); setValidationError(''); }}><option value="">{!form.departmentId ? 'Chọn khoa/phòng trước' : staff.length ? 'Chọn nhân viên' : 'Chưa có nhân viên tại cơ sở và khoa/phòng này'}</option>{staff.map(person => <option key={person.id} value={person.id}>{person.fullName}</option>)}</select></label>
         {!weekly && <><label htmlFor="schedule-date">Ngày<input id="schedule-date" type="date" required min={monday} max={addDays(monday, 6)} value={form.date} onChange={event => setForm({ ...form, date: event.target.value })} /></label>
           <label htmlFor="schedule-shift">Ca<select id="schedule-shift" value={form.shift} onChange={event => setForm({ ...form, shift: event.target.value })}>{!existing && <option value="full-day">Cả ngày · sáng + chiều</option>}{Object.entries(shiftNames).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label></>}
       </div>
+      {form.staffId && !validSelection && <p className="alert error" role="alert">Nhân viên không còn thuộc cơ sở và khoa/phòng đã chọn. Vui lòng chọn lại thông tin phân công.</p>}
       {existing && <p className="schedule-field-hint">Có thể đổi ngày trong cùng tuần.</p>}
       {timeError && <p className="alert error" role="alert">{timeError}</p>}
       {inactiveFacility && <p className="alert error" role="alert">Vui lòng chọn cơ sở đang hoạt động.</p>}

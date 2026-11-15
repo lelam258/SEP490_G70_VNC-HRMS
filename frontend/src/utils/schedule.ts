@@ -1,4 +1,13 @@
-import type { ScheduleWeekStatus } from '../types/schedules';
+import type { ScheduleOptions, ScheduleWeekStatus } from '../types/schedules';
+
+export function scheduleDepartments(options: ScheduleOptions | undefined, facilityId: string) {
+  return facilityId ? options?.departments.filter(department => department.facilityIds.includes(facilityId)) || [] : [];
+}
+
+export function scheduleStaff(options: ScheduleOptions | undefined, facilityId: string, departmentId: string) {
+  if (!facilityId || !departmentId || !scheduleDepartments(options, facilityId).some(department => department.id === departmentId)) return [];
+  return options?.staff.filter(staff => staff.departmentId === departmentId && staff.facilityId === facilityId) || [];
+}
 
 export const shiftNames: Record<string, string> = { morning: 'Sáng', noon: 'Trực trưa', afternoon: 'Chiều', evening: 'Trực tối' };
 export const dayNames = ['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ nhật'];
