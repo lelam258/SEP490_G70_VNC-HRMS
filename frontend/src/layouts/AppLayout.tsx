@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import Icon from '../components/ui/Icon';
 import { useAuthStore } from '../store/useAuthStore';
 import { useAppStore } from '../store/useAppStore';
@@ -15,27 +15,43 @@ export default function AppLayout() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const location = useLocation();
-  const navigate = useNavigate();
-  useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }, [location.pathname]);
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.querySelector('.workspace-main')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [location.pathname]);
   const navClass = ({ isActive }: { isActive: boolean }) => `nav-item ${isActive ? 'selected' : ''}`;
-  const title = location.pathname.startsWith('/accounts')
+  const title = location.pathname.startsWith('/attendance') ? 'Chấm công và ca trực' : location.pathname.startsWith('/roles') ? 'Quản lý vai trò' : location.pathname.startsWith('/audit-logs') ? 'Nhật ký hệ thống' : location.pathname.startsWith('/schedules') ? 'Lịch làm việc' : location.pathname.startsWith('/accounts')
     ? 'Quản lý tài khoản'
     : location.pathname.startsWith('/employees')
     ? 'Nhân viên'
     : location.pathname.startsWith('/departments')
     ? 'Khoa/phòng'
+    : location.pathname.startsWith('/contracts')
+    ? 'Hợp đồng lao động'
+    : location.pathname.startsWith('/compliance')
+    ? 'Compliance Dashboard'
     : location.pathname.startsWith('/certificates')
     ? 'Certificate / Qualification List'
     : location.pathname.startsWith('/cme-records')
     ? 'CME Records'
+    : location.pathname.startsWith('/payroll/commission-results')
+    ? 'Kết quả hoa hồng thủ thuật'
     : location.pathname.startsWith('/payroll/parameters')
     ? 'Tham số lương'
     : location.pathname.startsWith('/payroll/compensation')
     ? 'Đãi ngộ hợp đồng'
     : location.pathname.startsWith('/payroll/periods')
     ? 'Kỳ tính lương'
+    : location.pathname.startsWith('/payroll/procedure-services')
+    ? 'Danh mục thủ thuật'
+    : location.pathname.startsWith('/payroll/procedures') || location.pathname.startsWith('/procedures')
+    ? 'Phiếu thủ thuật y tế'
     : location.pathname.startsWith('/me/profile')
     ? 'Hồ sơ của tôi'
+    : location.pathname.startsWith('/me/certificates')
+    ? 'Chứng chỉ của tôi'
+    : location.pathname.startsWith('/me/cme-records')
+    ? 'Hồ sơ CME của tôi'
     : location.pathname.startsWith('/me/leave-requests')
     ? 'Đơn nghỉ phép'
     : location.pathname === '/change-password'
@@ -47,7 +63,7 @@ export default function AppLayout() {
     setError('');
     try {
       await authApi.logout();
-      navigate('/login', { replace: true });
+      window.location.replace('/login');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Không đăng xuất được.');
     } finally {
@@ -74,6 +90,13 @@ export default function AppLayout() {
               <Icon name="building" />
               Trang chủ
             </NavLink>
+            <NavLink to="/schedules" className={navClass}><Icon name="users" />Lịch làm việc</NavLink>
+            {user.role !== 'accountant' && <NavLink to="/attendance/records" className={navClass}><Icon name="calendar" />Chấm công & ca trực</NavLink>}
+            {user.role === 'accountant' && <NavLink to="/attendance/history" className={navClass}><Icon name="clock" />Lịch sử chấm công</NavLink>}
+            {user.role === 'admin' && <><NavLink to="/roles" className={navClass}><Icon name="shield" />Quản lý vai trò</NavLink><NavLink to="/audit-logs" className={navClass}><Icon name="fileText" />Nhật ký hệ thống</NavLink></>}
+            {user.role !== 'admin' && user.role !== 'accountant' && (
+              <NavLink to="/procedures" className={navClass}><Icon name="fileText" />Phiếu thủ thuật</NavLink>
+            )}
             {user.role === 'admin' && (
               <NavLink to="/accounts" className={navClass}>
                 <Icon name="users" />
@@ -86,9 +109,17 @@ export default function AppLayout() {
                   <Icon name="users" />
                   Nhân viên
                 </NavLink>
+                <NavLink to="/contracts" className={navClass}>
+                  <Icon name="fileText" />
+                  Hợp đồng
+                </NavLink>
                 <NavLink to="/departments" className={navClass}>
                   <Icon name="building" />
                   Khoa/phòng
+                </NavLink>
+                <NavLink to="/compliance" className={navClass}>
+                  <Icon name="shield" />
+                  Compliance
                 </NavLink>
                 <NavLink to="/certificates" className={navClass}>
                   <Icon name="award" />
@@ -99,6 +130,18 @@ export default function AppLayout() {
                   CME Records
                 </NavLink>
               </>
+            )}
+            {(user.role === 'department_head' || user.role === 'admin') && (
+              <NavLink to="/compliance" className={navClass}>
+                <Icon name="shield" />
+                Compliance
+              </NavLink>
+            )}
+            {user.role === 'department_head' && (
+              <NavLink to="/payroll/commission-results" className={navClass}>
+                <Icon name="award" />
+                Hoa hồng thủ thuật khoa
+              </NavLink>
             )}
             {user.role === 'accountant' && (
               <>
@@ -113,6 +156,37 @@ export default function AppLayout() {
                 <NavLink to="/payroll/periods" className={navClass}>
                   <Icon name="calendar" />
                   Kỳ tính lương
+                </NavLink>
+                <NavLink to="/payroll/procedure-services" className={navClass}>
+                  <Icon name="sliders" />
+                  Danh mục thủ thuật
+                </NavLink>
+                <NavLink
+                  to="/payroll/procedures"
+                  className={({ isActive }) =>
+                    `nav-item ${
+                      isActive || location.pathname.startsWith('/procedures/') ? 'selected' : ''
+                    }`
+                  }
+                >
+                  <Icon name="fileText" />
+                  Quản lý phiếu thủ thuật
+                </NavLink>
+                <NavLink to="/payroll/commission-results" className={navClass}>
+                  <Icon name="award" />
+                  Kết quả hoa hồng
+                </NavLink>
+              </>
+            )}
+            {['employee', 'accountant', 'department_head', 'hr_staff'].includes(user.role) && (
+              <>
+                <NavLink to="/me/certificates" className={navClass}>
+                  <Icon name="award" />
+                  Chứng chỉ của tôi
+                </NavLink>
+                <NavLink to="/me/cme-records" className={navClass}>
+                  <Icon name="fileText" />
+                  Hồ sơ CME của tôi
                 </NavLink>
               </>
             )}
@@ -172,10 +246,6 @@ export default function AppLayout() {
         <main className="page-content">
           <Outlet />
         </main>
-        <footer className="workspace-footer">
-          © {new Date().getFullYear()} VNC Clinic
-          <span>Hệ thống quản lý nhân sự</span>
-        </footer>
       </div>
     </div>
   );

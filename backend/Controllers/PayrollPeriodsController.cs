@@ -37,4 +37,12 @@ public sealed class PayrollPeriodsController(IPayrollPeriodService periodService
         var result = await periodService.CreatePeriodAsync(GetCurrentUserId(), request, ct);
         return CreatedAtAction(nameof(GetPeriodDetail), new { month = result.PayMonth }, result);
     }
+
+    [HttpPost("{month}/reopen")]
+    public async Task<ActionResult<PayrollPeriodDetailDto>> ReopenPeriod(
+        string month, [FromBody] ReopenPayrollPeriodRequest request, CancellationToken ct)
+    {
+        var result = await periodService.ReopenPeriodAsync(GetCurrentUserId(), month, request, ct);
+        return Ok(result);
+    }
 }

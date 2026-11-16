@@ -15,6 +15,8 @@ export interface DataTableProps<T> {
   rows: T[];
   rowKey: (row: T) => string;
   emptyMessage: string;
+  caption?: string;
+  emptyState?: ReactNode;
   defaultSortKey?: string;
   defaultSortDirection?: 'asc' | 'desc';
 }
@@ -26,6 +28,8 @@ export default function DataTable<T>({
   emptyMessage,
   defaultSortKey,
   defaultSortDirection = 'asc',
+  caption,
+  emptyState,
 }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(defaultSortKey || null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(defaultSortDirection);
@@ -69,6 +73,7 @@ export default function DataTable<T>({
   }, [rows, sortKey, sortDirection, columns]);
 
   if (!rows.length) {
+    if (emptyState !== undefined) return <>{emptyState}</>;
     return (
       <div className="empty-state">
         <p>{emptyMessage}</p>
@@ -79,6 +84,7 @@ export default function DataTable<T>({
   return (
     <div className="table-scroll">
       <table>
+        {caption && <caption className="sr-only">{caption}</caption>}
         <thead>
           <tr>
             {columns.map((column) => {
@@ -87,7 +93,7 @@ export default function DataTable<T>({
                 <th
                   key={column.key}
                   scope="col"
-                  className={`${column.headerClassName || ''} ${
+                  className={`${column.className || ''} ${column.headerClassName || ''} ${
                     column.sortable
                       ? 'cursor-pointer select-none transition-colors hover:bg-slate-100/80 dark:hover:bg-slate-800'
                       : ''
@@ -120,7 +126,7 @@ export default function DataTable<T>({
           {sortedRows.map((row) => (
             <tr key={rowKey(row)}>
               {columns.map((column) => (
-                <td key={column.key} className={column.className}>
+                <td key={column.key} className={column.className} data-label={column.label}>
                   {column.render(row)}
                 </td>
               ))}

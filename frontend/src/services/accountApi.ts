@@ -7,4 +7,6 @@ export const accountApi = {
   async get(id: string) { return (await axiosClient.get<Account>(`/users/${id}`)).data; },
   async create(input: AccountInput) { return (await axiosClient.post<Account>('/users', input)).data; },
   async update(id: string, input: AccountInput) { return (await axiosClient.put<Account>(`/users/${id}`, input)).data; },
+  async status(id: string, status: 'active' | 'inactive', version: string) { return (await axiosClient.post<Account>(`/users/${id}/status`, { status, version })).data; },
+  async role(id: string, role: string, version: string) { return (await axiosClient.post<Account>(`/users/${id}/role`, { role, version })).data; },
 };

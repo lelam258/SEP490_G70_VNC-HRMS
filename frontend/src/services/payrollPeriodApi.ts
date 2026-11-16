@@ -1,5 +1,10 @@
 import { axiosClient } from './axiosClient';
-import type { CreatePayrollPeriodInput, PayrollPeriod, PayrollPeriodDetail } from '../types/payrollPeriod';
+import type {
+  CreatePayrollPeriodInput,
+  PayrollPeriod,
+  PayrollPeriodDetail,
+  ReopenPayrollPeriodInput,
+} from '../types/payrollPeriod';
 
 export const payrollPeriodApi = {
   listPeriods: async (): Promise<PayrollPeriod[]> => {
@@ -12,6 +17,10 @@ export const payrollPeriodApi = {
   },
   createPeriod: async (input: CreatePayrollPeriodInput): Promise<PayrollPeriod> => {
     const res = await axiosClient.post<PayrollPeriod>('/payroll/periods', input);
+    return res.data;
+  },
+  reopenPeriod: async (month: string, input: ReopenPayrollPeriodInput): Promise<PayrollPeriodDetail> => {
+    const res = await axiosClient.post<PayrollPeriodDetail>(`/payroll/periods/${month}/reopen`, input);
     return res.data;
   },
 };

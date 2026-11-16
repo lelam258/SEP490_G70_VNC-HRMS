@@ -17,12 +17,23 @@ interface PayrollRateConfigFormProps {
 }
 
 const PRESET_CODES = [
-  { code: 'duty_night', label: 'Trực tối', defaultUnit: 'vnd', defaultVal: 100000, desc: 'Trực tối 200.000 ₫ (Bác sĩ), 100.000 ₫ (Chung)' },
-  { code: 'duty_noon', label: 'Trực trưa', defaultUnit: 'vnd', defaultVal: 50000, desc: 'Trực trưa 50.000 ₫/ca' },
+  { code: 'duty_night', label: 'Trực ca đêm', defaultUnit: 'vnd', defaultVal: 100000, desc: 'Đơn giá trực ca đêm (200.000 ₫ Bác sĩ, 100.000 ₫ Toàn phòng khám)' },
+  { code: 'duty_noon', label: 'Trực ca trưa', defaultUnit: 'vnd', defaultVal: 50000, desc: 'Đơn giá trực ca trưa 50.000 ₫/ca' },
   { code: 'duty_extra_hour_multiplier', label: 'Trực ngoài giờ', defaultUnit: 'percent', defaultVal: 150, desc: '150% lương giờ (Lương giờ = lương ngày ÷ 8)' },
   { code: 'union_fee', label: 'Đoàn phí công đoàn', defaultUnit: 'vnd', defaultVal: 100000, desc: '100.000 ₫/tháng cho đoàn viên' },
-  { code: 'standard_working_days', label: 'Ngày công chuẩn', defaultUnit: 'days', defaultVal: DEFAULT_STANDARD_WORKING_DAYS, desc: `${DEFAULT_STANDARD_WORKING_DAYS} ngày công chuẩn mặc định` },
+  { code: 'standard_working_days', label: 'Ngày công chuẩn tháng', defaultUnit: 'days', defaultVal: DEFAULT_STANDARD_WORKING_DAYS, desc: `${DEFAULT_STANDARD_WORKING_DAYS} ngày công chuẩn mặc định` },
+  { code: 'custom', label: 'Tùy chỉnh tham số mới (Tự đặt tên)...', defaultUnit: 'vnd', defaultVal: 0, desc: '' },
 ];
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
 
 export default function PayrollRateConfigForm({
   initial,
@@ -35,9 +46,21 @@ export default function PayrollRateConfigForm({
   onDirtyChange,
 }: PayrollRateConfigFormProps) {
   const isEdit = Boolean(initial);
+  const isInitialPreset = Boolean(initial && PRESET_CODES.some(p => p.code === initial.code && p.code !== 'custom'));
+
+  const [selectedPreset, setSelectedPreset] = useState<string>(() => {
+    if (!initial) return 'duty_night';
+    return isInitialPreset ? initial.code : 'custom';
+  });
+
+  const isCustom = selectedPreset === 'custom';
+
+  const [customName, setCustomName] = useState<string>(() => {
+    if (initial && !isInitialPreset) return initial.description || initial.code;
+    return '';
+  });
 
   // General & Target
-  const [code, setCode] = useState(initial?.code || 'duty_night');
   const [targetType, setTargetType] = useState<'all' | 'position' | 'staff'>(
     initial?.staffId ? 'staff' : initial?.positionId ? 'position' : 'all'
   );
@@ -63,9 +86,18 @@ export default function PayrollRateConfigForm({
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  function handleCodeChange(newCode: string) {
-    setCode(newCode);
-    const preset = PRESET_CODES.find(p => p.code === newCode);
+  function handlePresetChange(newPreset: string) {
+    setSelectedPreset(newPreset);
+    setFieldErrors({});
+    if (newPreset === 'custom') {
+      if (!initial) {
+        setUnit('vnd');
+        setMoneyValue(0);
+      }
+      return;
+    }
+
+    const preset = PRESET_CODES.find(p => p.code === newPreset);
     if (preset && !initial) {
       setUnit(preset.defaultUnit as 'vnd' | 'percent' | 'days');
       if (preset.defaultUnit === 'vnd') {
@@ -79,10 +111,14 @@ export default function PayrollRateConfigForm({
     }
   }
 
+  function handleCustomNameChange(name: string) {
+    setCustomName(name);
+    if (fieldErrors.customName) setFieldErrors(prev => ({ ...prev, customName: '' }));
+  }
+
   const isDirty = useMemo(() => {
     if (!initial) return true;
     const initialTargetType = initial.staffId ? 'staff' : initial.positionId ? 'position' : 'all';
-    if (code !== initial.code) return true;
     if (targetType !== initialTargetType) return true;
     if (targetType === 'position' && positionId !== (initial.positionId || '')) return true;
     if (targetType === 'staff' && staffId !== (initial.staffId || '')) return true;
@@ -91,12 +127,19 @@ export default function PayrollRateConfigForm({
     const currentVal = unit === 'vnd' ? moneyValue : unit === 'percent' ? Number(percentVal) : Number(daysVal);
     if (currentVal !== initial.value) return true;
 
-    if ((description || '') !== (initial.description || '')) return true;
+    if (isCustom) {
+      const origName = !isInitialPreset ? (initial.description || initial.code) : '';
+      if (customName.trim() !== origName.trim()) return true;
+    } else {
+      if (selectedPreset !== initial.code) return true;
+      if ((description || '').trim() !== (initial.description || '').trim()) return true;
+    }
+
     if (effectiveFrom !== initial.effectiveFrom) return true;
     if ((effectiveTo || '') !== (initial.effectiveTo || '')) return true;
 
     return false;
-  }, [code, targetType, positionId, staffId, unit, moneyValue, percentVal, daysVal, description, effectiveFrom, effectiveTo, initial]);
+  }, [targetType, positionId, staffId, unit, moneyValue, percentVal, daysVal, isCustom, customName, selectedPreset, description, effectiveFrom, effectiveTo, initial, isInitialPreset]);
 
   useEffect(() => {
     onDirtyChange?.(isDirty);
@@ -117,6 +160,13 @@ export default function PayrollRateConfigForm({
     if (busy || !isDirty) return;
 
     const errors: Record<string, string> = {};
+
+    if (isCustom) {
+      if (!customName.trim()) {
+        errors.customName = 'Vui lòng nhập tên tham số lương.';
+      }
+    }
+
     if (targetType === 'position' && !positionId) {
       errors.positionId = 'Vui lòng chọn chức danh áp dụng.';
     }
@@ -128,7 +178,7 @@ export default function PayrollRateConfigForm({
     if (unit === 'vnd') {
       finalVal = moneyValue ?? 0;
       if (finalVal <= 0) {
-        errors.value = 'Đơn giá phải lớn hơn 0.';
+        errors.value = 'Mức áp dụng phải lớn hơn 0.';
       }
     } else if (unit === 'percent') {
       finalVal = Number(percentVal);
@@ -149,13 +199,17 @@ export default function PayrollRateConfigForm({
 
     setFieldErrors({});
 
+    const resolvedCode = isCustom
+      ? (initial && !isInitialPreset ? initial.code : slugify(customName).slice(0, 50) || `param_${Date.now()}`)
+      : selectedPreset;
+
     void onSave({
-      code,
+      code: resolvedCode,
       positionId: targetType === 'position' ? positionId : null,
       staffId: targetType === 'staff' ? staffId : null,
       value: finalVal,
       unit,
-      description: description.trim() || null,
+      description: (isCustom ? customName.trim() : description.trim()) || null,
       effectiveFrom,
       effectiveTo: effectiveTo || null,
       status: initial?.status || 'active',
@@ -163,9 +217,9 @@ export default function PayrollRateConfigForm({
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col h-full">
-      {/* Scrollable Body */}
-      <div className="px-6 py-5 space-y-6 flex-1 overflow-y-auto max-h-[calc(85vh-130px)]">
+    <form onSubmit={submit} className="flex flex-col">
+      {/* Body */}
+      <div className="px-6 py-5 space-y-6">
         {/* Inactive Banner */}
         {initial?.status === 'inactive' && (
           <div className="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
@@ -179,26 +233,51 @@ export default function PayrollRateConfigForm({
         {/* GROUP 1: THÔNG TIN THAM SỐ */}
         <div>
           <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 pb-1.5 border-b border-slate-200 dark:border-slate-800 mb-3.5">
-            Thông tin tham số & Đối tượng áp dụng
+            Thông tin tham số lương & Đối tượng áp dụng
           </div>
           <div className="space-y-4">
-            {/* Loại đơn giá */}
+            {/* Loại tham số */}
             <div>
-              <label htmlFor="rate-code" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Loại đơn giá / Tham số <span className="text-rose-500">*</span>
+              <label htmlFor="rate-preset" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                Loại tham số lương <span className="text-rose-500">*</span>
               </label>
               <select
-                id="rate-code"
+                id="rate-preset"
                 required
-                value={code}
-                onChange={e => handleCodeChange(e.target.value)}
+                value={selectedPreset}
+                onChange={e => handlePresetChange(e.target.value)}
                 className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border"
               >
                 {PRESET_CODES.map(p => (
-                  <option key={p.code} value={p.code}>{p.label}</option>
+                  <option key={p.code} value={p.code}>
+                    {p.label}
+                  </option>
                 ))}
               </select>
             </div>
+
+            {/* Custom Name when custom option is selected (Hidden code field) */}
+            {isCustom && (
+              <div className="p-4 rounded-xl bg-sky-50/60 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-800">
+                <label htmlFor="custom-param-name" className="block text-xs font-semibold text-sky-900 dark:text-sky-200 mb-1">
+                  Tên tham số lương <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  id="custom-param-name"
+                  type="text"
+                  required
+                  value={customName}
+                  onChange={e => handleCustomNameChange(e.target.value)}
+                  placeholder="VD: Thưởng hiệu suất KPI, Phụ cấp con nhỏ..."
+                  className={`w-full h-10 rounded-lg border ${
+                    fieldErrors.customName ? 'border-rose-500' : 'border-slate-300 dark:border-slate-700'
+                  } bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
+                />
+                {fieldErrors.customName && (
+                  <p className="text-xs text-rose-500 mt-1">{fieldErrors.customName}</p>
+                )}
+              </div>
+            )}
 
             {/* Phạm vi áp dụng */}
             <div>
@@ -206,62 +285,50 @@ export default function PayrollRateConfigForm({
                 Phạm vi áp dụng <span className="text-rose-500">*</span>
               </label>
               <div className="grid grid-cols-3 gap-2">
-                <label className={`flex items-center justify-center h-9 px-3 border rounded-lg text-xs font-medium cursor-pointer transition-colors ${
-                  targetType === 'all'
-                    ? 'border-sky-600 bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 font-semibold'
-                    : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                }`}>
-                  <input
-                    type="radio"
-                    name="targetType"
-                    value="all"
-                    checked={targetType === 'all'}
-                    onChange={() => {
-                      setTargetType('all');
-                      setFieldErrors(prev => ({ ...prev, positionId: '', staffId: '' }));
-                    }}
-                    className="sr-only"
-                  />
-                  <span>Chung toàn PK</span>
-                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTargetType('all');
+                    setFieldErrors(prev => ({ ...prev, positionId: '', staffId: '' }));
+                  }}
+                  className={`flex items-center justify-center h-10 px-3 border rounded-lg text-xs font-medium transition-all text-center ${
+                    targetType === 'all'
+                      ? 'border-sky-600 bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 font-semibold ring-1 ring-sky-500/20 shadow-xs'
+                      : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  Toàn phòng khám
+                </button>
 
-                <label className={`flex items-center justify-center h-9 px-3 border rounded-lg text-xs font-medium cursor-pointer transition-colors ${
-                  targetType === 'position'
-                    ? 'border-sky-600 bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 font-semibold'
-                    : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                }`}>
-                  <input
-                    type="radio"
-                    name="targetType"
-                    value="position"
-                    checked={targetType === 'position'}
-                    onChange={() => {
-                      setTargetType('position');
-                      setFieldErrors(prev => ({ ...prev, positionId: '', staffId: '' }));
-                    }}
-                    className="sr-only"
-                  />
-                  <span>Theo chức danh</span>
-                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTargetType('position');
+                    setFieldErrors(prev => ({ ...prev, positionId: '', staffId: '' }));
+                  }}
+                  className={`flex items-center justify-center h-10 px-3 border rounded-lg text-xs font-medium transition-all text-center ${
+                    targetType === 'position'
+                      ? 'border-sky-600 bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 font-semibold ring-1 ring-sky-500/20 shadow-xs'
+                      : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  Theo chức danh
+                </button>
 
-                <label className={`flex items-center justify-center h-9 px-3 border rounded-lg text-xs font-medium cursor-pointer transition-colors ${
-                  targetType === 'staff'
-                    ? 'border-sky-600 bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 font-semibold'
-                    : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                }`}>
-                  <input
-                    type="radio"
-                    name="targetType"
-                    value="staff"
-                    checked={targetType === 'staff'}
-                    onChange={() => {
-                      setTargetType('staff');
-                      setFieldErrors(prev => ({ ...prev, positionId: '', staffId: '' }));
-                    }}
-                    className="sr-only"
-                  />
-                  <span>Theo nhân viên</span>
-                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTargetType('staff');
+                    setFieldErrors(prev => ({ ...prev, positionId: '', staffId: '' }));
+                  }}
+                  className={`flex items-center justify-center h-10 px-3 border rounded-lg text-xs font-medium transition-all text-center ${
+                    targetType === 'staff'
+                      ? 'border-sky-600 bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 font-semibold ring-1 ring-sky-500/20 shadow-xs'
+                      : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  Theo nhân viên
+                </button>
               </div>
             </div>
 
@@ -341,7 +408,7 @@ export default function PayrollRateConfigForm({
                 onChange={e => setUnit(e.target.value as any)}
                 className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border"
               >
-                <option value="vnd">Số tiền (VND)</option>
+                <option value="vnd">Số tiền (VNĐ)</option>
                 <option value="percent">Phần trăm (%)</option>
                 <option value="days">Số ngày công (ngày)</option>
               </select>
@@ -350,7 +417,7 @@ export default function PayrollRateConfigForm({
             {/* Giá trị */}
             <div>
               <label htmlFor="rate-value" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Mức đơn vị <span className="text-rose-500">*</span>
+                Mức áp dụng <span className="text-rose-500">*</span>
               </label>
               {unit === 'vnd' && (
                 <MoneyInput
@@ -444,21 +511,23 @@ export default function PayrollRateConfigForm({
               <p className="text-[11px] text-slate-400 mt-1">Để trống nếu áp dụng vô thời hạn.</p>
             </div>
 
-            {/* Mô tả / Ghi chú */}
-            <div className="col-span-1 sm:col-span-2">
-              <label htmlFor="rate-desc" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Ghi chú / Mô tả
-              </label>
-              <input
-                id="rate-desc"
-                type="text"
-                maxLength={255}
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                placeholder="VD: Trực tối 200.000 ₫ cho Bác sĩ"
-                className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border"
-              />
-            </div>
+            {/* Ghi chú / Mô tả (nếu không phải custom, vì custom đã có Tên) */}
+            {!isCustom && (
+              <div className="col-span-1 sm:col-span-2">
+                <label htmlFor="rate-desc" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Ghi chú / Mô tả
+                </label>
+                <input
+                  id="rate-desc"
+                  type="text"
+                  maxLength={255}
+                  value={description}
+                  onChange={e => setDescription(e.target.value)}
+                  placeholder="VD: Trực tối 200.000 ₫ cho Bác sĩ"
+                  className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border"
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -466,7 +535,7 @@ export default function PayrollRateConfigForm({
       </div>
 
       {/* Modal Footer */}
-      <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 flex items-center justify-end gap-3 flex-shrink-0">
+      <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex items-center justify-end gap-3 sticky bottom-0 z-10">
         <button
           type="button"
           disabled={busy}
@@ -483,7 +552,7 @@ export default function PayrollRateConfigForm({
           {busy && (
             <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin flex-shrink-0" />
           )}
-          <span>{busy ? 'Đang lưu…' : isEdit ? 'Cập nhật' : 'Lưu đơn giá'}</span>
+          <span>{busy ? 'Đang lưu…' : isEdit ? 'Cập nhật' : 'Lưu tham số'}</span>
         </button>
       </div>
     </form>
