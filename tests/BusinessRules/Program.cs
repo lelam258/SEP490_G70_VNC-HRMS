@@ -212,6 +212,31 @@ try
     await Reject(db => Procedures(db).CalculateMonthlyCommissionAsync(actor, new("0000-01"), ct), 400, "Commission calculation rejects year zero");
     var maxMonth = await Run(db => Procedures(db).CalculateMonthlyCommissionAsync(actor, new("9999-12"), ct));
     Check(maxMonth.AssignmentCount == 0, "Last valid calendar month does not overflow during commission calculation");
+    // Leave Approval Rules (Task 83, Task 84, UC-7.6, UC-7.7)
+    LeaveApprovalRules.EnsurePendingStatus("pending");
+    Check(true, "Leave approval permits pending request");
+    try { LeaveApprovalRules.EnsurePendingStatus("approved"); throw new Exception("Expected 400"); }
+    catch (AppException e) when (e.StatusCode == 400) { Check(true, "Leave approval rejects already approved request"); }
+    var testDeptA = Guid.NewGuid(); var testDeptB = Guid.NewGuid();
+    LeaveApprovalRules.EnsureDepartmentAuthority("department_head", testDeptA, testDeptA);
+    Check(true, "Department manager can review staff in own department");
+    try { LeaveApprovalRules.EnsureDepartmentAuthority("department_head", testDeptA, testDeptB); throw new Exception("Expected 403"); }
+    catch (AppException e) when (e.StatusCode == 403) { Check(true, "Department manager cannot review staff from other department"); }
+    LeaveApprovalRules.EnsureDepartmentAuthority("hr_manager", null, testDeptB);
+    Check(true, "HR manager has organization-wide authority for leave review");
+    LeaveApprovalRules.EnsureApprovalAuthority("department_head", testDeptA, testDeptA);
+    Check(true, "Department manager can approve leave for own department");
+    try { LeaveApprovalRules.EnsureApprovalAuthority("hr_manager", null, testDeptA); throw new Exception("Expected 403"); }
+    catch (AppException e) when (e.StatusCode == 403) { Check(true, "HR manager is restricted from direct leave approval"); }
+    try { LeaveApprovalRules.EnsureApprovalAuthority("department_head", testDeptA, testDeptB); throw new Exception("Expected 403"); }
+    catch (AppException e) when (e.StatusCode == 403) { Check(true, "Department manager cannot approve leave for other department"); }
+    try { LeaveApprovalRules.ValidateAndNormalizeRejectReason("abc"); throw new Exception("Expected 400"); }
+    catch (AppException e) when (e.StatusCode == 400) { Check(true, "Reject reason requires minimum length"); }
+    var normReason = LeaveApprovalRules.ValidateAndNormalizeRejectReason("  Khoa đang thiếu nhân sự trực  ");
+    Check(normReason == "Khoa đang thiếu nhân sự trực", "Reject reason is properly trimmed");
+    var (ent, usedDays, rem) = LeaveApprovalRules.ComputeAnnualLeave(5m, 12m);
+    Check(ent == 12m && usedDays == 5m && rem == 7m, "Annual leave remaining is calculated correctly");
+
     Console.WriteLine($"Passed {passed} business rule checks.");
 }
 finally

@@ -101,7 +101,11 @@ export default function DataTable<T>({
                   onClick={() => handleSort(column)}
                   title={column.sortable ? `Bấm để sắp xếp theo ${column.label}` : undefined}
                 >
-                  <div className="inline-flex items-center gap-1.5">
+                  <div className={`inline-flex items-center gap-1.5 ${
+                    (column.headerClassName?.includes('text-center') || column.className?.includes('text-center'))
+                      ? 'justify-center w-full text-center'
+                      : ''
+                  }`}>
                     <span>{column.label}</span>
                     {column.sortable && (
                       <span className="inline-flex items-center text-[11px] leading-none shrink-0" aria-hidden="true">

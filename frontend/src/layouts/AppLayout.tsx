@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import Icon from '../components/ui/Icon';
+import NotificationBell from '../components/ui/NotificationBell';
 import { useAuthStore } from '../store/useAuthStore';
 import { useAppStore } from '../store/useAppStore';
 import { authApi } from '../services/authApi';
@@ -52,6 +53,8 @@ export default function AppLayout() {
     ? 'Chứng chỉ của tôi'
     : location.pathname.startsWith('/me/cme-records')
     ? 'Hồ sơ CME của tôi'
+    : location.pathname.startsWith('/leave-approvals')
+    ? 'Duyệt đơn nghỉ phép'
     : location.pathname.startsWith('/me/leave-requests')
     ? 'Đơn nghỉ phép'
     : location.pathname === '/change-password'
@@ -135,6 +138,12 @@ export default function AppLayout() {
               <NavLink to="/compliance" className={navClass}>
                 <Icon name="shield" />
                 Compliance
+              </NavLink>
+            )}
+            {['department_head', 'hr_manager', 'admin'].includes(user.role) && (
+              <NavLink to="/leave-approvals" className={navClass}>
+                <Icon name="clock" />
+                Duyệt nghỉ phép
               </NavLink>
             )}
             {user.role === 'department_head' && (
@@ -235,11 +244,14 @@ export default function AppLayout() {
               <strong>{title}</strong>
             </div>
           </div>
-          <div className="topbar-user">
-            <span className="avatar small">{initials(user.name).toUpperCase()}</span>
-            <div>
-              <strong>{user.name}</strong>
-              <small>{roleLabels[user.role as Role] || user.role}</small>
+          <div className="flex items-center gap-4">
+            <NotificationBell />
+            <div className="topbar-user">
+              <span className="avatar small">{initials(user.name).toUpperCase()}</span>
+              <div>
+                <strong>{user.name}</strong>
+                <small>{roleLabels[user.role as Role] || user.role}</small>
+              </div>
             </div>
           </div>
         </header>
