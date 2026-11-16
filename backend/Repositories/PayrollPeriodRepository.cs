@@ -69,9 +69,8 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
             var isReopened = reopenedLockIds.Contains(pl.LockId);
             var isLate = isReopened || (today > standardLockDate && normStatus != "locked" && normStatus != "finalized" && normStatus != "approved");
 
-            var isFinalOrApproved = normStatus == "approved" || normStatus == "locked" || normStatus == "finalized" || normStatus == "exported";
-            var attendanceLocked = isFinalOrApproved || lockedTimesheetMonths.Contains(pl.PayMonth);
-            var proceduresVerified = isFinalOrApproved || !unverifiedProcedureMonths.Contains(pl.PayMonth);
+            var attendanceLocked = lockedTimesheetMonths.Contains(pl.PayMonth);
+            var proceduresVerified = !unverifiedProcedureMonths.Contains(pl.PayMonth);
 
             return new PayrollPeriodDto(
                 pl.LockId,
@@ -110,15 +109,13 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
         var openDate = PayrollPeriodRules.GetConsolidationOpenDate(y, m);
         var standardLockDate = PayrollPeriodRules.GetStandardLockDate(y, m);
         var correctionDeadline = PayrollPeriodRules.GetCorrectionDeadline(y, m);
-        var normStatus = NormalizeStatus(pl.Status);
-        var isFinalOrApproved = normStatus == "approved" || normStatus == "locked" || normStatus == "finalized" || normStatus == "exported";
 
-        var attendanceLocked = isFinalOrApproved || await db.MonthlyTimesheets.AsNoTracking()
+        var attendanceLocked = await db.MonthlyTimesheets.AsNoTracking()
             .AnyAsync(x => x.PayMonth == payMonth && (x.Status == "locked" || x.Status == "confirmed"), ct);
 
         var hasUnverifiedProcedures = await db.ProcedureSlips.AsNoTracking()
             .AnyAsync(p => p.ProcedureDate.Year == y && p.ProcedureDate.Month == m && p.Status != "verified" && p.Status != "approved", ct);
-        var proceduresVerified = isFinalOrApproved || !hasUnverifiedProcedures;
+        var proceduresVerified = !hasUnverifiedProcedures;
 
         var reopenAudit = await db.AuditLogs.AsNoTracking()
             .Where(a => a.EntityType == "PayrollLock" && a.EntityId == pl.LockId && a.Action == "reopen")
@@ -143,6 +140,7 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
         }
 
         var today = TimeHelper.TodayInVietnam();
+        var normStatus = NormalizeStatus(pl.Status);
         var isLate = reopenAudit is not null || (today > standardLockDate && normStatus != "locked" && normStatus != "finalized" && normStatus != "approved");
 
         var activeContractStaffIds = (await db.Contracts.AsNoTracking()

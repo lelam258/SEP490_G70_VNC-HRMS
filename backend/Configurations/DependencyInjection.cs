@@ -41,6 +41,7 @@ public static class DependencyInjection
         services.AddScoped<IContractService, ContractService>();
         services.AddScoped<ISelfServiceProfileService, SelfServiceProfileService>();
         services.AddScoped<ILeaveRequestService, LeaveRequestService>();
+        services.AddScoped<ILeaveApprovalService, LeaveApprovalService>();
         services.AddScoped<IPayrollPeriodService, PayrollPeriodService>();
         services.AddScoped<IProcedureSlipService, ProcedureSlipService>();
         services.AddScoped<IProcedureServiceCatalogService, ProcedureServiceCatalogService>();

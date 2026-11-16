@@ -15,7 +15,8 @@ public sealed class LeaveRequestService(
     ISelfServiceRepository repository,
     IUnitOfWork unitOfWork,
     IFileService fileService,
-    IAuditLogHelper auditHelper) : ILeaveRequestService
+    IAuditLogHelper auditHelper,
+    Vnc.HRMS.Persistence.AppDbContext? db = null) : ILeaveRequestService
 {
     private const string NotFoundStaffMessage = "Tài khoản chưa liên kết hồ sơ nhân viên. Vui lòng liên hệ bộ phận nhân sự.";
     private const string Msg14 = "Tệp đính kèm không hợp lệ. Vui lòng chọn tệp PDF, JPG hoặc PNG và dung lượng không vượt quá 10 MB.";
@@ -115,6 +116,57 @@ public sealed class LeaveRequestService(
         auditHelper.Log("create", "LeaveRequest", leaveRequest.RequestId, null, newSnapshot);
 
         await SaveChangesWithDeadlockHandlingAsync(ct);
+
+        if (db != null)
+        {
+            var dept = await db.Departments.AsNoTracking().FirstOrDefaultAsync(d => d.DepartmentId == staff.DepartmentId.Value, ct);
+            if (dept?.ManagerId != null)
+            {
+                var mgrStaff = await db.Staff.AsNoTracking().FirstOrDefaultAsync(s => s.StaffId == dept.ManagerId, ct);
+                if (mgrStaff != null && mgrStaff.UserId != Guid.Empty)
+                {
+                    db.Notifications.Add(new Notification
+                    {
+                        NotificationId = Guid.NewGuid(),
+                        RecipientId = mgrStaff.UserId,
+                        SenderService = "LeaveRequest",
+                        Type = "leave_submitted",
+                        Title = "Có đơn xin nghỉ phép mới cần duyệt",
+                        Body = $"Nhân viên {staff.FullName} ({staff.StaffCode}) vừa tạo đơn xin nghỉ phép từ ngày {leaveRequest.StartDate:dd/MM/yyyy} đến {leaveRequest.EndDate:dd/MM/yyyy}.",
+                        ActionUrl = "/leave-approvals",
+                        EntityType = "LeaveRequest",
+                        EntityId = leaveRequest.RequestId,
+                        Channel = "in_app",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+            }
+
+            var hrUsers = await db.Users.AsNoTracking()
+                .Where(u => u.Role == "hr_manager" && u.AccountStatus == "active")
+                .ToListAsync(ct);
+            foreach (var hr in hrUsers)
+            {
+                db.Notifications.Add(new Notification
+                {
+                    NotificationId = Guid.NewGuid(),
+                    RecipientId = hr.UserId,
+                    SenderService = "LeaveRequest",
+                    Type = "leave_submitted",
+                    Title = "Đơn xin nghỉ phép mới (Toàn viện)",
+                    Body = $"Nhân viên {staff.FullName} ({staff.StaffCode}) vừa tạo đơn xin nghỉ phép từ ngày {leaveRequest.StartDate:dd/MM/yyyy} đến {leaveRequest.EndDate:dd/MM/yyyy}.",
+                    ActionUrl = "/leave-approvals",
+                    EntityType = "LeaveRequest",
+                    EntityId = leaveRequest.RequestId,
+                    Channel = "in_app",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+            await db.SaveChangesAsync(ct);
+        }
+
         await tx.CommitAsync(ct);
 
         var result = await repository.GetLeaveRequestDetailAsync(leaveRequest.RequestId, ct);
