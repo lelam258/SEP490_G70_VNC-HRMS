@@ -253,6 +253,7 @@ CREATE TABLE dbo.procedure_services (
     service_code NVARCHAR(30) UNIQUE NOT NULL,
     service_name NVARCHAR(200) NOT NULL,
     category NVARCHAR(100),
+    base_price DECIMAL(15,2),
     status NVARCHAR(20) DEFAULT 'active'
 );
 GO

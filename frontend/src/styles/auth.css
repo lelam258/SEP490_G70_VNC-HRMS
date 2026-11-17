@@ -1,9 +1,1179 @@
-.vnc .auth-field + .auth-field { margin-top: 19px; }
-.vnc .auth-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.vnc .auth-label-row .text-button { font-size: 12px; white-space: nowrap; }
-.vnc .auth-back { margin-bottom: 25px; font-size: 12px; }
-.vnc .auth-account-help { margin-top: 25px; text-align: center; font-size: 13px; color: #6e8290; }
-.vnc .auth-request-new { display: block; margin: 20px auto 0; font-size: 12px; }
-.vnc .login-form .alert { line-height: 1.7; }
-.vnc .auth-otp { letter-spacing: 5px; font-size: 20px; font-variant-numeric: tabular-nums; }
-.vnc .auth-otp::placeholder { letter-spacing: normal; font-size: 13px; }
+/* ==========================================================================
+   VNC CLINIC - HUMAN RESOURCE MANAGEMENT
+   Modern Redesigned Auth Layout & LoginPage Styles (Zero Scroll & Real HRMS Mockup)
+   ========================================================================== */
+
+/* Root Layout Container - Strict 100vh, No Scroll on Desktop */
+.vnc.login-layout-root {
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(400px, 42%) 1fr;
+  background: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #1e293b;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* --------------------------------------------------------------------------
+   LEFT PANEL: Login & Auth Form
+   -------------------------------------------------------------------------- */
+.vnc .login-panel-left {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 26px 42px 16px;
+  background: #ffffff;
+  height: 100%;
+  max-height: 100vh;
+  box-sizing: border-box;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.vnc .auth-card-inner {
+  width: 100%;
+  max-width: 385px;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Brand Header */
+.vnc .auth-brand-header {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 16px;
+}
+
+.vnc .auth-brand-logo-box {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: #0f766e;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.28);
+  flex-shrink: 0;
+}
+
+.vnc .auth-brand-text-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.vnc .auth-brand-title {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  color: #0f766e;
+  line-height: 1.15;
+}
+
+.vnc .auth-brand-subtitle {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #14b8a6;
+  margin-top: 2px;
+  text-transform: uppercase;
+}
+
+/* Back Link */
+.vnc .auth-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f766e;
+  text-decoration: none;
+  margin-bottom: 12px;
+  transition: transform 0.15s ease;
+}
+
+.vnc .auth-back-link:hover {
+  transform: translateX(-3px);
+  color: #115e59;
+}
+
+/* Pill Badge: CỔNG THÔNG TIN NHÂN SỰ */
+.vnc .auth-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6.5px;
+  padding: 3px 11px;
+  background: #e6f7f4;
+  border: 1px solid #cceee8;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: #0f766e;
+  width: fit-content;
+  margin-bottom: 9px;
+}
+
+.vnc .auth-pill-indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  display: inline-block;
+  box-shadow: 0 0 0 2.5px rgba(16, 185, 129, 0.2);
+}
+
+/* Headings */
+.vnc .auth-heading {
+  font-size: 25px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+  margin: 0 0 5px;
+}
+
+.vnc .auth-subheading {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0 0 18px;
+  line-height: 1.45;
+}
+
+.vnc .auth-form-wrapper {
+  width: 100%;
+}
+
+/* Form Groups & Inputs */
+.vnc-modern-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.vnc .auth-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vnc .auth-field-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #475569;
+  text-transform: uppercase;
+}
+
+.vnc .auth-field-input-box {
+  display: flex;
+  align-items: center;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 0 12px;
+  height: 42px;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.vnc .auth-field-input-box:focus-within {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+}
+
+.vnc .auth-field-prefix {
+  color: #0f766e;
+  font-weight: 700;
+  font-size: 14.5px;
+  margin-right: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.vnc .auth-text-input {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  width: 100%;
+  flex: 1;
+  font-size: 13px;
+  color: #0f172a;
+  padding: 0;
+  height: 100%;
+}
+
+.vnc .auth-text-input::placeholder {
+  color: #94a3b8;
+  font-size: 12.5px;
+}
+
+.vnc .auth-password-toggle-btn {
+  background: none;
+  border: none;
+  padding: 3px;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease;
+  margin-left: 5px;
+}
+
+.vnc .auth-password-toggle-btn:hover {
+  color: #0f766e;
+}
+
+/* Options Row: Checkbox & Forgot Password */
+.vnc .auth-options-flex-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: -2px;
+  margin-bottom: 2px;
+}
+
+.vnc .auth-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: #475569;
+  cursor: pointer;
+  user-select: none;
+}
+
+.vnc .auth-custom-checkbox {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  border: 1.5px solid #cbd5e1;
+  accent-color: #0f766e;
+  cursor: pointer;
+}
+
+.vnc .auth-forgot-password-link {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f766e;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.vnc .auth-forgot-password-link:hover {
+  color: #115e59;
+  text-decoration: underline;
+}
+
+/* Submit Primary Button */
+.vnc .auth-submit-primary-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 42px;
+  background: #0f766e;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.26);
+  transition: all 0.2s ease;
+  margin-top: 2px;
+}
+
+.vnc .auth-submit-primary-btn:hover:not(:disabled) {
+  background: #115e59;
+  box-shadow: 0 5px 16px rgba(15, 118, 110, 0.35);
+  transform: translateY(-1px);
+}
+
+.vnc .btn-arrow-icon {
+  font-size: 16px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.vnc .auth-submit-primary-btn:hover:not(:disabled) .btn-arrow-icon {
+  transform: translateX(4px);
+}
+
+/* Divider Line */
+.vnc .auth-divider-line {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin: 2px 0;
+}
+
+.vnc .auth-divider-line::before,
+.vnc .auth-divider-line::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.vnc .auth-divider-line span {
+  padding: 0 11px;
+}
+
+/* Admin Support Help Note */
+.vnc .auth-admin-help-note {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #64748b;
+  text-align: center;
+  margin: 0;
+}
+
+/* Bottom Legal Copyright */
+.vnc .auth-footer-copyright {
+  font-size: 10px;
+  color: #94a3b8;
+  line-height: 1.45;
+  text-align: center;
+  padding-top: 16px;
+  margin-top: auto;
+}
+
+/* --------------------------------------------------------------------------
+   RIGHT PANEL: Hero Story & Real VNC-HRMS Mockup (Bleed off corner)
+   -------------------------------------------------------------------------- */
+.vnc .login-panel-right {
+  background: radial-gradient(circle at 85% 15%, #0f766e 0%, #064e43 55%, #03362e 100%);
+  color: #ffffff;
+  padding: 28px 40px 0 40px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 100vh;
+  overflow: hidden;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.vnc .hero-content-wrapper {
+  max-width: 760px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  z-index: 2;
+}
+
+/* Top Pill: CON NGƯỜI LÀ TRỌNG TÂM */
+.vnc .hero-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 9999px;
+  font-size: 10.5px;
+  font-weight: 750;
+  letter-spacing: 0.5px;
+  color: #a7f3d0;
+  width: fit-content;
+  backdrop-filter: blur(4px);
+  margin-bottom: 8px;
+}
+
+.vnc .hero-pill-dot {
+  width: 6.5px;
+  height: 6.5px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 0 2.5px rgba(52, 211, 153, 0.25);
+}
+
+/* Hero Headings */
+.vnc .hero-headline {
+  font-size: clamp(22px, 2.2vw, 32px);
+  font-weight: 800;
+  line-height: 1.22;
+  letter-spacing: -0.5px;
+  color: #ffffff;
+  margin: 0 0 6px;
+}
+
+.vnc .hero-description {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #ccfbf1;
+  opacity: 0.92;
+  max-width: 580px;
+  margin: 0 0 10px;
+}
+
+/* 4 Feature Badges */
+.vnc .hero-feature-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.vnc .hero-feature-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 550;
+  color: #f0fdf4;
+}
+
+.vnc .feature-dot {
+  width: 5.5px;
+  height: 5.5px;
+  border-radius: 50%;
+  background: #34d399;
+}
+
+/* Mockup Device Window - "Chỉ để một phần màn hình" Bleeding off Bottom-Right Corner */
+.vnc .hrms-mockup-window {
+  position: absolute;
+  bottom: -45px;
+  right: -55px;
+  width: calc(100% - 10px);
+  min-width: 680px;
+  max-width: 860px;
+  height: calc(100vh - 225px);
+  max-height: 500px;
+  background: #ffffff;
+  border: 7px solid #0f172a;
+  border-right: none;
+  border-bottom: none;
+  border-top-left-radius: 20px;
+  box-shadow: -15px -15px 50px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+  z-index: 1;
+}
+
+/* Mockup Layout Grid: Full-Height Real Sidebar + Right Workspace Column */
+.vnc .mockup-layout-grid {
+  display: grid;
+  grid-template-columns: 158px 1fr;
+  background: #ffffff;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Real Code Sidebar matching AppLayout.tsx & components.css (#153746 background) */
+.vnc .mockup-real-sidebar {
+  background: #153746;
+  color: #e9f0f3;
+  padding: 12px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+}
+
+.vnc .mockup-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 4px 10px;
+}
+
+.vnc .brand-cross {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: #148d85;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+
+.vnc .brand-text strong {
+  font-size: 11px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.6px;
+  display: block;
+  line-height: 1.15;
+}
+
+.vnc .brand-text strong span {
+  font-weight: 400;
+  font-size: 9.5px;
+  letter-spacing: 0.8px;
+}
+
+.vnc .brand-text small {
+  font-size: 6px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  color: #99b8bd;
+  display: block;
+  margin-top: 2px;
+}
+
+.vnc .mockup-workspace-label {
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #7896a5;
+  margin: 10px 6px 4px;
+}
+
+.vnc .mockup-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vnc .mockup-nav-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5.5px 9px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 500;
+  color: #c7d8e1;
+  white-space: nowrap;
+}
+
+.vnc .mockup-nav-row svg {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.vnc .mockup-nav-row.selected {
+  color: #ffffff;
+  background: #2b7270;
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 #8ad4c7;
+}
+
+/* Right Workspace Column (Topbar + Main Dashboard Content) */
+.vnc .mockup-workspace-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: #f4f7f8;
+}
+
+.vnc .mockup-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 14px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.vnc .mockup-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.vnc .mockup-menu-btn {
+  width: 24px;
+  height: 22px;
+  border: 1px solid #d9e3e8;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #1e293b;
+  background: #ffffff;
+}
+
+.vnc .mockup-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: #64748b;
+}
+
+.vnc .mockup-breadcrumb .sep {
+  color: #94a3b8;
+}
+
+.vnc .mockup-breadcrumb strong {
+  color: #0f172a;
+  font-weight: 650;
+}
+
+.vnc .mockup-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vnc .mockup-bell-btn {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid #e2e8f0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+  background: #ffffff;
+}
+
+.vnc .mockup-bell-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 7px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vnc .mockup-user-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.vnc .mockup-avatar-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #e6f4f1;
+  color: #0f766e;
+  border: 1px solid #cceee8;
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vnc .mockup-user-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.vnc .mockup-user-meta strong {
+  font-size: 9.5px;
+  font-weight: 650;
+  color: #0f172a;
+}
+
+.vnc .mockup-user-meta small {
+  font-size: 8px;
+  color: #64748b;
+}
+
+/* Main Dashboard Area inside Mockup */
+.vnc .mockup-main-area {
+  padding: 9px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Welcome Banner matching DashboardPage.tsx */
+.vnc .mockup-welcome-banner {
+  background: linear-gradient(135deg, #0369a1 0%, #0284c7 50%, #0f766e 100%);
+  color: #ffffff;
+  padding: 9px 12px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  box-shadow: 0 3px 10px rgba(3, 105, 161, 0.16);
+}
+
+.vnc .banner-left {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.vnc .banner-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.22);
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  color: #ffffff;
+  font-size: 10.5px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.vnc .banner-title-flex {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.vnc .banner-title-flex h4 {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 750;
+  color: #ffffff;
+}
+
+.vnc .banner-online-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 7.8px;
+  font-weight: 600;
+  background: rgba(16, 185, 129, 0.25);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 1px 6px;
+  border-radius: 9999px;
+}
+
+.vnc .banner-online-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #6ee7b7;
+}
+
+.vnc .banner-sub {
+  margin: 1.5px 0 0;
+  font-size: 8px;
+  color: #e0f2fe;
+}
+
+.vnc .mockup-banner-btn {
+  background: #ffffff;
+  color: #0369a1;
+  font-size: 8.8px;
+  font-weight: 650;
+  padding: 5.5px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+/* 3 KPI Cards matching DashboardPage.tsx */
+.vnc .mockup-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.vnc .mockup-kpi-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 7px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vnc .mockup-kpi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.vnc .mockup-kpi-head span:first-child {
+  font-size: 7.5px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vnc .kpi-icon-box {
+  width: 19px;
+  height: 19px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.vnc .kpi-icon-box.sky {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.vnc .kpi-icon-box.emerald {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.vnc .kpi-icon-box.indigo {
+  background: #e0e7ff;
+  color: #4f46e5;
+}
+
+.vnc .mockup-kpi-val {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.vnc .mockup-kpi-val strong {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.1;
+}
+
+.vnc .mockup-kpi-val strong.money {
+  font-size: 12px;
+  color: #047857;
+}
+
+.vnc .mockup-kpi-val span {
+  font-size: 8px;
+  color: #64748b;
+}
+
+.vnc .mockup-kpi-sub {
+  font-size: 7.5px;
+  line-height: 1.2;
+}
+
+.vnc .mockup-kpi-sub.emerald {
+  color: #059669;
+  font-weight: 600;
+}
+
+.vnc .mockup-kpi-sub.muted {
+  color: #64748b;
+}
+
+/* Dashboard Two-Column Body */
+.vnc .mockup-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1.68fr 1fr;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+  align-items: start;
+}
+
+.vnc .mockup-dash-left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.vnc .mockup-dash-right {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.vnc .mockup-panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.vnc .mockup-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.vnc .mockup-panel-header strong {
+  font-size: 9.5px;
+  font-weight: 650;
+  color: #0f172a;
+}
+
+.vnc .mockup-panel-link {
+  font-size: 8px;
+  font-weight: 600;
+  color: #0369a1;
+  white-space: nowrap;
+}
+
+/* Populated Payroll Periods Table */
+.vnc .mockup-period-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8.5px;
+}
+
+.vnc .mockup-period-table th {
+  text-align: left;
+  padding: 5px 8px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 7.2px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.vnc .mockup-period-table td {
+  padding: 6px 8px;
+  color: #334155;
+  border-bottom: 1px solid #f1f5f9;
+  white-space: nowrap;
+}
+
+.vnc .mockup-period-table tr:last-child td {
+  border-bottom: none;
+}
+
+.vnc .mockup-period-table .center {
+  text-align: center;
+}
+
+.vnc .mockup-period-table .right {
+  text-align: right;
+}
+
+.vnc .mockup-period-table td.money {
+  font-weight: 650;
+  color: #047857;
+}
+
+.vnc .period-badge {
+  display: inline-block;
+  font-size: 7.2px;
+  font-weight: 600;
+  padding: 1.5px 5px;
+  border-radius: 4px;
+}
+
+.vnc .period-badge.badge-emerald {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.vnc .period-badge.badge-rose {
+  background: #fff1f2;
+  color: #be123c;
+  border: 1px solid #fecdd3;
+}
+
+.vnc .mockup-sites-panel,
+.vnc .mockup-shortcuts-panel {
+  padding: 8px 10px;
+}
+
+.vnc .mockup-section-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9.2px;
+  font-weight: 650;
+  color: #0f172a;
+  margin-bottom: 6px;
+}
+
+.vnc .mockup-sites-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.vnc .mockup-site-card {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.vnc .site-info {
+  min-width: 0;
+}
+
+.vnc .site-info strong {
+  display: block;
+  font-size: 8.2px;
+  font-weight: 650;
+  color: #1e293b;
+  line-height: 1.25;
+}
+
+.vnc .site-info small {
+  display: block;
+  font-size: 7px;
+  color: #64748b;
+  margin-top: 1.5px;
+  line-height: 1.2;
+}
+
+.vnc .site-count {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.vnc .site-count strong {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0369a1;
+  line-height: 1.1;
+}
+
+.vnc .site-count small {
+  font-size: 7px;
+  color: #64748b;
+}
+
+.vnc .mockup-shortcut-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.vnc .mockup-shortcut-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5.5px 7px;
+  border-radius: 6px;
+  border: 1px solid #f1f5f9;
+  background: #ffffff;
+}
+
+.vnc .shortcut-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.vnc .shortcut-icon.sky {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.vnc .shortcut-icon.teal {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
+.vnc .shortcut-icon.emerald {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.vnc .shortcut-icon.indigo {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.vnc .shortcut-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.vnc .shortcut-text strong {
+  display: block;
+  font-size: 8.6px;
+  font-weight: 650;
+  color: #1e293b;
+  line-height: 1.2;
+}
+
+.vnc .shortcut-text small {
+  display: block;
+  font-size: 7.2px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vnc .shortcut-arrow {
+  font-size: 9px;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   RESPONSIVE QUERIES
+   -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .vnc.login-layout-root {
+    grid-template-columns: 1fr;
+    height: auto;
+    max-height: none;
+    overflow-y: auto;
+  }
+  .vnc .login-panel-right {
+    display: none;
+  }
+  .vnc .login-panel-left {
+    padding: 36px 24px;
+    height: auto;
+    min-height: 100vh;
+    max-height: none;
+  }
+}

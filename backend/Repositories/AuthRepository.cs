@@ -36,8 +36,12 @@ public sealed class AuthRepository(AppDbContext db) : IAuthRepository
                                                                                             select new SessionIdentityDto(user.UserId, user.Role, user.FullName ?? user.Username)).SingleOrDefaultAsync(ct);
     public async Task RevokeSessionsAsync(Guid userId, CancellationToken ct) => await db.RefreshTokens.Where(x => x.UserId == userId && !x.Revoked)
         .ExecuteUpdateAsync(set => set.SetProperty(x => x.Revoked, true).SetProperty(x => x.RevokedAt, DateTime.UtcNow), ct);
-    public async Task RevokeSessionAsync(Guid? id, string? hash, CancellationToken ct) => await db.RefreshTokens.Where(x => x.TokenId == id || x.TokenHash == hash)
-        .ExecuteUpdateAsync(set => set.SetProperty(x => x.Revoked, true).SetProperty(x => x.RevokedAt, DateTime.UtcNow), ct);
+    public async Task RevokeSessionAsync(Guid? id, string? hash, CancellationToken ct)
+    {
+        if (id == null && string.IsNullOrEmpty(hash)) return;
+        await db.RefreshTokens.Where(x => (id != null && x.TokenId == id) || (!string.IsNullOrEmpty(hash) && x.TokenHash == hash))
+            .ExecuteUpdateAsync(set => set.SetProperty(x => x.Revoked, true).SetProperty(x => x.RevokedAt, DateTime.UtcNow), ct);
+    }
     public async Task InvalidateOtpsAsync(Guid userId, CancellationToken ct) => await db.PasswordResetTokens.Where(x => x.UserId == userId && x.UsedAt == null)
         .ExecuteUpdateAsync(set => set.SetProperty(x => x.UsedAt, DateTime.UtcNow), ct);
 

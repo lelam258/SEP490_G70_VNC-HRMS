@@ -15,7 +15,8 @@ public sealed class LeaveRequestService(
     ISelfServiceRepository repository,
     IUnitOfWork unitOfWork,
     IFileService fileService,
-    IAuditLogHelper auditHelper) : ILeaveRequestService
+    IAuditLogHelper auditHelper,
+    Vnc.HRMS.Persistence.AppDbContext? db = null) : ILeaveRequestService
 {
     private const string NotFoundStaffMessage = "Tài khoản chưa liên kết hồ sơ nhân viên. Vui lòng liên hệ bộ phận nhân sự.";
     private const string Msg14 = "Tệp đính kèm không hợp lệ. Vui lòng chọn tệp PDF, JPG hoặc PNG và dung lượng không vượt quá 10 MB.";
@@ -48,6 +49,7 @@ public sealed class LeaveRequestService(
 
     public async Task<LeaveRequestDetailDto> CreateLeaveRequestAsync(Guid userId, CreateLeaveRequestInput input, CancellationToken ct)
     {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var staff = await repository.FindStaffByUserIdAsync(userId, ct)
             ?? throw new AppException(404, NotFoundStaffMessage);
 
@@ -61,6 +63,9 @@ public sealed class LeaveRequestService(
         {
             throw new AppException(400, "Nhân viên chưa được phân bổ khoa/phòng để duyệt đơn.");
         }
+        if (!await repository.IsActiveDepartmentAsync(staff.DepartmentId.Value, ct))
+            throw new AppException(400, "Khoa/phòng của nhân viên đã ngừng hoạt động.");
+        EmployeeRules.EnsureWorkingPeriod(input.StartDate, input.EndDate, staff.DateJoined, staff.DateLeft);
 
         if (!await repository.IsValidLeaveTypeAsync(input.LeaveType, ct))
         {
@@ -70,16 +75,13 @@ public sealed class LeaveRequestService(
         var totalDays = LeaveRules.CountWorkingDays(input.StartDate, input.EndDate);
         var reason = LeaveRules.ValidateAndNormalizeReason(input.Reason);
 
-        var attachmentUrl = await UploadAttachmentAsync(input.Attachment, ct);
-
-        // Requirement 6: Serializable transaction for overlap check + insert
-        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
-
         var hasOverlap = await repository.HasOverlappingLeaveAsync(staff.StaffId, input.StartDate, input.EndDate, null, ct);
         if (hasOverlap)
         {
             throw new AppException(409, "Bạn đã có đơn nghỉ phép trong khoảng thời gian này.");
         }
+
+        var attachmentUrl = await UploadAttachmentAsync(input.Attachment, ct);
 
         var leaveRequest = new LeaveRequest
         {
@@ -114,6 +116,57 @@ public sealed class LeaveRequestService(
         auditHelper.Log("create", "LeaveRequest", leaveRequest.RequestId, null, newSnapshot);
 
         await SaveChangesWithDeadlockHandlingAsync(ct);
+
+        if (db != null)
+        {
+            var dept = await db.Departments.AsNoTracking().FirstOrDefaultAsync(d => d.DepartmentId == staff.DepartmentId.Value, ct);
+            if (dept?.ManagerId != null)
+            {
+                var mgrStaff = await db.Staff.AsNoTracking().FirstOrDefaultAsync(s => s.StaffId == dept.ManagerId, ct);
+                if (mgrStaff != null && mgrStaff.UserId != Guid.Empty)
+                {
+                    db.Notifications.Add(new Notification
+                    {
+                        NotificationId = Guid.NewGuid(),
+                        RecipientId = mgrStaff.UserId,
+                        SenderService = "LeaveRequest",
+                        Type = "leave_submitted",
+                        Title = "Có đơn xin nghỉ phép mới cần duyệt",
+                        Body = $"Nhân viên {staff.FullName} ({staff.StaffCode}) vừa tạo đơn xin nghỉ phép từ ngày {leaveRequest.StartDate:dd/MM/yyyy} đến {leaveRequest.EndDate:dd/MM/yyyy}.",
+                        ActionUrl = "/leave-approvals",
+                        EntityType = "LeaveRequest",
+                        EntityId = leaveRequest.RequestId,
+                        Channel = "in_app",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+            }
+
+            var hrUsers = await db.Users.AsNoTracking()
+                .Where(u => u.Role == "hr_manager" && u.AccountStatus == "active")
+                .ToListAsync(ct);
+            foreach (var hr in hrUsers)
+            {
+                db.Notifications.Add(new Notification
+                {
+                    NotificationId = Guid.NewGuid(),
+                    RecipientId = hr.UserId,
+                    SenderService = "LeaveRequest",
+                    Type = "leave_submitted",
+                    Title = "Đơn xin nghỉ phép mới (Toàn viện)",
+                    Body = $"Nhân viên {staff.FullName} ({staff.StaffCode}) vừa tạo đơn xin nghỉ phép từ ngày {leaveRequest.StartDate:dd/MM/yyyy} đến {leaveRequest.EndDate:dd/MM/yyyy}.",
+                    ActionUrl = "/leave-approvals",
+                    EntityType = "LeaveRequest",
+                    EntityId = leaveRequest.RequestId,
+                    Channel = "in_app",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+            await db.SaveChangesAsync(ct);
+        }
+
         await tx.CommitAsync(ct);
 
         var result = await repository.GetLeaveRequestDetailAsync(leaveRequest.RequestId, ct);
@@ -123,6 +176,7 @@ public sealed class LeaveRequestService(
     public async Task<LeaveRequestDetailDto> UpdateLeaveRequestAsync(
         Guid userId, Guid requestId, UpdateLeaveRequestInput input, CancellationToken ct)
     {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var staff = await repository.FindStaffByUserIdAsync(userId, ct)
             ?? throw new AppException(404, NotFoundStaffMessage);
 
@@ -130,6 +184,9 @@ public sealed class LeaveRequestService(
         {
             throw new AppException(400, "Nhân viên không ở trạng thái hoạt động nên không thể sửa đơn nghỉ phép.");
         }
+        if (!staff.DepartmentId.HasValue || !await repository.IsActiveDepartmentAsync(staff.DepartmentId.Value, ct))
+            throw new AppException(400, "Nhân viên cần được phân bổ khoa/phòng đang hoạt động để sửa đơn nghỉ phép.");
+        EmployeeRules.EnsureWorkingPeriod(input.StartDate, input.EndDate, staff.DateJoined, staff.DateLeft);
 
         // Same field rules as creating a request.
         if (!await repository.IsValidLeaveTypeAsync(input.LeaveType, ct))
@@ -139,9 +196,6 @@ public sealed class LeaveRequestService(
         var leaveType = input.LeaveType.Trim().ToLowerInvariant();
         var totalDays = LeaveRules.CountWorkingDays(input.StartDate, input.EndDate);
         var reason = LeaveRules.ValidateAndNormalizeReason(input.Reason);
-
-        // Serializable from the read on, so an approval cannot slip in between the pending check and the save.
-        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
 
         var leaveRequest = await repository.FindLeaveRequestByIdAsync(requestId, ct);
         if (leaveRequest is null || leaveRequest.StaffId != staff.StaffId)
@@ -212,6 +266,8 @@ public sealed class LeaveRequestService(
 
     public async Task<LeaveRequestDetailDto> WithdrawLeaveRequestAsync(Guid userId, Guid requestId, CancellationToken ct)
     {
+        // Keep the pending check and withdrawal atomic with any future approval flow.
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var staff = await repository.FindStaffByUserIdAsync(userId, ct)
             ?? throw new AppException(404, NotFoundStaffMessage);
 
@@ -234,6 +290,8 @@ public sealed class LeaveRequestService(
         auditHelper.Log("update", "LeaveRequest", leaveRequest.RequestId, oldSnapshot, newSnapshot);
 
         await SaveChangesWithDeadlockHandlingAsync(ct);
+
+        await tx.CommitAsync(ct);
 
         var result = await repository.GetLeaveRequestDetailAsync(requestId, ct);
         return result!;

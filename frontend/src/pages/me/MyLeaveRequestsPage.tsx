@@ -181,37 +181,99 @@ export default function MyLeaveRequestsPage() {
     {
       key: 'actions',
       label: 'Thao tác',
+      className: 'text-center',
+      headerClassName: 'text-center',
       render: (r: LeaveRequestSummary) => (
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', justifyContent: 'center' }}>
           <button
             type="button"
-            className="button small secondary"
             onClick={() => handleOpenDetail(r.requestId)}
             title="Xem chi tiết"
+            style={{
+              height: '28px',
+              minHeight: 'unset',
+              width: '74px',
+              padding: '0 6px',
+              fontSize: '11px',
+              fontWeight: 500,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '4px',
+              borderRadius: '6px',
+              border: '1px solid #d1d5db',
+              background: '#ffffff',
+              color: '#374151',
+              cursor: 'pointer',
+              boxSizing: 'border-box',
+              transition: 'all 0.15s ease',
+            }}
+            className="hover:bg-slate-100 hover:border-slate-400"
           >
-            <Icon name="eye" size={14} /> Chi tiết
+            <Icon name="eye" size={12} />
+            <span>Chi tiết</span>
           </button>
           {r.status === 'pending' && (
             <button
               type="button"
-              className="button small secondary"
               onClick={() => navigate(`/me/leave-requests/${r.requestId}/edit`)}
               title="Sửa đơn"
+              style={{
+                height: '28px',
+                minHeight: 'unset',
+                width: '74px',
+                padding: '0 6px',
+                fontSize: '11px',
+                fontWeight: 500,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                borderRadius: '6px',
+                border: '1px solid #93c5fd',
+                background: '#eff6ff',
+                color: '#1d4ed8',
+                cursor: 'pointer',
+                boxSizing: 'border-box',
+                transition: 'all 0.15s ease',
+              }}
+              className="hover:bg-blue-100 hover:border-blue-400"
             >
-              <Icon name="edit" size={14} /> Sửa
+              <Icon name="edit" size={12} />
+              <span>Sửa</span>
             </button>
           )}
           {r.status === 'pending' && (
             <button
               type="button"
-              className="button small danger"
               onClick={() => {
                 setWithdrawingRequest(r);
                 setWithdrawError('');
               }}
               title="Thu hồi đơn"
+              style={{
+                height: '28px',
+                minHeight: 'unset',
+                width: '74px',
+                padding: '0 6px',
+                fontSize: '11px',
+                fontWeight: 500,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                borderRadius: '6px',
+                border: '1px solid #fca5a5',
+                background: '#fef2f2',
+                color: '#b91c1c',
+                cursor: 'pointer',
+                boxSizing: 'border-box',
+                transition: 'all 0.15s ease',
+              }}
+              className="hover:bg-rose-100 hover:border-rose-400"
             >
-              <Icon name="close" size={14} /> Thu hồi
+              <Icon name="close" size={12} />
+              <span>Thu hồi</span>
             </button>
           )}
         </div>

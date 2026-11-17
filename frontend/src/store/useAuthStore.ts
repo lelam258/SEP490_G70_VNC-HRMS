@@ -15,7 +15,7 @@ export const useAuthStore = create<AuthState>()(persist((set) => ({
     session: { ...state.session, user: { ...state.session.user, name } }
   } : state)),
 }), {
-  name: 'vnc.hrms.auth.v2',
+  name: 'vnc.hrms.auth.v3',
   storage: createJSONStorage(() => sessionStorage),
   partialize: (state) => ({ session: state.session }),
 }));
