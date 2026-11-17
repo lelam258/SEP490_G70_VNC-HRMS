@@ -20,6 +20,12 @@ export default function AppLayout() {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.querySelector('.workspace-main')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!error) return;
+    const timer = setTimeout(() => setError(''), 5000);
+    return () => clearTimeout(timer);
+  }, [error]);
   const navClass = ({ isActive }: { isActive: boolean }) => `nav-item ${isActive ? 'selected' : ''}`;
   const title = location.pathname.startsWith('/attendance') ? 'Chấm công và ca trực' : location.pathname.startsWith('/roles') ? 'Quản lý vai trò' : location.pathname.startsWith('/audit-logs') ? 'Nhật ký hệ thống' : location.pathname.startsWith('/schedules') ? 'Lịch làm việc' : location.pathname.startsWith('/accounts')
     ? 'Quản lý tài khoản'
@@ -67,8 +73,9 @@ export default function AppLayout() {
     try {
       await authApi.logout();
       window.location.replace('/login');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Không đăng xuất được.');
+    } catch {
+      useAuthStore.getState().setSession(null);
+      window.location.replace('/login');
     } finally {
       setBusy(false);
     }
@@ -224,8 +231,50 @@ export default function AppLayout() {
               <Icon name="logout" />
               Đăng xuất
             </button>
-            {error && <p role="alert">{error}</p>}
           </div>
+        </aside>
+      )}
+      {error && (
+        <aside
+          role="alert"
+          style={{
+            position: 'fixed',
+            top: '20px',
+            right: '24px',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '12px 18px',
+            background: '#fff1f0',
+            border: '1px solid #ffa39e',
+            borderRadius: '8px',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.18)',
+            color: '#cf1322',
+            fontSize: '13px',
+            fontWeight: 500,
+            maxWidth: '420px',
+            animation: 'fadeIn 0.2s ease-in-out',
+          }}
+        >
+          <span style={{ fontSize: '16px', lineHeight: 1 }}>⚠️</span>
+          <span style={{ flex: 1 }}>{error}</span>
+          <button
+            type="button"
+            onClick={() => setError('')}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              color: '#cf1322',
+              fontSize: '16px',
+              padding: '0 4px',
+              lineHeight: 1,
+            }}
+            title="Đóng thông báo"
+          >
+            ✕
+          </button>
         </aside>
       )}
       <div className="workspace-main">
