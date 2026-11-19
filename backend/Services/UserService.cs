@@ -7,6 +7,7 @@ using Vnc.HRMS.DTOs.Users;
 using Vnc.HRMS.Models.Auth;
 using Vnc.HRMS.Models.Users;
 using Vnc.HRMS.Repositories.Interfaces;
+using Vnc.HRMS.Security;
 using Vnc.HRMS.Services.Interfaces;
 
 namespace Vnc.HRMS.Services;
@@ -14,7 +15,7 @@ namespace Vnc.HRMS.Services;
 public sealed class UserService(IUserRepository users, IEmployeeRepository employees, IAuthRepository auth,
     IUnitOfWork unitOfWork, IPasswordHasher<User> hasher, IAuditLogHelper? auditHelper = null) : IUserService
 {
-    private static readonly IReadOnlyList<string> Roles = Vnc.HRMS.Security.AccountRoles.All;
+    private static readonly IReadOnlyList<string> Roles = AccountRoles.All;
     private static readonly string[] Statuses = ["active", "inactive", "locked"];
     public Task<AccountDto[]> ListAsync(CancellationToken ct) => users.ListAsync(ct);
     public async Task<AccountDto> GetAsync(Guid id, CancellationToken ct) => await users.GetDetailAsync(id, ct) ?? throw new AppException(404, "Không tìm thấy tài khoản.");
@@ -34,7 +35,7 @@ public sealed class UserService(IUserRepository users, IEmployeeRepository emplo
         user.NormalizedUsername = user.Username.ToUpperInvariant();
         user.Email = CleanEmail(request.Email ?? employee?.Email);
         user.FullName = request.FullName?.Trim() ?? employee?.FullName;
-        user.Role = request.Role;
+        user.Role = AccountRoles.Normalize(request.Role);
         user.AccountStatus = request.Status;
         user.IsProvisioned = true;
         user.PasswordHash = hasher.HashPassword(user, request.Password!);
@@ -48,17 +49,19 @@ public sealed class UserService(IUserRepository users, IEmployeeRepository emplo
 
     public async Task<AccountDto> UpdateAsync(Guid id, SaveAccountRequest request, Guid actorId, CancellationToken ct)
     {
-        if (actorId == id && (request.Role != "admin" || request.Status != "active" || !string.IsNullOrEmpty(request.Password)))
+        var requestedRole = AccountRoles.Normalize(request.Role);
+        if (actorId == id && (requestedRole != "admin" || request.Status != "active" || !string.IsNullOrEmpty(request.Password)))
             throw new AppException(400, "Không thể tự đổi vai trò/trạng thái hoặc đặt lại mật khẩu tại đây. Dùng mục Đổi mật khẩu hoặc nhờ quản trị viên khác.");
         await using var transaction = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var user = await users.FindAsync(id, ct) ?? throw new AppException(404, "Không tìm thấy tài khoản.");
         Validate(request, !user.IsProvisioned);
         if (request.Version != Convert.ToBase64String(user.Version)) throw new AppException(409, "Tài khoản vừa được người khác cập nhật. Hãy tải lại danh sách.");
+        var currentRole = AccountRoles.Normalize(user.Role);
         var previous = Snapshot(user);
-        var accessChanged = request.EmployeeId != user.EmployeeId || user.Role != request.Role || user.AccountStatus != request.Status;
+        var accessChanged = request.EmployeeId != user.EmployeeId || currentRole != requestedRole || user.AccountStatus != request.Status;
         var activating = user.AccountStatus != "active" && request.Status == "active";
         var action = user.AccountStatus != request.Status ? request.Status == "active" ? "activate_account" : "deactivate_account"
-            : user.Role != request.Role ? "assign_role" : "update_account";
+            : currentRole != requestedRole ? "assign_role" : "update_account";
         var employeeChanged = request.EmployeeId != user.EmployeeId;
         if (employeeChanged)
         {
@@ -80,11 +83,11 @@ public sealed class UserService(IUserRepository users, IEmployeeRepository emplo
             }
         }
         await ValidateLoginAvailability(id, request.Username, request.Email, ct);
-        if (user.Role == "admin" && user.AccountStatus == "active" && user.IsProvisioned && (request.Role != "admin" || request.Status != "active")
+        if (currentRole == "admin" && user.AccountStatus == "active" && user.IsProvisioned && (requestedRole != "admin" || request.Status != "active")
             && !await users.HasActiveAdminAsync(id, ct)) throw new AppException(409, "Phải giữ ít nhất một quản trị viên đang hoạt động.");
-        if (employeeChanged || user.Role != request.Role || user.AccountStatus != request.Status || !string.IsNullOrEmpty(request.Password)) user.SecurityVersion++;
+        if (employeeChanged || currentRole != requestedRole || user.AccountStatus != request.Status || !string.IsNullOrEmpty(request.Password)) user.SecurityVersion++;
         user.Username = request.Username.Trim(); user.NormalizedUsername = user.Username.ToUpperInvariant();
-        user.Email = CleanEmail(request.Email); user.FullName = request.FullName?.Trim(); user.Role = request.Role; user.AccountStatus = request.Status;
+        user.Email = CleanEmail(request.Email); user.FullName = request.FullName?.Trim(); user.Role = requestedRole; user.AccountStatus = request.Status;
         if (activating) { user.FailedLoginCount = 0; user.LockedUntil = null; }
         if (!string.IsNullOrEmpty(request.Password))
         {
@@ -121,12 +124,12 @@ public sealed class UserService(IUserRepository users, IEmployeeRepository emplo
     {
         if (!UsernamePolicy.IsValid(request.Username))
             throw new AppException(400, "Tên đăng nhập cần 3–50 ký tự chữ không dấu, số hoặc . _ -; có thể dùng dạng email.");
-        if (!Roles.Contains(request.Role) || !Statuses.Contains(request.Status)) throw new AppException(400, "Vai trò hoặc trạng thái không hợp lệ.");
+        if (!Roles.Contains(AccountRoles.Normalize(request.Role)) || !Statuses.Contains(request.Status)) throw new AppException(400, "Vai trò hoặc trạng thái không hợp lệ.");
         if (request.FullName?.Length > 100) throw new AppException(400, "Họ tên tối đa 100 ký tự.");
         if (request.Email?.Length > 100 || (!string.IsNullOrWhiteSpace(request.Email) && !new EmailAddressAttribute().IsValid(request.Email.Trim()))) throw new AppException(400, "Email không hợp lệ.");
         if ((passwordRequired || !string.IsNullOrEmpty(request.Password)) && !PasswordHelper.IsStrong(request.Password))
             throw new AppException(400, PasswordHelper.Requirements);
     }
     private static string? CleanEmail(string? email) => string.IsNullOrWhiteSpace(email) ? null : email.Trim().ToLowerInvariant();
-    private static object Snapshot(User user) => new { user.UserId, user.Username, user.Role, status = user.AccountStatus, user.EmployeeId, user.IsProvisioned };
+    private static object Snapshot(User user) => new { user.UserId, user.Username, Role = AccountRoles.Normalize(user.Role), status = user.AccountStatus, user.EmployeeId, user.IsProvisioned };
 }

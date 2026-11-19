@@ -443,11 +443,12 @@ export default function PayrollRateConfigForm({
                       if (fieldErrors.value) setFieldErrors(prev => ({ ...prev, value: '' }));
                     }}
                     placeholder="150"
+                    style={{ paddingRight: '36px', boxSizing: 'border-box' }}
                     className={`w-full h-10 rounded-lg border ${
                       fieldErrors.value ? 'border-rose-500' : 'border-slate-300 dark:border-slate-700'
-                    } bg-white dark:bg-slate-800 px-3 pr-8 text-sm text-right font-[tabular-nums] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
+                    } bg-white dark:bg-slate-800 px-3 text-sm text-left font-[tabular-nums] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
                   />
-                  <span className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400 text-sm font-medium select-none">
+                  <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400 text-sm font-medium select-none">
                     %
                   </span>
                 </div>
@@ -466,11 +467,12 @@ export default function PayrollRateConfigForm({
                       if (fieldErrors.value) setFieldErrors(prev => ({ ...prev, value: '' }));
                     }}
                     placeholder={String(DEFAULT_STANDARD_WORKING_DAYS)}
+                    style={{ paddingRight: '56px', boxSizing: 'border-box' }}
                     className={`w-full h-10 rounded-lg border ${
                       fieldErrors.value ? 'border-rose-500' : 'border-slate-300 dark:border-slate-700'
-                    } bg-white dark:bg-slate-800 px-3 pr-14 text-sm text-right font-[tabular-nums] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
+                    } bg-white dark:bg-slate-800 px-3 text-sm text-left font-[tabular-nums] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
                   />
-                  <span className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400 text-xs font-medium select-none">
+                  <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400 text-xs font-medium select-none">
                     ngày
                   </span>
                 </div>

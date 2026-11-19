@@ -24,7 +24,8 @@ public sealed class RolesController(AppDbContext db, IUserService users) : Contr
     [HttpGet]
     public async Task<object> List(CancellationToken ct)
     {
-        var counts = await db.Users.AsNoTracking().Where(x => x.IsProvisioned).GroupBy(x => x.Role)
+        var counts = await db.Users.AsNoTracking().Where(x => x.IsProvisioned)
+            .GroupBy(x => x.Role.ToLower() == "medical_staff" ? AccountRoles.MedicalStaff : x.Role)
             .Select(g => new { role = g.Key, count = g.Count() }).ToDictionaryAsync(x => x.role, x => x.count, ct);
         return Catalog.Select(role => new { role.Id, role.Name, role.Description, role.Areas, accountCount = counts.GetValueOrDefault(role.Id) });
     }
