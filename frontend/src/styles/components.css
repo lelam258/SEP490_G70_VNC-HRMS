@@ -167,6 +167,24 @@ dialog.vnc-modal-dialog::backdrop {
   flex: 1 1 auto;
 }
 
+.vnc label.flex {
+  display: flex;
+  margin-bottom: 0;
+}
+
+.vnc label.inline-flex {
+  display: inline-flex;
+  margin-bottom: 0;
+}
+
+.vnc-modal-content input.h-10,
+.vnc-modal-content select.h-10 {
+  height: 40px;
+  min-height: 40px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 /* ==========================================================================
    Change Password Card & Visual Checklist Styles
    ========================================================================== */

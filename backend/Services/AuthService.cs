@@ -12,6 +12,7 @@ using Vnc.HRMS.DTOs.Auth;
 using Vnc.HRMS.Models.Auth;
 using Vnc.HRMS.Models.Users;
 using Vnc.HRMS.Repositories.Interfaces;
+using Vnc.HRMS.Security;
 using Vnc.HRMS.Services.Interfaces;
 
 namespace Vnc.HRMS.Services;
@@ -90,12 +91,14 @@ public sealed class AuthService(IAuthRepository auth, IUserRepository users, IUn
         await auth.SaveSessionAsync(session, credential, ct);
         var jwt = options.Value;
         var expires = DateTime.UtcNow.AddMinutes(Math.Clamp(jwt.AccessTokenMinutes, 1, 60));
+        var normalizedRole = AccountRoles.Normalize(user.Role);
         var token = new JwtSecurityToken(jwt.Issuer, jwt.Audience, [new Claim("sub", user.UserId.ToString()),
             new Claim("jti", session.TokenId.ToString()),
-            new Claim("role", user.Role),
+            new Claim("role", normalizedRole),
             new Claim("name", user.FullName ?? user.Username)], expires: expires,
             signingCredentials: new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)), SecurityAlgorithms.HmacSha256));
         return new(new(new JwtSecurityTokenHandler().WriteToken(token), expires, CurrentUser(user)), raw, session.ExpiresAt);
     }
-    private static CurrentUserDto CurrentUser(User user) => new(user.UserId, user.Username, user.FullName ?? user.Username, user.Email, user.Role);
+    private static CurrentUserDto CurrentUser(User user)
+        => new(user.UserId, user.Username, user.FullName ?? user.Username, user.Email, AccountRoles.Normalize(user.Role));
 }
