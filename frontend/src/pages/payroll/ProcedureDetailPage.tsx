@@ -232,9 +232,9 @@ export default function ProcedureDetailPage() {
             <button
               type="button"
               onClick={() => navigate(`/procedures/${detail.slipId}/edit`)}
-              className="button text-sky-700 border-sky-300 bg-sky-50 hover:bg-sky-100"
+              className="proc-action-btn lg adjust"
             >
-              ✎ {detail.status === 'rejected' ? 'Chỉnh sửa & Gửi duyệt lại' : 'Chỉnh sửa phiếu'}
+              {detail.status === 'rejected' ? 'Chỉnh sửa & Gửi lại' : 'Chỉnh sửa phiếu'}
             </button>
           )}
 
@@ -242,9 +242,9 @@ export default function ProcedureDetailPage() {
             <button
               type="button"
               onClick={() => setCompleteOpen(true)}
-              className="button primary bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+              className="proc-action-btn lg approve"
             >
-              ✓ Xác nhận hoàn thành thủ thuật
+              Xác nhận hoàn thành
             </button>
           )}
 
@@ -257,16 +257,16 @@ export default function ProcedureDetailPage() {
                   setReviewDecision('approve');
                   setReviewOpen(true);
                 }}
-                className="button primary bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                className="proc-action-btn lg approve"
               >
-                ✓ Duyệt viện phí (Chuyển Bác sĩ)
+                Duyệt viện phí
               </button>
               <button
                 type="button"
                 onClick={() => navigate(`/procedures/${detail.slipId}/edit`)}
-                className="button bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 font-medium"
+                className="proc-action-btn lg adjust"
               >
-                ✏ Điều chỉnh ca & Duyệt
+                Điều chỉnh ca
               </button>
               <button
                 type="button"
@@ -275,9 +275,9 @@ export default function ProcedureDetailPage() {
                   setReviewDecision('reject');
                   setReviewOpen(true);
                 }}
-                className="button bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100"
+                className="proc-action-btn lg reject"
               >
-                ✕ Từ chối phiếu
+                Từ chối
               </button>
             </>
           )}
@@ -290,9 +290,9 @@ export default function ProcedureDetailPage() {
                 setCancelError('');
                 setCancelOpen(true);
               }}
-              className="button bg-slate-50 text-slate-700 border-slate-300 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300"
+              className="proc-action-btn lg"
             >
-              ✕ Hủy ca thủ thuật
+              Hủy ca
             </button>
           )}
         </div>
@@ -421,7 +421,7 @@ export default function ProcedureDetailPage() {
             {detail.status === 'verified' || detail.status === 'completed' ? (
               <>
                 <div className="text-sm font-semibold text-emerald-800 mt-2">
-                  ✓ Người duyệt: {detail.verifiedByName || 'Kế toán'}
+                  Người duyệt: {detail.verifiedByName || 'Kế toán'}
                 </div>
                 <div className="text-xs text-slate-600 mt-1">
                   Nhận từ: <strong>{creatorLabel}</strong> → Chuyển sang:{' '}
@@ -453,7 +453,7 @@ export default function ProcedureDetailPage() {
             ) : detail.status === 'rejected' ? (
               <>
                 <div className="text-sm font-semibold text-rose-800 mt-2">
-                  ✕ Người từ chối: {detail.verifiedByName || 'Kế toán'}
+                  Người từ chối: {detail.verifiedByName || 'Kế toán'}
                 </div>
                 <div className="text-xs text-rose-700 font-medium mt-1">
                   {detail.rejectedReason}
@@ -503,12 +503,12 @@ export default function ProcedureDetailPage() {
 
             {detail.status === 'cancelled' ? (
               <div className="text-xs text-slate-500 mt-2">
-                ✕ Ca thủ thuật đã bị hủy trước khi hoàn tất.
+                Ca thủ thuật đã bị hủy trước khi hoàn tất.
               </div>
             ) : detail.status === 'completed' ? (
               <>
                 <div className="text-sm font-semibold text-emerald-800 mt-2">
-                  ✓ Người hoàn thành: {detail.completedByName || performingLabel}
+                  Người hoàn thành: {detail.completedByName || performingLabel}
                 </div>
                 {detail.completedAt && (
                   <div className="text-[11px] text-slate-500 mt-0.5">
@@ -745,7 +745,7 @@ export default function ProcedureDetailPage() {
                 disabled={cancelSubmitting || cancelReason.trim().length < 3}
                 className="button bg-rose-600 hover:bg-rose-700 text-white font-semibold border-rose-600"
               >
-                {cancelSubmitting ? 'Đang hủy...' : '✕ Xác nhận hủy ca'}
+                {cancelSubmitting ? 'Đang hủy...' : 'Xác nhận hủy ca'}
               </button>
             </div>
           </form>

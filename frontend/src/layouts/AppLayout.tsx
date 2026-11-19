@@ -36,11 +36,11 @@ export default function AppLayout() {
     : location.pathname.startsWith('/contracts')
     ? 'Hợp đồng lao động'
     : location.pathname.startsWith('/compliance')
-    ? 'Compliance Dashboard'
+    ? 'Theo dõi tuân thủ Chứng chỉ & CME'
     : location.pathname.startsWith('/certificates')
-    ? 'Certificate / Qualification List'
+    ? 'Quản lý bằng cấp & chứng chỉ'
     : location.pathname.startsWith('/cme-records')
-    ? 'CME Records'
+    ? 'Quản lý đào tạo liên tục (CME)'
     : location.pathname.startsWith('/payroll/commission-results')
     ? 'Kết quả hoa hồng thủ thuật'
     : location.pathname.startsWith('/payroll/parameters')
@@ -129,22 +129,22 @@ export default function AppLayout() {
                 </NavLink>
                 <NavLink to="/compliance" className={navClass}>
                   <Icon name="shield" />
-                  Compliance
+                  Tuân thủ Chứng chỉ & CME
                 </NavLink>
                 <NavLink to="/certificates" className={navClass}>
                   <Icon name="award" />
-                  Certificate / Qualification List
+                  Quản lý Bằng cấp & CCHN
                 </NavLink>
                 <NavLink to="/cme-records" className={navClass}>
                   <Icon name="fileText" />
-                  CME Records
+                  Hồ sơ đào tạo CME
                 </NavLink>
               </>
             )}
             {(user.role === 'department_head' || user.role === 'admin') && (
               <NavLink to="/compliance" className={navClass}>
                 <Icon name="shield" />
-                Compliance
+                Tuân thủ Chứng chỉ & CME
               </NavLink>
             )}
             {['department_head', 'hr_manager', 'admin'].includes(user.role) && (

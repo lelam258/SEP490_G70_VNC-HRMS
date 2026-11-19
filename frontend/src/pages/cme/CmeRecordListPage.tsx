@@ -457,7 +457,7 @@ export default function CmeRecordListPage() {
     setNotice('');
 
     if (!selectedCertificateId || !selectedCycle) {
-      setFormError('MSG-C09: No valid certificate found for CME recording.');
+      setFormError('Lưu ý: Không tìm thấy chứng chỉ hợp lệ để ghi nhận CME.');
       return;
     }
 
@@ -470,25 +470,25 @@ export default function CmeRecordListPage() {
     const trimmedOrganizer = organizer.trim();
 
     if (!trimmedCourse) {
-      setFormError('Course name is required.');
+      setFormError('Vui lòng nhập tên khóa đào tạo / hội thảo CME.');
       return;
     }
     if (trimmedCourse.length > 150) {
-      setFormError('Course name must not exceed 150 characters.');
+      setFormError('Tên khóa đào tạo không được vượt quá 150 ký tự.');
       return;
     }
     if (trimmedOrganizer.length > 100) {
-      setFormError('Organizer must not exceed 100 characters.');
+      setFormError('Đơn vị tổ chức không được vượt quá 100 ký tự.');
       return;
     }
     if (!completedDate) {
-      setFormError('Completed date is required.');
+      setFormError('Vui lòng chọn ngày hoàn thành khóa học.');
       return;
     }
 
     const todayStr = new Date().toISOString().slice(0, 10);
     if (completedDate > todayStr) {
-      setFormError('MSG-C07: Completed date cannot be in the future.');
+      setFormError('Lưu ý: Ngày hoàn thành không được lớn hơn ngày hiện tại.');
       return;
     }
 
@@ -501,7 +501,7 @@ export default function CmeRecordListPage() {
         creditNum <= 0 ||
         Math.round(creditNum * 2) !== creditNum * 2
       ) {
-        setFormError('MSG-C08: Credits must be a number greater than 0 with step 0.5.');
+        setFormError('Lưu ý: Số tín chỉ phải lớn hơn 0 và có bước nhảy 0.5.');
         return;
       }
 
@@ -566,7 +566,7 @@ export default function CmeRecordListPage() {
 
       await loadStaffCme(selectedStaffId, selectedCertificateId);
       resetForm();
-      setNotice('MSG-C02: CME record saved successfully.');
+      setNotice('Đã lưu bản ghi CME thành công.');
     } catch (cause) {
       setFormError(cause instanceof Error ? cause.message : 'Không lưu được bản ghi CME.');
     } finally {
@@ -606,8 +606,8 @@ export default function CmeRecordListPage() {
     if (
       !window.confirm(
         hasCmeCredits
-          ? `Delete CME record "${rec.courseName}" (${rec.credits}h)?`
-          : `Delete CME record "${rec.courseName}"?`
+          ? `Bạn có chắc muốn xóa bản ghi CME "${rec.courseName}" (${rec.credits}h)?`
+          : `Bạn có chắc muốn xóa bản ghi CME "${rec.courseName}"?`
       )
     ) {
       return;
@@ -620,7 +620,7 @@ export default function CmeRecordListPage() {
         resetForm();
       }
       await loadStaffCme(selectedStaffId, selectedCertificateId);
-      setNotice('CME record deleted successfully.');
+      setNotice('Đã xóa bản ghi CME thành công.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Không xóa được bản ghi CME.');
     }
@@ -664,11 +664,11 @@ export default function CmeRecordListPage() {
     setDatesError('');
 
     if (!cycleStartInput) {
-      setDatesError('Start date is required.');
+      setDatesError('Vui lòng chọn ngày bắt đầu chu kỳ.');
       return;
     }
     if (!cycleEndInput || cycleEndInput <= cycleStartInput) {
-      setDatesError('End date is required and must be after start date.');
+      setDatesError('Ngày kết thúc phải lớn hơn ngày bắt đầu.');
       return;
     }
 
@@ -681,7 +681,7 @@ export default function CmeRecordListPage() {
       });
       setEditingDatesOpen(false);
       await loadStaffCme(selectedStaffId, selectedCertificateId);
-      setNotice('Cycle dates updated successfully.');
+      setNotice('Đã cập nhật thời hạn chu kỳ CME thành công.');
     } catch (cause) {
       setDatesError(cause instanceof Error ? cause.message : 'Không cập nhật được ngày chu kỳ.');
     } finally {
@@ -800,10 +800,9 @@ export default function CmeRecordListPage() {
       {loadingInit || loadingStaffCme ? (
         <div className="panel p-8 text-center text-slate-500">Đang tải dữ liệu CME…</div>
       ) : latestCycleByCertificate.length === 0 ? (
-        /* MSG-C09 when no certificate exists */
         <div className="panel p-8">
           <Alert variant="error">
-            <strong>MSG-C09:</strong> Nhân viên{' '}
+            <strong>Lưu ý:</strong> Nhân viên{' '}
             <strong>{selectedStaff?.fullName || ''}</strong> hiện chưa có Chứng chỉ chuyên môn /
             Chứng chỉ hành nghề (CCHN) nào áp dụng CME.
           </Alert>
@@ -1169,48 +1168,48 @@ export default function CmeRecordListPage() {
 
                       {/* Thao tác */}
                       <td>
-                        <div className="flex items-center gap-2.5 text-xs flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedDetailRecord(rec)}
-                            className="text-teal-700 hover:text-teal-900 font-medium underline cursor-pointer bg-transparent border-0 p-0"
-                          >
-                            Chi tiết
-                          </button>
+                        <div className="proc-actions-group" style={{ justifyContent: 'flex-start' }}>
                           {isHrManager && !rec.verified && !isRecordLocked(rec) && (
                             <>
                               <button
                                 type="button"
                                 disabled={verifyingRecordId === rec.cmeId}
                                 onClick={() => void handleVerifyCmeRecord(rec, true)}
-                                className="text-emerald-700 hover:text-emerald-900 font-bold underline cursor-pointer bg-transparent border-0 p-0"
+                                className="proc-action-btn approve"
                                 title="Phê duyệt khóa đào tạo CME này"
                               >
-                                {verifyingRecordId === rec.cmeId ? 'Đang duyệt...' : 'Phê duyệt'}
+                                {verifyingRecordId === rec.cmeId ? 'Đang duyệt...' : 'Duyệt'}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => void handleDeleteRecord(rec)}
-                                className="text-red-600 hover:text-red-800 font-medium underline cursor-pointer bg-transparent border-0 p-0"
+                                className="proc-action-btn reject"
                                 title="Từ chối và xóa bản ghi này"
                               >
                                 Từ chối
                               </button>
                             </>
                           )}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedDetailRecord(rec)}
+                            className="proc-action-btn"
+                          >
+                            Chi tiết
+                          </button>
                           {isHrManager && rec.verified && !isCurrentCycleLocked && (
                             <>
                               <button
                                 type="button"
                                 onClick={() => handleStartEdit(rec)}
-                                className="text-slate-800 hover:text-teal-700 underline font-medium cursor-pointer bg-transparent border-0 p-0"
+                                className="proc-action-btn adjust"
                               >
                                 Sửa
                               </button>
                               <button
                                 type="button"
                                 onClick={() => void handleDeleteRecord(rec)}
-                                className="text-slate-800 hover:text-red-600 underline font-medium cursor-pointer bg-transparent border-0 p-0"
+                                className="proc-action-btn reject"
                               >
                                 Xóa
                               </button>
@@ -1588,10 +1587,10 @@ export default function CmeRecordListPage() {
         />
       )}
 
-      {/* Modal for "+ New record" (Create new progress tracking table & archive previous) */}
+      {/* Modal for "+ Tạo chu kỳ mới" (Create new progress tracking table & archive previous) */}
       {newCycleOpen && selectedCycle && (
         <Modal
-          title="Tạo bảng tiến độ CME mới (New Record)"
+          title="Tạo bảng tiến độ CME mới"
           onClose={() => setNewCycleOpen(false)}
           busy={creatingCycle}
         >
@@ -1605,7 +1604,7 @@ export default function CmeRecordListPage() {
             </p>
             <div>
               <label htmlFor="new-cycle-start-date">
-                Ngày bắt đầu (Cycle start) <span className="text-red-500">*</span>
+                Ngày bắt đầu chu kỳ <span className="text-red-500">*</span>
               </label>
               <input
                 id="new-cycle-start-date"
@@ -1618,7 +1617,7 @@ export default function CmeRecordListPage() {
             </div>
             <div>
               <label htmlFor="new-cycle-end-date">
-                Ngày kết thúc (Cycle end) <span className="text-red-500">*</span>
+                Ngày kết thúc chu kỳ <span className="text-red-500">*</span>
               </label>
               <input
                 id="new-cycle-end-date"

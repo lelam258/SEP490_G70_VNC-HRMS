@@ -1331,7 +1331,7 @@ export default function ProcedureFormPage() {
                     <label className="block text-[11px] font-medium text-slate-600 mb-1">
                       Hoa hồng được hưởng (Theo quy tắc)
                     </label>
-                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 flex items-center justify-between min-h-[34px]">
+                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 flex items-center justify-between min-h-[43px]">
                       <span className="text-xs text-slate-500 truncate pr-2">
                         {previewItem
                           ? `${RULE_SOURCE_LABELS[previewItem.ruleSource] || previewItem.ruleSource} (${formatRuleFormula(
@@ -1346,15 +1346,15 @@ export default function ProcedureFormPage() {
                     </div>
                   </div>
 
-                  <div className="md:col-span-1 flex justify-end pt-5">
+                  <div className="md:col-span-1 flex justify-end pt-6">
                     <button
                       type="button"
                       disabled={assignments.length <= 1}
                       onClick={() => handleRemoveAssignment(row.rowKey)}
-                      className="button text-xs py-1.5 px-2.5 text-rose-600 hover:bg-rose-50 disabled:opacity-40"
+                      className="proc-action-btn reject disabled:opacity-40"
                       title="Xóa dòng"
                     >
-                      ✕
+                      Xóa
                     </button>
                   </div>
                 </div>
@@ -1399,12 +1399,12 @@ export default function ProcedureFormPage() {
             {submitting
               ? 'Đang lưu...'
               : isAccountant
-              ? '💾 Lưu điều chỉnh & Chuyển sang Đang thực hiện'
+              ? 'Lưu điều chỉnh & Chuyển sang Đang thực hiện'
               : isEditMode
               ? existingSlip?.status === 'rejected'
-                ? 'Lưu cập nhật & Gửi duyệt lại (Pending)'
+                ? 'Lưu cập nhật & Gửi duyệt lại'
                 : 'Lưu cập nhật phiếu thủ thuật'
-              : 'Lưu phiếu thủ thuật (Trạng thái Pending)'}
+              : 'Lưu phiếu thủ thuật'}
           </button>
         </div>
       </form>

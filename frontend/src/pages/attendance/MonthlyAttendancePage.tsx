@@ -6,7 +6,7 @@ import useApiResource from '../../hooks/useApiResource';
 import { attendanceApi } from '../../services/attendanceApi';
 import { useAuthStore } from '../../store/useAuthStore';
 import type { MonthlyAttendanceSummary } from '../../types/attendance';
-import { attendanceLabel, instant } from '../../utils/attendance';
+import { attendanceLabel, formatAttendanceNote, instant } from '../../utils/attendance';
 import { clinicToday, shortDate } from '../../utils/schedule';
 
 export default function MonthlyAttendancePage() {
@@ -94,12 +94,12 @@ export default function MonthlyAttendancePage() {
     try {
       const result = await attendanceApi.lockMonthly(month, summary.version, lockNote.trim());
       closeConfirmModal();
-      setNotice(result.message);
+      setNotice(formatAttendanceNote(result.message));
       setLockNote('');
       resource.reload();
     } catch (err) {
       closeConfirmModal();
-      setError(err instanceof Error ? err.message : 'Không thể khóa bảng chấm công tháng.');
+      setError(formatAttendanceNote(err instanceof Error ? err.message : 'Không thể khóa bảng chấm công tháng.'));
     } finally {
       setLocking(false);
     }
@@ -112,16 +112,17 @@ export default function MonthlyAttendancePage() {
       summary.totals.unaccountedScheduledShifts
     : 0;
 
-  const blockingMessage = summary?.lockedReason || summary?.consolidationLockReason || (
+  const rawBlockingMessage = summary?.lockedReason || summary?.consolidationLockReason || (
     totalExceptionsCount > 0
-      ? `MSG04 / MSG05: Còn ${totalExceptionsCount} ngoại lệ chấm công / ca trực chưa xử lý hoặc xác nhận trước khi khóa sổ.`
+      ? `Lưu ý: Còn ${totalExceptionsCount} ngoại lệ chấm công / ca trực chưa xử lý hoặc xác nhận trước khi khóa sổ.`
       : null
   );
+  const blockingMessage = rawBlockingMessage ? formatAttendanceNote(rawBlockingMessage) : null;
 
   return (
     <AttendanceShell
       title="Chốt bảng chấm công tháng"
-      description="Tổng hợp ngày công chính, ca trực trưa/tối, giờ tăng ca và nghỉ phép toàn phòng khám trước khi khóa sổ tính lương (UC 4.14)."
+      description="Tổng hợp ngày công chính, ca trực trưa/tối, giờ tăng ca và nghỉ phép toàn phòng khám trước khi khóa sổ tính lương."
       actions={
         <>
           {summary && (
@@ -148,8 +149,8 @@ export default function MonthlyAttendancePage() {
       }
     >
       <ResourceState loading={resource.loading} error={resource.error} reload={resource.reload} />
-      {error && <p className="alert error" role="alert" style={{ margin: '0 0 8px' }}>{error}</p>}
-      {notice && <p className="alert success" role="status" style={{ margin: '0 0 8px' }}>{notice}</p>}
+      {error && <p className="alert error" role="alert" style={{ margin: '0 0 8px' }}>{formatAttendanceNote(error)}</p>}
+      {notice && <p className="alert success" role="status" style={{ margin: '0 0 8px' }}>{formatAttendanceNote(notice)}</p>}
 
       {summary && (
         <>
@@ -171,7 +172,7 @@ export default function MonthlyAttendancePage() {
                 {summary.lockedByName || 'HR Staff'} · Thời điểm: {instant(summary.lockedAt)}
               </span>
               <span style={{ fontSize: 12 }}>
-                Mở tổng hợp (GB-52): {shortDate(summary.consolidationOpenDate, true)} · Hạn khóa chuẩn: {shortDate(summary.standardLockDate, true)}
+                Mở tổng hợp: {shortDate(summary.consolidationOpenDate, true)} · Hạn khóa chuẩn: {shortDate(summary.standardLockDate, true)}
               </span>
             </div>
           ) : blockingMessage ? (
@@ -512,7 +513,7 @@ export default function MonthlyAttendancePage() {
                             {attendanceLabel(ex.category)}
                           </span>
                         </td>
-                        <td>{ex.message}</td>
+                        <td>{formatAttendanceNote(ex.message)}</td>
                         <td>
                           {ex.targetUrl ? (
                             <Link className="button" style={{ padding: '4px 10px', fontSize: 12 }} to={ex.targetUrl}>
@@ -556,8 +557,8 @@ export default function MonthlyAttendancePage() {
         </h3>
         <p style={{ margin: '0 0 12px', fontSize: 13, color: '#475569', lineHeight: 1.45 }}>
           Sau khi khóa, toàn bộ hồ sơ chấm công và ca trực trong kỳ <strong>{month}</strong> sẽ được
-          chuyển làm đầu vào chính thức cho Kế toán tính lương (GB-06, GB-09, GB-52) và không thể
-          sửa trực tiếp nếu không mở khóa theo quy trình GB-26.
+          chuyển làm đầu vào chính thức cho Kế toán tính lương và không thể sửa trực tiếp nếu không
+          được Kế toán mở lại kỳ điều chỉnh.
         </p>
         {summary && (
           <div

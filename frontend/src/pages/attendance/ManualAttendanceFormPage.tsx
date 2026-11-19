@@ -5,7 +5,7 @@ import ResourceState from '../../components/attendance/ResourceState';
 import useApiResource from '../../hooks/useApiResource';
 import { attendanceApi } from '../../services/attendanceApi';
 import type { AttendanceOptions, ManualAttendanceContext } from '../../types/attendance';
-import { attendanceLabel, clockTime } from '../../utils/attendance';
+import { attendanceLabel, clockTime, formatAttendanceNote } from '../../utils/attendance';
 import { clinicToday, shiftHours, shortDate } from '../../utils/schedule';
 
 function defaultPairsForShift(date: string, shift: string): { in: string; out: string }[] {
@@ -91,37 +91,37 @@ export default function ManualAttendanceFormPage() {
   const willFlag = !!context.data && (context.data.approvedLeave || hasScheduleConflict || (eveningEarly && !supervisorEvidence.trim()));
 
   const issues: { field: string; message: string }[] = [];
-  if (!staffId) issues.push({ field: 'manual-staff', message: 'MSG02: Chọn nhân viên.' });
-  if (!facilityId) issues.push({ field: 'manual-facility', message: 'MSG02: Chọn cơ sở làm việc.' });
-  if (!workDate) issues.push({ field: 'manual-date', message: 'MSG02: Chọn ngày làm việc.' });
-  else if (workDate > today) issues.push({ field: 'manual-date', message: 'MSG04: Không thể nhập chấm công cho ngày tương lai.' });
+  if (!staffId) issues.push({ field: 'manual-staff', message: 'Lưu ý: Chọn nhân viên.' });
+  if (!facilityId) issues.push({ field: 'manual-facility', message: 'Lưu ý: Chọn cơ sở làm việc.' });
+  if (!workDate) issues.push({ field: 'manual-date', message: 'Lưu ý: Chọn ngày làm việc.' });
+  else if (workDate > today) issues.push({ field: 'manual-date', message: 'Lưu ý: Không thể nhập chấm công cho ngày tương lai.' });
   else if (person && (workDate < person.dateJoined || (person.dateLeft && workDate > person.dateLeft))) {
-    issues.push({ field: 'manual-date', message: `MSG25: Ngày công nằm ngoài thời gian công tác (${shortDate(person.dateJoined, true)}${person.dateLeft ? ` – ${shortDate(person.dateLeft, true)}` : ''}).` });
+    issues.push({ field: 'manual-date', message: `Lưu ý: Ngày công nằm ngoài thời gian công tác (${shortDate(person.dateJoined, true)}${person.dateLeft ? ` – ${shortDate(person.dateLeft, true)}` : ''}).` });
   }
   if (pairs.some(p => !p.in || !p.out)) {
-    issues.push({ field: 'manual-in-0', message: 'MSG02: Nhập đầy đủ giờ Vào và giờ Ra cho từng cặp giờ.' });
+    issues.push({ field: 'manual-in-0', message: 'Lưu ý: Nhập đầy đủ giờ Vào và giờ Ra cho từng cặp giờ.' });
   } else {
     let prevOut = '';
     for (let i = 0; i < pairs.length; i++) {
       if (pairs[i].out <= pairs[i].in) {
-        issues.push({ field: `manual-out-${i}`, message: `MSG04: Cặp giờ ${i + 1} có giờ Ra không sau giờ Vào.` });
+        issues.push({ field: `manual-out-${i}`, message: `Lưu ý: Cặp giờ ${i + 1} có giờ Ra không sau giờ Vào.` });
         break;
       }
       if (prevOut && pairs[i].in < prevOut) {
-        issues.push({ field: `manual-in-${i}`, message: 'MSG04: Các cặp giờ Vào/Ra bị chồng lấn hoặc không theo thứ tự thời gian.' });
+        issues.push({ field: `manual-in-${i}`, message: 'Lưu ý: Các cặp giờ Vào/Ra bị chồng lấn hoặc không theo thứ tự thời gian.' });
         break;
       }
       prevOut = pairs[i].out;
     }
     if (workDate === today && lastOut > clinicNow.slice(11)) {
-      issues.push({ field: 'manual-out-0', message: `MSG04: Giờ ra ${lastOut} hôm nay chưa diễn ra (hiện tại ${clinicNow.slice(11)}).` });
+      issues.push({ field: 'manual-out-0', message: `Lưu ý: Giờ ra ${lastOut} hôm nay chưa diễn ra (hiện tại ${clinicNow.slice(11)}).` });
     }
   }
-  if (context.data?.lockedReason) issues.push({ field: 'manual-date', message: context.data.lockedReason });
+  if (context.data?.lockedReason) issues.push({ field: 'manual-date', message: formatAttendanceNote(context.data.lockedReason) });
   if (existingDuplicate) {
-    issues.push({ field: 'manual-shift', message: 'MSG04: Ngày và ca này đã có bản ghi chấm công. Vui lòng mở bản ghi hiện có để Đối chiếu (4.11).' });
+    issues.push({ field: 'manual-shift', message: 'Lưu ý: Ngày và ca này đã có bản ghi chấm công. Vui lòng mở bản ghi hiện có để Đối chiếu.' });
   }
-  if (!reason.trim()) issues.push({ field: 'manual-reason', message: 'MSG02: Nhập lý do / căn cứ bảng công giấy cho bản ghi thủ công.' });
+  if (!reason.trim()) issues.push({ field: 'manual-reason', message: 'Lưu ý: Nhập lý do / căn cứ bảng công giấy cho bản ghi thủ công.' });
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -144,9 +144,9 @@ export default function ManualAttendanceFormPage() {
         reason: reason.trim(),
         supervisorEvidence: supervisorEvidence.trim() || undefined,
       });
-      navigate(`/attendance/records/${result.id}`, { state: { notice: result.message } });
+      navigate(`/attendance/records/${result.id}`, { state: { notice: formatAttendanceNote(result.message) } });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Không thể lưu bản ghi chấm công thủ công.');
+      setError(formatAttendanceNote(cause instanceof Error ? cause.message : 'Không thể lưu bản ghi chấm công thủ công.'));
     } finally {
       setBusy(false);
     }
@@ -167,10 +167,10 @@ export default function ManualAttendanceFormPage() {
                 <h2 className="att-card-title">Thông tin ngày công & Cặp giờ</h2>
                 <p className="att-card-sub">Điền giờ thực tế theo bảng chấm công giấy hoặc biên bản xác nhận của khoa.</p>
               </div>
-              <span className="att-badge neutral">UC 4.12 · Nguồn thủ công</span>
+              <span className="att-badge neutral">Nguồn thủ công</span>
             </div>
 
-            {error && <p className="alert error" role="alert">{error}</p>}
+            {error && <p className="alert error" role="alert">{formatAttendanceNote(error)}</p>}
 
             <fieldset disabled={busy}>
               <div className="operations-grid">
@@ -344,7 +344,7 @@ export default function ManualAttendanceFormPage() {
                   : issues.length
                   ? 'Cần kiểm tra trước khi lưu:'
                   : willFlag
-                  ? 'MSG04: Phát hiện lệch lịch / nghỉ phép — Hệ thống sẽ lưu ở trạng thái Cần đối chiếu (Flagged)'
+                  ? 'Lưu ý: Phát hiện lệch lịch / nghỉ phép — Hệ thống sẽ lưu ở trạng thái Cần đối chiếu (Flagged)'
                   : 'Sẵn sàng lưu bản ghi chấm công thủ công (Pending Verification)'}
               </strong>
               {!!issues.length && (
@@ -355,7 +355,7 @@ export default function ManualAttendanceFormPage() {
                 </ul>
               )}
               {!issues.length && willFlag && (
-                <p>Bản ghi vẫn được lưu kèm bằng chứng nhưng bắt buộc qua bước Đối chiếu & Quản lý xác nhận trước khi duyệt tính lương (GB-06, GB-07).</p>
+                <p>Bản ghi vẫn được lưu kèm bằng chứng nhưng bắt buộc qua bước Đối chiếu & Quản lý xác nhận trước khi duyệt tính lương.</p>
               )}
             </div>
 

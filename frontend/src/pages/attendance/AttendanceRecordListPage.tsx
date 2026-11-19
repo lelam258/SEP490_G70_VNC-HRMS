@@ -9,7 +9,7 @@ import useApiResource from '../../hooks/useApiResource';
 import { useAuthStore } from '../../store/useAuthStore';
 import type { AttendanceList, AttendanceOptions } from '../../types/attendance';
 import { clinicToday, shortDate } from '../../utils/schedule';
-import { attendanceLabel, clockTime } from '../../utils/attendance';
+import { attendanceLabel, clockTime, formatAttendanceNote } from '../../utils/attendance';
 
 export default function AttendanceRecordListPage() {
   const role = useAuthStore(state => state.session?.user.role);
@@ -31,15 +31,15 @@ export default function AttendanceRecordListPage() {
   return (
     <AttendanceShell
       title="Bảng chấm công"
-      description="Tra cứu ngày công, đối chiếu nguồn chấm công (4.11), nhập thủ công (4.12) và xác nhận ngày công (4.13)."
+      description="Tra cứu ngày công, đối chiếu nguồn chấm công, nhập thủ công và xác nhận ngày công."
       actions={
         role === 'hr_staff' && (
           <>
             <Link className="button" to="/attendance/records/new">
-              Nhập thủ công (4.12)
+              Nhập thủ công
             </Link>
             <Link className="button" to={`/attendance/monthly?month=${filter.month}`}>
-              Chốt công tháng (4.14)
+              Chốt công tháng
             </Link>
             <Link className="button primary" to="/attendance/imports/new">
               Nhập tệp chấm công
@@ -79,12 +79,12 @@ export default function AttendanceRecordListPage() {
               </span>
               {typeof data.counts.reconciled === 'number' && (
                 <span>
-                  <strong>{data.counts.reconciled}</strong>Chờ xác nhận (4.13)
+                  <strong>{data.counts.reconciled}</strong>Chờ xác nhận
                 </span>
               )}
             </div>
             {data.lockedReason && (
-              <p className="alert warning">{data.lockedReason} Có thể tiếp tục xem dữ liệu và lịch sử.</p>
+              <p className="alert warning">{formatAttendanceNote(data.lockedReason)} Có thể tiếp tục xem dữ liệu và lịch sử.</p>
             )}
             <DataTable
               rows={data.items}

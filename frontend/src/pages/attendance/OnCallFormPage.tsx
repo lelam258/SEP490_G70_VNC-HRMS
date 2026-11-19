@@ -5,7 +5,7 @@ import ResourceState from '../../components/attendance/ResourceState';
 import useApiResource from '../../hooks/useApiResource';
 import { attendanceApi } from '../../services/attendanceApi';
 import type { AttendanceList, AttendanceOptions, OnCallContext, OnCallDetail, OnCallInput, OnCallItem } from '../../types/attendance';
-import { attendanceLabel, clockTime } from '../../utils/attendance';
+import { attendanceLabel, clockTime, formatAttendanceNote } from '../../utils/attendance';
 import { clinicToday, shiftHours, shortDate } from '../../utils/schedule';
 
 function Editor({ options, initial, onSaved }: { options: AttendanceOptions; initial?: OnCallItem; onSaved: (id: string, message: string) => void }) {
@@ -49,7 +49,7 @@ function Editor({ options, initial, onSaved }: { options: AttendanceOptions; ini
     else if (form.end <= hours[0] || form.start >= hours[1]) issues.push({ field: 'oncall-category', message: `Giờ thực tế phải có thời gian thuộc ca ${hours.join('–')}. Kiểm tra loại ca hoặc giờ đã nhập.` });
     if (form.date === today && form.end > clinicNow.slice(11)) issues.push({ field: 'oncall-end', message: `Giờ ra ${form.end} hôm nay chưa diễn ra (hiện tại ${clinicNow.slice(11)}, giờ Việt Nam). Chọn ngày đã trực hoặc nhập giờ thực tế đã kết thúc.` });
   }
-  if (context.data?.lockedReason) issues.push({ field: 'oncall-date', message: context.data.lockedReason });
+  if (context.data?.lockedReason) issues.push({ field: 'oncall-date', message: formatAttendanceNote(context.data.lockedReason) });
   if (context.data?.approvedLeave) issues.push({ field: 'oncall-date', message: 'Nhân viên có nghỉ phép đã duyệt trong ngày này. Chọn đúng người/ngày hoặc đối chiếu lại nghỉ phép.' });
   if (deviation && !form.deviationReason.trim()) issues.push({ field: 'oncall-reason', message: initial ? 'Ghi lý do sửa hồ sơ.' : outsideSchedule ? 'Ghi lý do trực ngoài lịch hoặc khác cơ sở.' : 'Ghi lý do giờ thực tế khác giờ dự kiến.' });
   if (outsideSchedule && !form.supervisorEvidence.trim()) issues.push({ field: 'oncall-supervisor', message: 'Bổ sung người xác nhận và căn cứ quản lý cho phép trực ngoài lịch.' });
@@ -70,12 +70,12 @@ function Editor({ options, initial, onSaved }: { options: AttendanceOptions; ini
       setError(issues[0].message); document.getElementById(issues[0].field)?.focus(); return;
     }
     setBusy(true); setError('');
-    try { const result = await attendanceApi.onCall(initial?.id, form); onSaved(result.id, result.message); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Không lưu được hồ sơ trực.'); }
+    try { const result = await attendanceApi.onCall(initial?.id, form); onSaved(result.id, formatAttendanceNote(result.message)); }
+    catch (cause) { setError(formatAttendanceNote(cause instanceof Error ? cause.message : 'Không lưu được hồ sơ trực.')); }
     finally { setBusy(false); }
   }
   return <form className="operations-panel operations-form" noValidate onSubmit={event => void submit(event)}><fieldset disabled={busy}>
-    {error && <p className="alert error" role="alert">{error}</p>}
+    {error && <p className="alert error" role="alert">{formatAttendanceNote(error)}</p>}
     <div className="operations-grid"><label htmlFor="oncall-staff">Nhân viên<select id="oncall-staff" required value={form.staffId} onChange={event => update({ staffId: event.target.value, attendanceEvidenceId: null })}><option value="">Chọn nhân viên</option>{options.staff.filter(item => item.status === 'active' && item.departmentId && options.departments.find(d => d.id === item.departmentId)?.status !== 'inactive').map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label>
       <label htmlFor="oncall-facility">Cơ sở<select id="oncall-facility" required value={form.facilityId} onChange={event => update({ facilityId: event.target.value, attendanceEvidenceId: null })}><option value="">Chọn cơ sở</option>{options.facilities.filter(item => item.status === 'active').map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <label htmlFor="oncall-date">Ngày trực<input id="oncall-date" type="date" required max={today} min={person?.dateJoined || '2000-01-01'} value={form.date} onChange={event => { if (event.target.value) changeDate(event.target.value); }} /></label>
@@ -122,7 +122,7 @@ export default function OnCallFormPage() {
   return <AttendanceShell title={id ? 'Sửa hồ sơ trực' : 'Ghi nhận ca trực'} description="Lưu thời gian trực thực tế và căn cứ đối chiếu; hồ sơ được đưa vào hàng chờ xác nhận."
     actions={<Link className="button" to="/attendance/on-call">Danh sách ca trực</Link>}>
     <ResourceState loading={options.loading || detail.loading} error={options.error || detail.error} reload={() => { options.reload(); detail.reload(); }} />
-    {options.data && (!id || detail.data) && (unavailable ? <p className="alert error" role="alert">{detail.data?.lockedReason || 'Hồ sơ đã được xác nhận hoặc không còn ở trạng thái chờ. Không được sửa trực tiếp.'}</p>
+    {options.data && (!id || detail.data) && (unavailable ? <p className="alert error" role="alert">{formatAttendanceNote(detail.data?.lockedReason) || 'Hồ sơ đã được xác nhận hoặc không còn ở trạng thái chờ. Không được sửa trực tiếp.'}</p>
       : <Editor key={`${id || 'new'}-${detail.data?.item.version || ''}`} options={options.data} initial={detail.data?.item} onSaved={(newId, message) => navigate(`/attendance/on-call/${newId}`, { state: { notice: message } })} />)}
   </AttendanceShell>;
 }

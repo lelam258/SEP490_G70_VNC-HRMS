@@ -57,9 +57,8 @@ export default function ProcedureCompleteModal({
     >
       <form onSubmit={handleSubmit} className="space-y-4 text-sm">
         <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 space-y-1.5 text-xs text-emerald-950">
-          <div className="font-bold text-sm text-emerald-900 flex items-center gap-1.5">
-            <span>✓</span>
-            <span>Ca thủ thuật đã được Kế toán duyệt viện phí</span>
+          <div className="font-bold text-sm text-emerald-900">
+            Ca thủ thuật đã được Kế toán duyệt viện phí
           </div>
           <div className="grid grid-cols-2 gap-x-3 gap-y-1 pt-1 text-slate-700">
             <div>
@@ -145,7 +144,7 @@ export default function ProcedureCompleteModal({
             disabled={submitting}
             className="button primary bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
           >
-            {submitting ? 'Đang xác nhận...' : '✓ Xác nhận hoàn thành ca'}
+            {submitting ? 'Đang xác nhận...' : 'Xác nhận hoàn thành ca'}
           </button>
         </div>
       </form>

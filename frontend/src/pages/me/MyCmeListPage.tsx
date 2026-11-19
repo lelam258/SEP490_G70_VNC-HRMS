@@ -364,7 +364,7 @@ export default function MyCmeListPage() {
       {error && <Alert variant="error">{error}</Alert>}
 
       {/* Unified Compact Dashboard Banner (Certificate + Cycle Selectors & Progress) */}
-      {uniqueCmeCertificates.length > 0 && (
+      {uniqueCmeCertificates.length > 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
             {/* Left side: CME Cycle Progress & Selectors (7 cols) */}
@@ -374,7 +374,8 @@ export default function MyCmeListPage() {
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-slate-500 font-medium shrink-0">Chứng chỉ:</span>
                   <select
-                    className="text-xs font-semibold text-slate-800 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 max-w-[200px] truncate"
+                    className="text-xs font-semibold text-slate-800 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 max-w-[220px] truncate"
+                    style={{ width: 'auto', minHeight: '34px', padding: '5px 10px' }}
                     value={selectedCycleCertId}
                     onChange={(e) => {
                       const newId = e.target.value;
@@ -397,6 +398,7 @@ export default function MyCmeListPage() {
                   {certCycles.length > 0 ? (
                     <select
                       className="text-xs font-semibold text-slate-800 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                      style={{ width: 'auto', minHeight: '34px', padding: '5px 10px' }}
                       value={selectedCycleSelectValue}
                       onChange={(e) => setSelectedCycleId(e.target.value)}
                     >
@@ -564,6 +566,19 @@ export default function MyCmeListPage() {
             </div>
           </div>
         </div>
+      ) : (
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-2xs flex flex-col items-center justify-center text-center">
+          <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mb-2.5">
+            <Icon name="award" size={20} />
+          </div>
+          <h3 className="text-sm font-semibold text-slate-800 text-center">Chưa có chứng chỉ hành nghề để gắn CME</h3>
+          <p
+            className="text-xs text-slate-500 mt-1 max-w-md text-center"
+            style={{ margin: '4px auto 0', textAlign: 'center' }}
+          >
+            Hồ sơ nhân sự của bạn hiện chưa có chứng chỉ chuyên môn nào trong hệ thống để quản lý tiến độ đào tạo liên tục (CME). Vui lòng cập nhật chứng chỉ hoặc liên hệ phòng Nhân sự (HR).
+          </p>
+        </div>
       )}
 
       {/* Submissions Section */}
@@ -600,21 +615,22 @@ export default function MyCmeListPage() {
           {/* Right: Search Input & Status Filter */}
           <div className="flex items-center gap-2 shrink-0">
             {/* Search Input */}
-            <div className="relative w-40 sm:w-48">
+            <div className="relative w-40 sm:w-52">
               <input
                 type="text"
-                className="w-full text-xs pl-7 pr-6 py-1 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                className="w-full text-xs pr-7 py-1.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                style={{ paddingLeft: '30px', minHeight: '34px' }}
                 placeholder="Tìm khóa học..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
-              <span className="absolute left-2 top-1.5 text-slate-400 pointer-events-none">
-                <Icon name="search" size={12} />
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex items-center">
+                <Icon name="search" size={13} />
               </span>
               {searchTerm && (
                 <button
                   type="button"
-                  className="absolute right-1.5 top-1.5 text-slate-400 hover:text-slate-600"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 flex items-center"
                   onClick={() => setSearchTerm('')}
                 >
                   <Icon name="close" size={12} />
@@ -624,7 +640,8 @@ export default function MyCmeListPage() {
 
             {/* Status Filter */}
             <select
-              className="text-xs px-2 py-1 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-white"
+              className="text-xs px-2.5 py-1 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 bg-white shrink-0"
+              style={{ width: 'auto', minHeight: '34px', padding: '5px 10px' }}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
             >
@@ -650,24 +667,27 @@ export default function MyCmeListPage() {
 
         {/* Content Section (Clean Data Table with Pagination & No Horizontal/Vertical Overflow) */}
         {loading ? (
-          <div className="p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
+          <div className="p-8 flex flex-col items-center justify-center text-center text-slate-400 bg-white rounded-xl border border-slate-200">
             <div className="animate-spin inline-block w-5 h-5 border-2 border-current border-t-transparent text-teal-600 rounded-full mb-1.5" />
-            <p className="text-xs">Đang tải hồ sơ đào tạo liên tục...</p>
+            <p className="text-xs" style={{ margin: '0 auto', textAlign: 'center' }}>Đang tải hồ sơ đào tạo liên tục...</p>
           </div>
         ) : filteredRecords.length === 0 ? (
-          <div className="p-6 text-center bg-white rounded-xl border border-slate-200 shadow-2xs">
-            <div className="w-9 h-9 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2">
-              <Icon name="fileText" size={18} />
+          <div className="p-8 flex flex-col items-center justify-center text-center bg-white rounded-xl border border-slate-200 shadow-2xs">
+            <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mb-2.5">
+              <Icon name="fileText" size={20} />
             </div>
             {records.length === 0 ? (
               <>
-                <h3 className="text-xs font-semibold text-slate-800">Chưa có khóa học CME nào</h3>
-                <p className="text-[11px] text-slate-500 mt-0.5 max-w-sm mx-auto">
+                <h3 className="text-sm font-semibold text-slate-800 text-center">Chưa có khóa học CME nào</h3>
+                <p
+                  className="text-xs text-slate-500 mt-1 max-w-sm text-center"
+                  style={{ margin: '4px auto 0', textAlign: 'center' }}
+                >
                   Bạn chưa có bản ghi đào tạo liên tục nào trong hệ thống.
                 </p>
                 <button
                   type="button"
-                  className="button primary text-xs mt-2.5 py-1 px-3 inline-flex items-center gap-1.5"
+                  className="button primary text-xs mt-3 py-1.5 px-3.5 inline-flex items-center gap-1.5"
                   onClick={() => setCreateModalOpen(true)}
                 >
                   <Icon name="plus" size={12} />
@@ -676,15 +696,18 @@ export default function MyCmeListPage() {
               </>
             ) : (
               <>
-                <h3 className="text-xs font-semibold text-slate-800">
+                <h3 className="text-sm font-semibold text-slate-800 text-center">
                   Không tìm thấy khóa đào tạo nào trong chu kỳ này
                 </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">
+                <p
+                  className="text-xs text-slate-500 mt-1 max-w-sm text-center"
+                  style={{ margin: '4px auto 0', textAlign: 'center' }}
+                >
                   Không có khóa học nào khớp với bộ lọc hoặc chu kỳ đang chọn.
                 </p>
                 <button
                   type="button"
-                  className="button primary text-xs mt-2.5 py-1 px-3 inline-flex items-center gap-1.5"
+                  className="button primary text-xs mt-3 py-1.5 px-3.5 inline-flex items-center gap-1.5"
                   onClick={() => setCreateModalOpen(true)}
                 >
                   <Icon name="plus" size={12} />

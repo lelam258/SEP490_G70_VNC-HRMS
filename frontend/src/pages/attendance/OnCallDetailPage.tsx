@@ -7,7 +7,7 @@ import { attendanceApi } from '../../services/attendanceApi';
 import { useAuthStore } from '../../store/useAuthStore';
 import type { OnCallDetail } from '../../types/attendance';
 import { shortDate } from '../../utils/schedule';
-import { attendanceLabel, clockTime, instant } from '../../utils/attendance';
+import { attendanceLabel, clockTime, formatAttendanceNote, instant } from '../../utils/attendance';
 
 export default function OnCallDetailPage() {
   const { id } = useParams();
@@ -28,7 +28,7 @@ export default function OnCallDetailPage() {
     event.preventDefault();
     if (!id || !item || busy) return;
     if ((decision === 'return' || decision === 'reject') && !reason.trim()) {
-      setError('MSG02: Vui lòng nhập lý do trả về hoặc từ chối hồ sơ trực.');
+      setError('Lưu ý: Vui lòng nhập lý do trả về hoặc từ chối hồ sơ trực.');
       return;
     }
     setBusy(true);
@@ -41,11 +41,11 @@ export default function OnCallDetailPage() {
         supervisorEvidence: supervisorEvidence.trim() || item.supervisorEvidence || undefined,
         version: item.version,
       });
-      setNotice(result.message);
+      setNotice(formatAttendanceNote(result.message));
       setReason('');
       resource.reload();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Không thể xác nhận hồ sơ trực.');
+      setError(formatAttendanceNote(cause instanceof Error ? cause.message : 'Không thể xác nhận hồ sơ trực.'));
     } finally {
       setBusy(false);
     }
@@ -57,7 +57,7 @@ export default function OnCallDetailPage() {
       description="Đối chiếu giờ trực thực tế, lịch phân công và căn cứ xác nhận."
       actions={<Link className="button" to="/attendance/on-call">Danh sách ca trực</Link>}
     >
-      {notice && <p className="alert success" role="status">{notice}</p>}
+      {notice && <p className="alert success" role="status">{formatAttendanceNote(notice)}</p>}
       <ResourceState {...resource} />
       {data && item && (
         <div className="att-split">
@@ -66,8 +66,8 @@ export default function OnCallDetailPage() {
               <h2>{item.staffName} · {item.staffCode}</h2>
               <span className={`att-badge ${item.status}`}>{attendanceLabel(item.status)}</span>
             </div>
-            {data.lockedReason && <p className="alert warning">{data.lockedReason}</p>}
-            {item.reviewNote && <p className="alert warning">{item.reviewNote}</p>}
+            {data.lockedReason && <p className="alert warning">{formatAttendanceNote(data.lockedReason)}</p>}
+            {item.reviewNote && <p className="alert warning">{formatAttendanceNote(item.reviewNote)}</p>}
             <dl className="operations-detail">
               <div><dt>Ngày / ca</dt><dd>{shortDate(item.date, true)} · {attendanceLabel(item.category)}</dd></div>
               <div><dt>Trạng thái</dt><dd>{attendanceLabel(item.status)}</dd></div>
@@ -97,11 +97,11 @@ export default function OnCallDetailPage() {
             <aside className="att-card operations-form">
               <div className="att-card-header">
                 <div>
-                  <h2 className="att-card-title">Xác nhận hồ sơ trực (4.13)</h2>
+                  <h2 className="att-card-title">Xác nhận hồ sơ trực</h2>
                   <p className="att-card-sub">Kiểm tra căn cứ chấm công và xác nhận của quản lý trước khi chốt tính lương.</p>
                 </div>
               </div>
-              {error && <p className="alert error" role="alert">{error}</p>}
+              {error && <p className="alert error" role="alert">{formatAttendanceNote(error)}</p>}
               <form onSubmit={e => void handleVerify(e)} noValidate>
                 <fieldset disabled={busy || !!data.lockedReason}>
                   <div className="att-radio-cards" role="radiogroup" aria-label="Quyết định xác nhận ca trực">
@@ -111,7 +111,7 @@ export default function OnCallDetailPage() {
                       onClick={() => { setError(''); setDecision('confirm'); }}
                     >
                       <strong>Xác nhận ca trực (Confirm)</strong>
-                      <small>Đủ điều kiện tổng hợp công trực tháng (GB-09, GB-13)</small>
+                      <small>Đủ điều kiện tổng hợp công trực tháng</small>
                     </button>
                     <button
                       type="button"
@@ -125,7 +125,7 @@ export default function OnCallDetailPage() {
 
                   {item.category === 'evening' && clockTime(item.end) < '19:00' && !item.supervisorEvidence && (
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, fontWeight: 500, marginBottom: 8 }}>
-                      Xác nhận của Trưởng khoa cho ca tối kết thúc sớm (GB-13) *
+                      Xác nhận của Trưởng khoa cho ca tối kết thúc sớm *
                       <input
                         type="text"
                         value={supervisorEvidence}
@@ -136,7 +136,7 @@ export default function OnCallDetailPage() {
                   )}
 
                   <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, fontWeight: 500 }}>
-                    {decision === 'confirm' ? 'Ghi chú xác nhận (tùy chọn)' : 'Lý do trả về / từ chối (MSG02) *'}
+                    {decision === 'confirm' ? 'Ghi chú xác nhận (tùy chọn)' : 'Lý do trả về / từ chối *'}
                     <textarea
                       rows={2}
                       value={reason}
