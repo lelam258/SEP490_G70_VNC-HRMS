@@ -17,9 +17,19 @@ public sealed class UserRepository(AppDbContext db) : IUserRepository
     }
     public Task<User?> FindAsync(Guid id, CancellationToken ct) => db.Users.Include(x => x.Employee).SingleOrDefaultAsync(x => x.UserId == id, ct);
     private IQueryable<AccountDto> Details(IQueryable<User> query) => from user in query
-                                                                      select new AccountDto(user.UserId, user.Employee == null ? null : user.Employee.StaffId, user.Username, user.Email, user.FullName, user.Role,
-                                                                          user.AccountStatus, user.IsProvisioned, user.CreatedAt, user.UpdatedAt,
-                                                                          user.LastLogin, Convert.ToBase64String(user.Version));
+                                                                      select new AccountDto(
+                                                                          user.UserId,
+                                                                          user.Employee == null ? null : user.Employee.StaffId,
+                                                                          user.Username,
+                                                                          user.Email,
+                                                                          user.FullName,
+                                                                          user.Role.ToLower() == "medical_staff" ? "employee" : user.Role,
+                                                                          user.AccountStatus,
+                                                                          user.IsProvisioned,
+                                                                          user.CreatedAt,
+                                                                          user.UpdatedAt,
+                                                                          user.LastLogin,
+                                                                          Convert.ToBase64String(user.Version));
     public Task<AccountDto[]> ListAsync(CancellationToken ct) => Details(db.Users.AsNoTracking().Where(x => x.IsProvisioned).OrderByDescending(x => x.CreatedAt)).ToArrayAsync(ct);
     public Task<AccountDto?> GetDetailAsync(Guid id, CancellationToken ct) => Details(db.Users.AsNoTracking().Where(x => x.UserId == id)).SingleOrDefaultAsync(ct);
     public Task<bool> HasActiveAdminAsync(Guid? exceptId, CancellationToken ct) => db.Users.AnyAsync(x => x.UserId != exceptId && x.Role == "admin" && x.AccountStatus == "active" && x.IsProvisioned, ct);
@@ -28,7 +38,12 @@ public sealed class UserRepository(AppDbContext db) : IUserRepository
         (from user in db.Users.AsNoTracking()
          where user.IsProvisioned && user.Role != "admin" && !db.Staff.Any(s => s.UserId == user.UserId)
          orderby user.Username
-         select new UnlinkedAccountDto(user.UserId, user.Username, user.FullName, user.Email, user.Role)).ToArrayAsync(ct);
+         select new UnlinkedAccountDto(
+             user.UserId,
+             user.Username,
+             user.FullName,
+             user.Email,
+             user.Role.ToLower() == "medical_staff" ? "employee" : user.Role)).ToArrayAsync(ct);
     public void Add(User user) => db.Users.Add(user);
     public void Remove(User user) => db.Users.Remove(user);
 }

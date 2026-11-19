@@ -1,11 +1,23 @@
+using Vnc.HRMS.DTOs.Payroll;
+using Vnc.HRMS.Models;
+
 namespace Vnc.HRMS.Services.Rules;
 
 /// <summary>
-/// Business rules for payroll periods consolidation, locking, and reopening.
+/// Business rules for payroll periods consolidation, calculation, review, locking, and reopening.
 /// Implements GB-52 (Consolidation and lock schedule) and GB-26 (Controlled corrections / reopen).
 /// </summary>
 public static class PayrollPeriodRules
 {
+    public static readonly string[] ValidReviewStatuses =
+    [
+        "pending",
+        "reviewed",
+        "needs_hr",
+        "needs_attendance",
+        "needs_procedure"
+    ];
+
     public static (int Year, int Month) ParsePayMonth(string payMonth)
     {
         var parts = payMonth.Trim().Split('-');
@@ -18,7 +30,6 @@ public static class PayrollPeriodRules
     /// </summary>
     public static DateOnly GetConsolidationOpenDate(int year, int month)
     {
-       
         var daysInMonth = DateTime.DaysInMonth(year, month);
         return new DateOnly(year, month, daysInMonth).AddDays(-2);
     }
@@ -62,5 +73,216 @@ public static class PayrollPeriodRules
         var deadline = GetCorrectionDeadline(year, month);
         return today > deadline;
     }
-}
 
+    /// <summary>
+    /// Decodes per-payslip accountant review state stored in DeptApprovedAt / DeptRejectedReason.
+    /// </summary>
+    public static (string ReviewStatus, string? ReviewNote) ParseReviewState(
+        string? payslipStatus,
+        DateTime? deptApprovedAt,
+        string? deptRejectedReason)
+    {
+        if (!string.IsNullOrWhiteSpace(deptRejectedReason))
+        {
+            var trimmed = deptRejectedReason.Trim();
+            foreach (var status in ValidReviewStatuses)
+            {
+                var prefix = $"[{status}]";
+                if (trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    var note = trimmed[prefix.Length..].Trim();
+                    return (status, string.IsNullOrWhiteSpace(note) ? null : note);
+                }
+            }
+            return ("needs_hr", trimmed);
+        }
+
+        if (deptApprovedAt.HasValue)
+        {
+            return ("reviewed", null);
+        }
+
+        var norm = payslipStatus?.Trim().ToLowerInvariant();
+        if (norm is "approved" or "finalized" or "locked")
+        {
+            return ("reviewed", null);
+        }
+
+        return ("pending", null);
+    }
+
+    public static string? EncodeReviewReason(string reviewStatus, string? note)
+    {
+        var trimmed = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        if (reviewStatus == "reviewed")
+        {
+            return trimmed is null ? null : $"[reviewed] {trimmed}";
+        }
+        return trimmed is null ? $"[{reviewStatus}]" : $"[{reviewStatus}] {trimmed}";
+    }
+
+    public sealed record StaffAttendanceCalculationMetrics(
+        decimal MainWorkDays,
+        decimal PaidLeaveDays,
+        decimal UnpaidLeaveDays,
+        decimal TotalWorkDays,
+        decimal NoonDutyCount,
+        decimal EveningDutyCount,
+        decimal OvertimeHours,
+        decimal OnCallDays,
+        bool HasUnconfirmedAttendance
+    );
+
+    /// <summary>
+    /// Aggregates confirmed workdays, duties, overtime hours, and approved leave for a single staff member in a month.
+    /// Implements GB-09 / GB-16: only confirmed attendance/on-call records and approved leaves count toward payroll.
+    /// </summary>
+    public static StaffAttendanceCalculationMetrics ComputeStaffAttendanceMetrics(
+        DateOnly monthStart,
+        DateOnly monthEnd,
+        IEnumerable<AttendanceRecord> records,
+        IEnumerable<OnCallShift> onCallShifts,
+        IEnumerable<LeaveRequest> approvedLeaves,
+        IReadOnlyDictionary<string, bool> leaveTypesIsPaid)
+    {
+        var recList = records as IReadOnlyList<AttendanceRecord> ?? records.ToArray();
+        var shiftList = onCallShifts as IReadOnlyList<OnCallShift> ?? onCallShifts.ToArray();
+
+        var confirmedMain = recList
+            .Where(r => r.ValidationStatus == "confirmed" && (string.IsNullOrEmpty(r.ShiftType) || r.ShiftType == "main"))
+            .ToArray();
+
+        decimal mainWorkDays = 0m;
+        decimal overtimeFromMain = 0m;
+        var mainDates = new HashSet<DateOnly>();
+
+        foreach (var dayGroup in confirmedMain.GroupBy(r => r.WorkDate))
+        {
+            mainDates.Add(dayGroup.Key);
+            var dayHours = dayGroup.Sum(x => x.ActualHours ?? 8m);
+            mainWorkDays += (dayHours > 0m && dayHours <= 4.5m) ? 0.5m : 1.0m;
+            if (dayHours > 8m)
+            {
+                overtimeFromMain += dayHours - 8m;
+            }
+        }
+
+        var leaveDates = new HashSet<DateOnly>();
+        decimal paidLeaveDays = 0m;
+        decimal unpaidLeaveDays = 0m;
+        foreach (var lv in approvedLeaves)
+        {
+            var isPaid = !leaveTypesIsPaid.TryGetValue(lv.LeaveType, out var paidFlag) || paidFlag;
+            var from = lv.StartDate < monthStart ? monthStart : lv.StartDate;
+            var to = lv.EndDate > monthEnd ? monthEnd : lv.EndDate;
+            var singleHalfDay = lv.StartDate == lv.EndDate
+                && lv.TotalDays.HasValue && lv.TotalDays.Value > 0m && lv.TotalDays.Value < 1m
+                ? lv.TotalDays.Value
+                : 1.0m;
+
+            for (var d = from; d <= to; d = d.AddDays(1))
+            {
+                if (d.DayOfWeek == DayOfWeek.Sunday) continue;
+                if (!leaveDates.Add(d)) continue;
+
+                if (isPaid)
+                {
+                    if (!mainDates.Contains(d))
+                    {
+                        paidLeaveDays += singleHalfDay;
+                    }
+                }
+                else
+                {
+                    unpaidLeaveDays += singleHalfDay;
+                }
+            }
+        }
+
+        var noonDates = recList
+            .Where(r => r.ValidationStatus == "confirmed" && r.ShiftType == "noon")
+            .Select(r => r.WorkDate)
+            .Concat(shiftList.Where(o => o.Status == "confirmed" && o.ShiftCategory == "noon").Select(o => o.ShiftDate))
+            .Distinct()
+            .Count();
+
+        var eveningDates = recList
+            .Where(r => r.ValidationStatus == "confirmed" && r.ShiftType == "evening")
+            .Select(r => r.WorkDate)
+            .Concat(shiftList.Where(o => o.Status == "confirmed" && o.ShiftCategory == "evening").Select(o => o.ShiftDate))
+            .Distinct()
+            .Count();
+
+        var overtimeFromExtraRecords = recList
+            .Where(r => r.ValidationStatus == "confirmed" && r.ShiftType == "overtime")
+            .Sum(r => r.ActualHours ?? 0m);
+
+        var overtimeFromShifts = shiftList
+            .Where(o => o.Status == "confirmed" && o.ShiftCategory == "overtime" && o.ShiftStart.HasValue && o.ShiftEnd.HasValue)
+            .Sum(o => Math.Round((decimal)(o.ShiftEnd!.Value - o.ShiftStart!.Value).TotalHours, 2, MidpointRounding.AwayFromZero));
+
+        decimal totalOvertimeHours = Math.Round(overtimeFromMain + overtimeFromExtraRecords + overtimeFromShifts, 2, MidpointRounding.AwayFromZero);
+        decimal totalWorkDays = mainWorkDays + paidLeaveDays;
+        decimal onCallDays = noonDates + eveningDates;
+        bool hasUnconfirmed = recList.Any(r => r.ValidationStatus != "confirmed")
+            || shiftList.Any(o => o.Status != "confirmed");
+
+        return new StaffAttendanceCalculationMetrics(
+            MainWorkDays: mainWorkDays,
+            PaidLeaveDays: paidLeaveDays,
+            UnpaidLeaveDays: unpaidLeaveDays,
+            TotalWorkDays: totalWorkDays,
+            NoonDutyCount: noonDates,
+            EveningDutyCount: eveningDates,
+            OvertimeHours: totalOvertimeHours,
+            OnCallDays: onCallDays,
+            HasUnconfirmedAttendance: hasUnconfirmed
+        );
+    }
+
+    public sealed record AllowanceSplitResult(
+        decimal NoonDutyPay,
+        decimal EveningDutyPay,
+        decimal OvertimePay,
+        decimal OnCallPay,
+        decimal PureAllowanceTotal,
+        List<PayslipAllowanceItemDto> PureAllowances
+    );
+
+    public static AllowanceSplitResult SplitPayslipAllowances(
+        IEnumerable<PayslipAllowance> lines,
+        decimal storedAllowanceTotal)
+    {
+        decimal noonPay = 0m;
+        decimal eveningPay = 0m;
+        decimal overtimePay = 0m;
+        var pureItems = new List<PayslipAllowanceItemDto>();
+
+        foreach (var line in lines)
+        {
+            if (line.AllowanceId is null && line.Name.StartsWith("Tiền trực tối", StringComparison.OrdinalIgnoreCase))
+            {
+                eveningPay += line.Amount;
+            }
+            else if (line.AllowanceId is null && line.Name.StartsWith("Tiền trực trưa", StringComparison.OrdinalIgnoreCase))
+            {
+                noonPay += line.Amount;
+            }
+            else if (line.AllowanceId is null && line.Name.StartsWith("Tiền làm thêm giờ", StringComparison.OrdinalIgnoreCase))
+            {
+                overtimePay += line.Amount;
+            }
+            else
+            {
+                pureItems.Add(new PayslipAllowanceItemDto(line.Id, line.AllowanceId, line.Name, line.Amount));
+            }
+        }
+
+        decimal onCallPay = noonPay + eveningPay;
+        decimal pureTotal = pureItems.Count > 0
+            ? pureItems.Sum(x => x.Amount)
+            : Math.Max(0m, storedAllowanceTotal - onCallPay - overtimePay);
+
+        return new AllowanceSplitResult(noonPay, eveningPay, overtimePay, onCallPay, pureTotal, pureItems);
+    }
+}

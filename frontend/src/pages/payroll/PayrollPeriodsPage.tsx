@@ -67,6 +67,11 @@ export default function PayrollPeriodsPage() {
   const [reopening, setReopening] = useState(false);
   const [reopenError, setReopenError] = useState('');
 
+  // Modal Xóa kỳ lương nháp
+  const [deleteTarget, setDeleteTarget] = useState<PayrollPeriod | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
   const loadPeriods = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -128,6 +133,29 @@ export default function PayrollPeriodsPage() {
       setReopenError(err instanceof Error ? err.message : 'Không thể mở lại kỳ tính lương.');
     } finally {
       setReopening(false);
+    }
+  };
+
+  const handleDeletePeriod = async () => {
+    if (!deleteTarget) return;
+
+    setDeleting(true);
+    setDeleteError('');
+    setNotice('');
+    try {
+      const targetMonth = deleteTarget.payMonth;
+      await payrollPeriodApi.deletePeriod(targetMonth);
+      setDeleteTarget(null);
+      setNotice(
+        `Đã xóa kỳ tính lương nháp ${formatMonthDisplay(
+          targetMonth
+        )}. Dữ liệu gốc (chấm công, lịch trực, hợp đồng, thủ thuật) vẫn được giữ nguyên.`
+      );
+      await loadPeriods();
+    } catch (err: unknown) {
+      setDeleteError(err instanceof Error ? err.message : 'Không thể xóa kỳ tính lương nháp.');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -284,8 +312,9 @@ export default function PayrollPeriodsPage() {
       render: (r: PayrollPeriod) => {
         const canReopen =
           r.status === 'locked' || r.status === 'approved' || r.status === 'finalized';
+        const canDelete = r.status === 'draft';
         return (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
               className="text-xs font-semibold text-sky-700 hover:text-sky-800 hover:underline flex items-center gap-1 cursor-pointer"
@@ -307,6 +336,21 @@ export default function PayrollPeriodsPage() {
                 }}
               >
                 Mở lại
+              </button>
+            )}
+
+            {canDelete && (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-700 hover:text-rose-800 border border-rose-200 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                title="Xóa kỳ tính lương nháp"
+                onClick={() => {
+                  setDeleteError('');
+                  setDeleteTarget(r);
+                }}
+              >
+                <Icon name="trash" size={12} />
+                <span>Xóa</span>
               </button>
             )}
           </div>
@@ -639,6 +683,66 @@ export default function PayrollPeriodsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal Xác nhận xóa kỳ lương nháp */}
+      {deleteTarget && (
+        <Modal
+          title={`Xóa kỳ lương nháp ${formatMonthDisplay(deleteTarget.payMonth)}`}
+          subtitle="Thao tác dọn dẹp kỳ tính lương chưa xác nhận / chưa chốt sổ"
+          onClose={() => {
+            if (!deleting) {
+              setDeleteTarget(null);
+              setDeleteError('');
+            }
+          }}
+          busy={deleting}
+          maxWidth="480px"
+        >
+          <div className="p-5 space-y-4">
+            {deleteError && <Alert variant="error">{deleteError}</Alert>}
+
+            <div className="p-3.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1.5">
+              <div className="font-semibold text-rose-800">
+                Bạn có chắc chắn muốn xóa kỳ tính lương {formatMonthDisplay(deleteTarget.payMonth)} (mã {deleteTarget.payMonth})?
+              </div>
+              <ul className="list-disc list-inside space-y-1 text-rose-800/90">
+                <li>
+                  Toàn bộ <strong>{deleteTarget.employeeCount} phiếu lương nháp</strong> cùng chi tiết phụ cấp và khấu trừ của kỳ này sẽ bị xóa.
+                </li>
+                <li>
+                  Các kỳ lương đã xác nhận hoặc chốt sổ không thể xóa để đảm bảo kiểm toán.
+                </li>
+                <li>
+                  <strong>Dữ liệu gốc</strong> (chấm công, lịch trực, hợp đồng, phiếu thủ thuật) hoàn toàn được giữ nguyên và không bị ảnh hưởng.
+                </li>
+              </ul>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                className="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-medium transition-colors cursor-pointer"
+                onClick={() => {
+                  setDeleteTarget(null);
+                  setDeleteError('');
+                }}
+                disabled={deleting}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                className="h-9 px-4 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-60"
+                onClick={() => void handleDeletePeriod()}
+                disabled={deleting}
+              >
+                <Icon name="trash" size={13} />
+                <span>{deleting ? 'Đang xóa…' : 'Xác nhận xóa kỳ nháp'}</span>
+              </button>
+            </div>
           </div>
         </Modal>
       )}
