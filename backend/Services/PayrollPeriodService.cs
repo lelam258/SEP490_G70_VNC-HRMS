@@ -47,52 +47,6 @@ public sealed partial class PayrollPeriodService(
         return Math.Max(0, years);
     }
 
-    private static decimal ResolveRate(
-        IReadOnlyList<PayrollRateConfig> configs,
-        string code,
-        Guid staffId,
-        Guid? positionId,
-        IReadOnlyDictionary<Guid, Position> positionsById,
-        bool isDoctorPosition,
-        decimal fallback)
-    {
-        var matching = configs
-            .Where(r => string.Equals(r.Code, code, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(r => r.EffectiveFrom)
-            .ToArray();
-
-        if (matching.Length == 0) return fallback;
-
-        var byStaff = matching.FirstOrDefault(r => r.StaffId == staffId);
-        if (byStaff is not null) return byStaff.Value;
-
-        if (positionId.HasValue)
-        {
-            var byPos = matching.FirstOrDefault(r => r.StaffId == null && r.PositionId == positionId.Value);
-            if (byPos is not null) return byPos.Value;
-        }
-
-        if (isDoctorPosition)
-        {
-            var byDoctorPos = matching.FirstOrDefault(r =>
-                r.StaffId == null && r.PositionId.HasValue
-                && positionsById.TryGetValue(r.PositionId.Value, out var pos)
-                && (string.Equals(pos.ScopeTag, "doctor", StringComparison.OrdinalIgnoreCase)
-                    || pos.Name.Contains("Bác sĩ", StringComparison.OrdinalIgnoreCase)));
-            if (byDoctorPos is not null) return byDoctorPos.Value;
-            if (string.Equals(code, "duty_night", StringComparison.OrdinalIgnoreCase)) return 200_000m;
-        }
-
-        var globalConfig = matching.FirstOrDefault(r => r.StaffId == null && r.PositionId == null);
-        return globalConfig?.Value ?? fallback;
-    }
-
-    private static bool IsDoctorPosition(Position? position)
-        => position is not null
-            && (string.Equals(position.ScopeTag, "doctor", StringComparison.OrdinalIgnoreCase)
-                || position.Name.Contains("Bác sĩ", StringComparison.OrdinalIgnoreCase)
-                || position.Name.Contains("Giám đốc", StringComparison.OrdinalIgnoreCase));
-
     private static string MapInsuranceDisplayName(string insType) => insType.ToLowerInvariant() switch
     {
         "social" => "BHXH (NLĐ)",
@@ -188,12 +142,84 @@ public sealed partial class PayrollPeriodService(
     private static List<PayslipAllowance> SyncAllowancesForInlineEdit(
         Guid payslipId,
         decimal targetTotal,
-        IReadOnlyList<PayslipAllowance> existingAllowances)
+        IReadOnlyList<PayslipAllowance> existingAllowances,
+        (decimal EveningCount, decimal NoonCount, decimal EveningRate, decimal NoonRate)? explicitDuty = null)
     {
-        decimal existingTotal = Math.Round(existingAllowances.Sum(x => x.Amount), 2, MidpointRounding.AwayFromZero);
-        if (targetTotal == existingTotal)
+        if (!explicitDuty.HasValue)
         {
-            return existingAllowances.Select(x => new PayslipAllowance
+            decimal existingTotal = Math.Round(existingAllowances.Sum(x => x.Amount), 2, MidpointRounding.AwayFromZero);
+            if (targetTotal == existingTotal)
+            {
+                return existingAllowances.Select(x => new PayslipAllowance
+                {
+                    Id = Guid.NewGuid(),
+                    PayslipId = payslipId,
+                    AllowanceId = x.AllowanceId,
+                    Name = x.Name,
+                    Amount = x.Amount
+                }).ToList();
+            }
+        }
+
+        if (targetTotal <= 0m)
+        {
+            return [];
+        }
+
+        var allOldDutyLines = existingAllowances
+            .Where(line => line.AllowanceId is null
+                && (line.Name.StartsWith("Tiền trực tối", StringComparison.OrdinalIgnoreCase)
+                    || line.Name.StartsWith("Tiền trực trưa", StringComparison.OrdinalIgnoreCase)
+                    || line.Name.StartsWith("Tiền trực ngoài giờ", StringComparison.OrdinalIgnoreCase)
+                    || line.Name.StartsWith("Tiền làm thêm giờ", StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        List<PayslipAllowance> dutyLines;
+        if (explicitDuty.HasValue)
+        {
+            var duty = explicitDuty.Value;
+            dutyLines = [];
+            decimal eveningPay = Math.Round(duty.EveningCount * duty.EveningRate, 2, MidpointRounding.AwayFromZero);
+            decimal noonPay = Math.Round(duty.NoonCount * duty.NoonRate, 2, MidpointRounding.AwayFromZero);
+
+            if (duty.EveningCount > 0m && eveningPay > 0m)
+            {
+                dutyLines.Add(new PayslipAllowance
+                {
+                    Id = Guid.NewGuid(),
+                    PayslipId = payslipId,
+                    AllowanceId = null,
+                    Name = $"Tiền trực tối ({duty.EveningCount.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)} ca)",
+                    Amount = eveningPay
+                });
+            }
+            if (duty.NoonCount > 0m && noonPay > 0m)
+            {
+                dutyLines.Add(new PayslipAllowance
+                {
+                    Id = Guid.NewGuid(),
+                    PayslipId = payslipId,
+                    AllowanceId = null,
+                    Name = $"Tiền trực trưa ({duty.NoonCount.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)} ca)",
+                    Amount = noonPay
+                });
+            }
+
+            dutyLines.AddRange(allOldDutyLines
+                .Where(line => line.Name.StartsWith("Tiền trực ngoài giờ", StringComparison.OrdinalIgnoreCase)
+                    || line.Name.StartsWith("Tiền làm thêm giờ", StringComparison.OrdinalIgnoreCase))
+                .Select(x => new PayslipAllowance
+                {
+                    Id = Guid.NewGuid(),
+                    PayslipId = payslipId,
+                    AllowanceId = x.AllowanceId,
+                    Name = x.Name,
+                    Amount = x.Amount
+                }));
+        }
+        else
+        {
+            dutyLines = allOldDutyLines.Select(x => new PayslipAllowance
             {
                 Id = Guid.NewGuid(),
                 PayslipId = payslipId,
@@ -203,20 +229,8 @@ public sealed partial class PayrollPeriodService(
             }).ToList();
         }
 
-        if (targetTotal <= 0m)
-        {
-            return [];
-        }
-
-        var dutyLines = existingAllowances
-            .Where(line => line.AllowanceId is null
-                && (line.Name.StartsWith("Tiền trực tối", StringComparison.OrdinalIgnoreCase)
-                    || line.Name.StartsWith("Tiền trực trưa", StringComparison.OrdinalIgnoreCase)
-                    || line.Name.StartsWith("Tiền làm thêm giờ", StringComparison.OrdinalIgnoreCase)))
-            .ToList();
-
         var pureLines = existingAllowances
-            .Where(line => !dutyLines.Contains(line)
+            .Where(line => !allOldDutyLines.Contains(line)
                 && !string.Equals(line.Name, InlineAdjustmentAllowanceName, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
@@ -236,14 +250,7 @@ public sealed partial class PayrollPeriodService(
             ];
         }
 
-        var result = dutyLines.Select(x => new PayslipAllowance
-        {
-            Id = Guid.NewGuid(),
-            PayslipId = payslipId,
-            AllowanceId = x.AllowanceId,
-            Name = x.Name,
-            Amount = x.Amount
-        }).ToList();
+        var result = dutyLines;
 
         decimal remaining = Math.Round(targetTotal - dutySum, 2, MidpointRounding.AwayFromZero);
         decimal pureSum = Math.Round(pureLines.Sum(x => x.Amount), 2, MidpointRounding.AwayFromZero);
@@ -475,21 +482,21 @@ public sealed partial class PayrollPeriodService(
                 ctx.PositionsById.TryGetValue(staff.PositionId.Value, out position);
             }
 
-            bool isDoctorPos = IsDoctorPosition(position);
+            bool isDoctorPos = PayrollPeriodRules.IsDoctorPosition(position);
 
-            decimal clinicStdDays = ResolveRate(
+            decimal clinicStdDays = PayrollPeriodRules.ResolveRate(
                 ctx.ActiveRateConfigs, "standard_working_days", staff.StaffId, staff.PositionId,
                 ctx.PositionsById, isDoctorPos, PayrollDefaults.StandardWorkingDays);
-            decimal dutyNoonRate = ResolveRate(
+            decimal dutyNoonRate = PayrollPeriodRules.ResolveRate(
                 ctx.ActiveRateConfigs, "duty_noon", staff.StaffId, staff.PositionId,
                 ctx.PositionsById, isDoctorPos, 50_000m);
-            decimal dutyNightRate = ResolveRate(
+            decimal dutyNightRate = PayrollPeriodRules.ResolveRate(
                 ctx.ActiveRateConfigs, "duty_night", staff.StaffId, staff.PositionId,
                 ctx.PositionsById, isDoctorPos, isDoctorPos ? 200_000m : 100_000m);
-            decimal otMultiplierPercent = ResolveRate(
+            decimal otMultiplierPercent = PayrollPeriodRules.ResolveRate(
                 ctx.ActiveRateConfigs, "duty_extra_hour_multiplier", staff.StaffId, staff.PositionId,
                 ctx.PositionsById, isDoctorPos, 150m);
-            decimal unionFeeFixed = ResolveRate(
+            decimal unionFeeFixed = PayrollPeriodRules.ResolveRate(
                 ctx.ActiveRateConfigs, "union_fee", staff.StaffId, staff.PositionId,
                 ctx.PositionsById, isDoctorPos, PayrollDefaults.UnionFee);
 
@@ -595,7 +602,7 @@ public sealed partial class PayrollPeriodService(
                     Id = Guid.NewGuid(),
                     PayslipId = payslip.PayslipId,
                     AllowanceId = null,
-                    Name = $"Tiền làm thêm giờ ({att.OvertimeHours:0.##} giờ)",
+                    Name = $"Tiền trực ngoài giờ ({att.OvertimeHours:0.##} giờ)",
                     Amount = overtimePay
                 });
             }
@@ -995,6 +1002,16 @@ public sealed partial class PayrollPeriodService(
             throw new AppException(400, "Số ca trực phải nằm trong khoảng 0 đến 62.");
         }
 
+        if (request.NoonDutyCount.HasValue && request.NoonDutyCount.Value is < 0m or > 31m)
+        {
+            throw new AppException(400, "Số ca trực trưa phải nằm trong khoảng 0 đến 31.");
+        }
+
+        if (request.EveningDutyCount.HasValue && request.EveningDutyCount.Value is < 0m or > 31m)
+        {
+            throw new AppException(400, "Số ca trực tối phải nằm trong khoảng 0 đến 31.");
+        }
+
         if (request.BasePay < 0m || request.AllowanceAndDutyTotal < 0m || request.CommissionTotal < 0m)
         {
             throw new AppException(400, "Các khoản thu nhập không được âm.");
@@ -1023,13 +1040,29 @@ public sealed partial class PayrollPeriodService(
             ctx.PositionsById.TryGetValue(staff.PositionId.Value, out position);
         }
 
-        bool isDoctorPos = IsDoctorPosition(position);
-        decimal unionFeeFixed = ResolveRate(
+        bool isDoctorPos = PayrollPeriodRules.IsDoctorPosition(position);
+        decimal dutyNoonRate = PayrollPeriodRules.ResolveRate(
+            ctx.ActiveRateConfigs, "duty_noon", payslip.StaffId, staff?.PositionId,
+            ctx.PositionsById, isDoctorPos, 50_000m);
+        decimal dutyNightRate = PayrollPeriodRules.ResolveRate(
+            ctx.ActiveRateConfigs, "duty_night", payslip.StaffId, staff?.PositionId,
+            ctx.PositionsById, isDoctorPos, isDoctorPos ? 200_000m : 100_000m);
+        decimal unionFeeFixed = PayrollPeriodRules.ResolveRate(
             ctx.ActiveRateConfigs, "union_fee", payslip.StaffId, staff?.PositionId,
             ctx.PositionsById, isDoctorPos, PayrollDefaults.UnionFee);
 
+        bool hasExplicitDuties = request.NoonDutyCount.HasValue || request.EveningDutyCount.HasValue;
+        decimal? noonDutyCount = request.NoonDutyCount.HasValue
+            ? Math.Round(request.NoonDutyCount.Value, 2, MidpointRounding.AwayFromZero)
+            : (hasExplicitDuties ? 0m : null);
+        decimal? eveningDutyCount = request.EveningDutyCount.HasValue
+            ? Math.Round(request.EveningDutyCount.Value, 2, MidpointRounding.AwayFromZero)
+            : (hasExplicitDuties ? 0m : null);
+
         decimal workDays = Math.Round(request.WorkDays, 2, MidpointRounding.AwayFromZero);
-        decimal onCallDays = Math.Round(request.OnCallDays, 2, MidpointRounding.AwayFromZero);
+        decimal onCallDays = hasExplicitDuties
+            ? Math.Round((eveningDutyCount ?? 0m) + (noonDutyCount ?? 0m), 2, MidpointRounding.AwayFromZero)
+            : Math.Round(request.OnCallDays, 2, MidpointRounding.AwayFromZero);
         decimal basePay = Math.Round(request.BasePay, 2, MidpointRounding.AwayFromZero);
         decimal allowanceTotal = Math.Round(request.AllowanceAndDutyTotal, 2, MidpointRounding.AwayFromZero);
         decimal commissionTotal = Math.Round(request.CommissionTotal, 2, MidpointRounding.AwayFromZero);
@@ -1068,7 +1101,12 @@ public sealed partial class PayrollPeriodService(
 
         var now = DateTime.UtcNow;
         var existingAllowances = await repository.GetPayslipAllowancesAsync(payslip.PayslipId, ct);
-        var syncedAllowances = SyncAllowancesForInlineEdit(payslip.PayslipId, allowanceTotal, existingAllowances);
+        (decimal EveningCount, decimal NoonCount, decimal EveningRate, decimal NoonRate)? explicitDuty =
+            hasExplicitDuties
+                ? (eveningDutyCount ?? 0m, noonDutyCount ?? 0m, dutyNightRate, dutyNoonRate)
+                : null;
+        var syncedAllowances = SyncAllowancesForInlineEdit(
+            payslip.PayslipId, allowanceTotal, existingAllowances, explicitDuty);
         var deductionLines = BuildDeductionLines(payslip.PayslipId, insSalary, ctx, formulaResult, now);
 
         var oldSnapshot = new

@@ -261,6 +261,7 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
                 ps.StaffId,
                 StaffCode = s != null ? s.StaffCode : null,
                 StaffName = ps.StaffName ?? (s != null ? s.FullName : null),
+                PositionId = s != null ? s.PositionId : (Guid?)null,
                 DepartmentName = d != null ? d.Name : null,
                 WorkDays = ps.WorkDays ?? 0m,
                 OnCallDays = ps.OnCallDays ?? 0m,
@@ -286,6 +287,35 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
             .ToListAsync(ct))
             .ToLookup(a => a.PayslipId);
 
+        var confirmedDutyEntries = (await db.AttendanceRecords.AsNoTracking()
+            .Where(r => r.WorkDate >= monthStart && r.WorkDate <= monthEnd
+                && r.ValidationStatus == "confirmed"
+                && (r.ShiftType == "noon" || r.ShiftType == "evening"))
+            .Select(r => new { r.StaffId, DutyType = r.ShiftType ?? string.Empty, Date = r.WorkDate })
+            .ToListAsync(ct))
+            .Concat(await db.OnCallShifts.AsNoTracking()
+                .Where(o => o.ShiftDate >= monthStart && o.ShiftDate <= monthEnd
+                    && o.Status == "confirmed"
+                    && (o.ShiftCategory == "noon" || o.ShiftCategory == "evening"))
+                .Select(o => new { o.StaffId, DutyType = o.ShiftCategory ?? string.Empty, Date = o.ShiftDate })
+                .ToListAsync(ct));
+
+        var dutyCountsByStaff = confirmedDutyEntries
+            .GroupBy(x => x.StaffId)
+            .ToDictionary(
+                g => g.Key,
+                g => (
+                    NoonCount: (decimal)g.Where(x => x.DutyType == "noon").Select(x => x.Date).Distinct().Count(),
+                    EveningCount: (decimal)g.Where(x => x.DutyType == "evening").Select(x => x.Date).Distinct().Count()
+                ));
+
+        var positionsById = await db.Positions.AsNoTracking()
+            .ToDictionaryAsync(p => p.PositionId, ct);
+
+        var activeRateConfigs = await db.PayrollRateConfigs.AsNoTracking()
+            .Where(r => r.Status == "active" && r.EffectiveFrom <= monthEnd && (r.EffectiveTo == null || r.EffectiveTo >= monthStart))
+            .ToListAsync(ct);
+
         var payslips = payslipRows.Select(p =>
         {
             var hasContract = p.ContractId.HasValue || activeContractStaffIds.Contains(p.StaffId);
@@ -293,6 +323,33 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
             var procConfirmed = !staffWithUnverifiedProc.Contains(p.StaffId);
             var split = PayrollPeriodRules.SplitPayslipAllowances(allowancesByPayslip[p.PayslipId], p.AllowanceTotal);
             var (reviewStatus, reviewNote) = PayrollPeriodRules.ParseReviewState(p.Status, p.DeptApprovedAt, p.DeptRejectedReason);
+            dutyCountsByStaff.TryGetValue(p.StaffId, out var dutyCounts);
+
+            var position = p.PositionId.HasValue ? positionsById.GetValueOrDefault(p.PositionId.Value) : null;
+            bool isDoctorPos = PayrollPeriodRules.IsDoctorPosition(position);
+            decimal noonDutyRate = PayrollPeriodRules.ResolveRate(
+                activeRateConfigs, "duty_noon", p.StaffId, p.PositionId, positionsById, isDoctorPos, 50_000m);
+            decimal eveningDutyRate = PayrollPeriodRules.ResolveRate(
+                activeRateConfigs, "duty_night", p.StaffId, p.PositionId, positionsById, isDoctorPos,
+                isDoctorPos ? 200_000m : 100_000m);
+
+            decimal resolvedNoonCount;
+            decimal resolvedEveningCount;
+            if (p.OnCallDays <= 0m)
+            {
+                resolvedNoonCount = 0m;
+                resolvedEveningCount = 0m;
+            }
+            else if (split.NoonDutyCount > 0m || split.EveningDutyCount > 0m)
+            {
+                resolvedNoonCount = split.NoonDutyCount;
+                resolvedEveningCount = split.EveningDutyCount;
+            }
+            else
+            {
+                resolvedNoonCount = dutyCounts.NoonCount;
+                resolvedEveningCount = dutyCounts.EveningCount;
+            }
 
             return new PayslipSummaryItemDto(
                 p.PayslipId,
@@ -319,7 +376,11 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
                 p.OtherDeduction,
                 reviewStatus,
                 reviewNote,
-                p.DeptApprovedAt
+                p.DeptApprovedAt,
+                resolvedNoonCount,
+                resolvedEveningCount,
+                noonDutyRate,
+                eveningDutyRate
             );
         }).ToList();
 
@@ -662,8 +723,12 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
             WorkDays: ps.WorkDays ?? attMetrics.TotalWorkDays,
             PaidLeaveDays: attMetrics.PaidLeaveDays,
             UnpaidLeaveDays: attMetrics.UnpaidLeaveDays,
-            NoonDutyCount: attMetrics.NoonDutyCount,
-            EveningDutyCount: attMetrics.EveningDutyCount,
+            NoonDutyCount: (ps.OnCallDays ?? attMetrics.OnCallDays) <= 0m
+                ? 0m
+                : (split.NoonDutyCount > 0m || split.EveningDutyCount > 0m ? split.NoonDutyCount : attMetrics.NoonDutyCount),
+            EveningDutyCount: (ps.OnCallDays ?? attMetrics.OnCallDays) <= 0m
+                ? 0m
+                : (split.NoonDutyCount > 0m || split.EveningDutyCount > 0m ? split.EveningDutyCount : attMetrics.EveningDutyCount),
             OvertimeHours: attMetrics.OvertimeHours,
             OnCallDays: ps.OnCallDays ?? attMetrics.OnCallDays,
             BasePay: ps.BasePay ?? 0m,

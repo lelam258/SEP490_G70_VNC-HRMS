@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Alert from '../../components/ui/Alert';
 import Icon from '../../components/ui/Icon';
+import Modal from '../../components/ui/Modal';
 import { ApiError } from '../../services/axiosClient';
 import { profileApi } from '../../services/profileApi';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -12,9 +13,12 @@ const PHONE_REGEX = /^0\d{9}$/;
 const FULL_NAME_REGEX = /^[\p{L}\s'-]+$/u;
 const ID_CARD_REGEX = /^\d{12}$/;
 const MSG03 = 'Cập nhật thông tin thành công.';
+const MSG43 = 'Ảnh đại diện chỉ hỗ trợ định dạng JPG hoặc PNG và dung lượng tối đa 2 MB.';
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
 export default function ProfilePage() {
   const setUserName = useAuthStore((state) => state.setUserName);
+  const setUserAvatar = useAuthStore((state) => state.setUserAvatar);
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,8 +38,9 @@ export default function ProfilePage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
-  // Avatar upload state
+  // Avatar upload & preview state
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarPreviewOpen, setAvatarPreviewOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const maxAdultDob = useMemo(() => getMaxAdultDateOfBirth(), []);
@@ -46,6 +51,7 @@ export default function ProfilePage() {
     try {
       const data = await profileApi.getProfile();
       setProfile(data);
+      setUserAvatar(data.avatarUrl ?? null);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Không tải được hồ sơ cá nhân.');
     } finally {
@@ -187,8 +193,11 @@ export default function ProfilePage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      setError('Ảnh đại diện tối đa 2 MB.');
+    const isValidExt = /\.(jpe?g|png)$/i.test(file.name);
+    const isValidMime = file.type === 'image/jpeg' || file.type === 'image/png';
+    if (!isValidExt || !isValidMime || file.size <= 0 || file.size > MAX_AVATAR_BYTES) {
+      setNotice('');
+      setError(MSG43);
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
@@ -200,6 +209,7 @@ export default function ProfilePage() {
     try {
       const updated = await profileApi.uploadAvatar(file);
       setProfile(updated);
+      setUserAvatar(updated.avatarUrl ?? null);
       setNotice(MSG03);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Không tải lên được ảnh đại diện.');
@@ -244,11 +254,27 @@ export default function ProfilePage() {
       <div className="panel profile-banner-card">
         <div className="profile-avatar-box">
           {profile.avatarUrl ? (
-            <img
-              src={profile.avatarUrl}
-              alt={profile.fullName}
-              className="profile-avatar-circle"
-            />
+            <button
+              type="button"
+              onClick={() => setAvatarPreviewOpen(true)}
+              title="Nhấn để xem ảnh phóng to"
+              aria-label="Xem ảnh đại diện phóng to"
+              style={{
+                padding: 0,
+                border: 'none',
+                background: 'transparent',
+                borderRadius: '50%',
+                display: 'block',
+                outline: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <img
+                src={profile.avatarUrl}
+                alt={profile.fullName}
+                className="profile-avatar-circle"
+              />
+            </button>
           ) : (
             <div className="profile-avatar-fallback">
               {initials(profile.fullName).toUpperCase()}
@@ -593,6 +619,63 @@ export default function ProfilePage() {
           </div>
         </div>
       </div>
+
+      {avatarPreviewOpen && profile.avatarUrl && (
+        <Modal
+          title="Ảnh đại diện"
+          subtitle={`${profile.fullName} · ${profile.staffCode}`}
+          maxWidth="520px"
+          className="avatar-preview-modal"
+          onClose={() => setAvatarPreviewOpen(false)}
+        >
+          <div style={{ padding: '12px 16px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div
+              style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                padding: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <img
+                src={profile.avatarUrl}
+                alt={profile.fullName}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: 'calc(85vh - 200px)',
+                  objectFit: 'contain',
+                  borderRadius: '6px',
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                type="button"
+                className="button"
+                disabled={uploadingAvatar}
+                onClick={() => {
+                  setAvatarPreviewOpen(false);
+                  fileInputRef.current?.click();
+                }}
+              >
+                <Icon name="camera" size={13} />
+                <span>Đổi ảnh đại diện</span>
+              </button>
+              <button
+                type="button"
+                className="button primary"
+                onClick={() => setAvatarPreviewOpen(false)}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

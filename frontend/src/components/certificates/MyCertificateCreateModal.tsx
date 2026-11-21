@@ -45,8 +45,8 @@ export default function MyCertificateCreateModal({ onClose, onSave, busy = false
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 11 * 1024 * 1024) {
-      setError('Tệp đính kèm không được vượt quá 11 MB.');
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Tệp đính kèm không được vượt quá 10 MB.');
       return;
     }
 
@@ -429,7 +429,7 @@ export default function MyCertificateCreateModal({ onClose, onSave, busy = false
               ) : fileUrl ? (
                 <span className="text-teal-700 font-medium">Đã có tệp đính kèm</span>
               ) : (
-                <span className="text-slate-400 italic">Chưa chọn tệp (Tối đa 11 MB)</span>
+                <span className="text-slate-400 italic">Chưa chọn tệp (Tối đa 10 MB)</span>
               )}
             </div>
           </div>

@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import Icon from '../components/ui/Icon';
 import NotificationBell from '../components/ui/NotificationBell';
 import { useAuthStore } from '../store/useAuthStore';
 import { useAppStore } from '../store/useAppStore';
 import { authApi } from '../services/authApi';
+import { profileApi } from '../services/profileApi';
 import { roleLabels, type Role } from '../types/accounts';
 import { initials } from '../utils/format';
 
 export default function AppLayout() {
   const user = useAuthStore(state => state.session?.user);
+  const setUserAvatar = useAuthStore(state => state.setUserAvatar);
 
   const sidebarOpen = useAppStore(state => state.sidebarOpen);
   const toggleSidebar = useAppStore(state => state.toggleSidebar);
@@ -20,6 +22,19 @@ export default function AppLayout() {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.querySelector('.workspace-main')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!user || user.role === 'admin' || user.avatarUrl !== undefined) return;
+    let active = true;
+    profileApi.getProfile()
+      .then((p) => {
+        if (active) setUserAvatar(p.avatarUrl ?? null);
+      })
+      .catch(() => {
+        if (active) setUserAvatar(null);
+      });
+    return () => { active = false; };
+  }, [user, setUserAvatar]);
 
   useEffect(() => {
     if (!error) return;
@@ -82,6 +97,25 @@ export default function AppLayout() {
   }
 
   if (!user) return null;
+
+  const userSummary = (
+    <>
+      {user.avatarUrl ? (
+        <img
+          src={user.avatarUrl}
+          alt={user.name}
+          className="avatar small"
+          style={{ objectFit: 'cover', border: '1px solid #cde4e0' }}
+        />
+      ) : (
+        <span className="avatar small">{initials(user.name).toUpperCase()}</span>
+      )}
+      <div>
+        <strong>{user.name}</strong>
+        <small>{roleLabels[user.role as Role] || user.role}</small>
+      </div>
+    </>
+  );
 
   return (
     <div className="vnc workspace">
@@ -295,13 +329,18 @@ export default function AppLayout() {
           </div>
           <div className="flex items-center gap-4">
             <NotificationBell />
-            <div className="topbar-user">
-              <span className="avatar small">{initials(user.name).toUpperCase()}</span>
-              <div>
-                <strong>{user.name}</strong>
-                <small>{roleLabels[user.role as Role] || user.role}</small>
-              </div>
-            </div>
+            {user.role !== 'admin' ? (
+              <Link
+                to="/me/profile"
+                className="topbar-user hover:bg-slate-100/80 rounded-lg px-2 py-1 transition-colors"
+                style={{ textDecoration: 'none', color: 'inherit' }}
+                title="Xem hồ sơ của tôi"
+              >
+                {userSummary}
+              </Link>
+            ) : (
+              <div className="topbar-user">{userSummary}</div>
+            )}
           </div>
         </header>
         <main className="page-content">

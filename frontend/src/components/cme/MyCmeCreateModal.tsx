@@ -46,8 +46,8 @@ export default function MyCmeCreateModal({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 11 * 1024 * 1024) {
-      setError('Tệp đính kèm không được vượt quá 11 MB.');
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Tệp đính kèm không được vượt quá 10 MB.');
       return;
     }
 
@@ -266,7 +266,7 @@ export default function MyCmeCreateModal({
             </span>
           </div>
           <span className="text-[10px] text-slate-400 block mt-1">
-            Hỗ trợ định dạng PDF, JPG, PNG dung lượng tối đa 11 MB.
+            Hỗ trợ định dạng PDF, JPG, PNG dung lượng tối đa 10 MB.
           </span>
         </div>
 

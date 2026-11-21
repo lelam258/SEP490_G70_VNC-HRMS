@@ -100,5 +100,5 @@ public sealed class AuthService(IAuthRepository auth, IUserRepository users, IUn
         return new(new(new JwtSecurityTokenHandler().WriteToken(token), expires, CurrentUser(user)), raw, session.ExpiresAt);
     }
     private static CurrentUserDto CurrentUser(User user)
-        => new(user.UserId, user.Username, user.FullName ?? user.Username, user.Email, AccountRoles.Normalize(user.Role));
+        => new(user.UserId, user.Username, user.FullName ?? user.Username, user.Email, AccountRoles.Normalize(user.Role), user.Employee?.AvatarUrl);
 }
