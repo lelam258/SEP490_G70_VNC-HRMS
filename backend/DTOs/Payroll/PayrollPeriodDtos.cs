@@ -69,7 +69,11 @@ public sealed record PayslipSummaryItemDto(
     decimal OtherDeduction,
     string ReviewStatus,
     string? ReviewNote,
-    DateTime? ReviewedAt
+    DateTime? ReviewedAt,
+    decimal NoonDutyCount = 0m,
+    decimal EveningDutyCount = 0m,
+    decimal NoonDutyRate = 50_000m,
+    decimal EveningDutyRate = 100_000m
 );
 
 public sealed record PayslipAllowanceItemDto(
@@ -164,5 +168,7 @@ public sealed record UpdatePayslipInlineRequest(
     decimal BasePay,
     decimal AllowanceAndDutyTotal,
     decimal CommissionTotal,
-    string? Note = null
+    string? Note = null,
+    decimal? NoonDutyCount = null,
+    decimal? EveningDutyCount = null
 );

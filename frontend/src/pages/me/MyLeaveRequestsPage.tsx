@@ -287,20 +287,16 @@ export default function MyLeaveRequestsPage() {
       {error && <Alert variant="error">{error}</Alert>}
 
       <div className="panel" style={{ padding: '1.25rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
-          <div>
-            <h1 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>Đơn nghỉ phép của tôi</h1>
-            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted, #6b7280)' }}>
-              Theo dõi và quản lý các đơn xin nghỉ phép đã nộp
-            </p>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+          <h1 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>Đơn nghỉ phép của tôi</h1>
 
           <button
             type="button"
             className="button primary"
             onClick={() => navigate('/me/leave-requests/new')}
+            style={{ height: '34px', minHeight: '34px', padding: '0 12px', fontSize: '12px', gap: '6px' }}
           >
-            <Icon name="plus" /> Tạo đơn nghỉ phép
+            <Icon name="plus" size={14} /> Tạo đơn nghỉ phép
           </button>
         </div>
 

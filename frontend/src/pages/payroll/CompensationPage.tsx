@@ -373,7 +373,7 @@ export default function CompensationPage() {
           {/* Phải: Tìm kiếm độc lập rộng rãi · Xuất CSV · Làm mới */}
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
             {/* Ô input tìm kiếm độc lập */}
-            <div className="flex items-center gap-1.5 pl-3 pr-2 h-9 w-60 sm:w-72 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-500/20 shadow-xs transition-all">
+            <div className="flex items-center gap-1.5 pl-3 pr-2 h-9 w-60 sm:w-72 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus-within:border-slate-400 dark:focus-within:border-slate-500 shadow-xs transition-all">
               <span className="shrink-0 text-slate-400 flex items-center pointer-events-none">
                 <Icon name="search" size={14} />
               </span>
@@ -382,7 +382,7 @@ export default function CompensationPage() {
                 placeholder="Tìm mã HĐ, tên/mã nhân viên..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                style={{ padding: 0, minHeight: 'unset', border: 'none', background: 'transparent' }}
+                style={{ padding: 0, minHeight: 'unset', border: 'none', background: 'transparent', outline: 'none' }}
                 className="w-full bg-transparent text-xs sm:text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none"
               />
               {searchTerm && (

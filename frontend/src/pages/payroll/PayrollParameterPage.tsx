@@ -681,20 +681,12 @@ export default function PayrollParameterPage() {
   }, [rateConfigs]);
 
   return (
-    <div className="space-y-6">
-      {/* 1. Đầu trang: Không hiển thị FUNC/UC, chuẩn cấu trúc design system */}
-      <div className="page-heading">
-        <div>
-          <span className="eyebrow tracking-wider text-xs font-semibold text-sky-700 uppercase">
-            QUẢN LÝ LƯƠNG & ĐÃI NGỘ
-          </span>
-          <h1 className="text-2xl lg:text-[28px] font-bold text-slate-900 mt-1">
-            Tham số lương
-          </h1>
-          <p className="muted text-sm text-slate-500 mt-1">
-            Cấu hình phụ cấp, bảo hiểm, thuế TNCN, hoa hồng thủ thuật và đơn giá trực.
-          </p>
-        </div>
+    <div className="space-y-3">
+      {/* 1. Đầu trang */}
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+          Tham số lương
+        </h1>
       </div>
 
       {notice && <Alert variant="success">{notice}</Alert>}
@@ -714,7 +706,7 @@ export default function PayrollParameterPage() {
           {/* Tab 1: Phụ cấp */}
           <button
             type="button"
-            className={`tab-button flex items-center gap-2 py-3.5 border-b-2 text-[15px] transition-colors whitespace-nowrap ${
+            className={`tab-button flex items-center gap-2 py-2 border-b-2 text-[15px] transition-colors whitespace-nowrap ${
               activeTab === 'allowances'
                 ? 'border-sky-600 text-sky-700 dark:text-sky-400 font-semibold'
                 : 'border-transparent text-slate-600 hover:text-slate-900 font-medium'
@@ -730,7 +722,7 @@ export default function PayrollParameterPage() {
           {/* Tab 2: Bảo hiểm */}
           <button
             type="button"
-            className={`tab-button flex items-center gap-2 py-3.5 border-b-2 text-[15px] transition-colors whitespace-nowrap ${
+            className={`tab-button flex items-center gap-2 py-2 border-b-2 text-[15px] transition-colors whitespace-nowrap ${
               activeTab === 'insurance'
                 ? 'border-sky-600 text-sky-700 dark:text-sky-400 font-semibold'
                 : 'border-transparent text-slate-600 hover:text-slate-900 font-medium'
@@ -746,7 +738,7 @@ export default function PayrollParameterPage() {
           {/* Tab 3: Thuế TNCN */}
           <button
             type="button"
-            className={`tab-button flex items-center gap-2 py-3.5 border-b-2 text-[15px] transition-colors whitespace-nowrap ${
+            className={`tab-button flex items-center gap-2 py-2 border-b-2 text-[15px] transition-colors whitespace-nowrap ${
               activeTab === 'tax'
                 ? 'border-sky-600 text-sky-700 dark:text-sky-400 font-semibold'
                 : 'border-transparent text-slate-600 hover:text-slate-900 font-medium'
@@ -762,7 +754,7 @@ export default function PayrollParameterPage() {
           {/* Tab 4: Hoa hồng thủ thuật */}
           <button
             type="button"
-            className={`tab-button flex items-center gap-2 py-3.5 border-b-2 text-[15px] transition-colors whitespace-nowrap ${
+            className={`tab-button flex items-center gap-2 py-2 border-b-2 text-[15px] transition-colors whitespace-nowrap ${
               activeTab === 'commission'
                 ? 'border-sky-600 text-sky-700 dark:text-sky-400 font-semibold'
                 : 'border-transparent text-slate-600 hover:text-slate-900 font-medium'
@@ -780,7 +772,7 @@ export default function PayrollParameterPage() {
           {/* Tab 5: Đơn giá trực & khác */}
           <button
             type="button"
-            className={`tab-button flex items-center gap-2 py-3.5 border-b-2 text-[15px] transition-colors whitespace-nowrap ${
+            className={`tab-button flex items-center gap-2 py-2 border-b-2 text-[15px] transition-colors whitespace-nowrap ${
               activeTab === 'rates'
                 ? 'border-sky-600 text-sky-700 dark:text-sky-400 font-semibold'
                 : 'border-transparent text-slate-600 hover:text-slate-900 font-medium'
@@ -798,7 +790,7 @@ export default function PayrollParameterPage() {
       {/* 3. Khung nội dung của mỗi Tab: Card nền trắng, viền mảnh, header 1 hàng chuẩn desktop */}
       <div className="panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden">
         {/* Header của card: 1 hàng tinh giản chuẩn desktop, không thanh cuộn */}
-        <div className="p-3.5 sm:p-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap xl:flex-nowrap items-center justify-between gap-3">
+        <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap xl:flex-nowrap items-center justify-between gap-3">
           {/* Trái: Nếu là tab Hoa hồng hoặc Đơn giá thì hiện cụm nút chuyển nhanh; các tab khác hiện Tiêu đề + Badge */}
           {activeTab === 'commission' ? (
             <div className="inline-flex p-1 rounded-lg bg-slate-100/90 border border-slate-200/80 shrink-0">
@@ -884,22 +876,22 @@ export default function PayrollParameterPage() {
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2.5 shrink-0">
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+            <div className="flex items-center gap-2 shrink-0">
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">
                 {cardConfig.title}
               </h2>
               {cardConfig.count > 0 && (
-                <span className="inline-flex items-center justify-center px-2.5 py-0.5 text-xs font-semibold rounded-full bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 border border-sky-200/80 dark:border-sky-800/60 shadow-2xs">
+                <span className="inline-flex items-center justify-center px-2 py-0.5 text-[11px] font-semibold rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                   {cardConfig.count}
                 </span>
               )}
             </div>
           )}
 
-          {/* Phải: Tìm kiếm độc lập · Lọc trạng thái riêng biệt · Xuất CSV · Làm mới · Nút "+ Thêm" */}
+          {/* Phải: Nhóm lọc (Tìm kiếm + Trạng thái) | Nhóm thao tác (Xuất CSV + Làm mới + "+ Thêm") */}
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
             {/* Ô input tìm kiếm độc lập */}
-            <div className="flex items-center gap-1.5 pl-3 pr-2 h-9 w-48 sm:w-64 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-500/20 shadow-xs transition-all">
+            <div className="flex items-center gap-1.5 pl-3 pr-2 h-9 w-48 sm:w-60 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 focus-within:bg-white dark:focus-within:bg-slate-800 focus-within:border-slate-400 dark:focus-within:border-slate-500 transition-all">
               <span className="shrink-0 text-slate-400 flex items-center pointer-events-none">
                 <Icon name="search" size={14} />
               </span>
@@ -908,7 +900,7 @@ export default function PayrollParameterPage() {
                 placeholder={(cardConfig as any).searchPlaceholder || 'Tìm kiếm...'}
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                style={{ padding: 0, minHeight: 'unset', border: 'none', background: 'transparent' }}
+                style={{ padding: 0, minHeight: 'unset', border: 'none', background: 'transparent', outline: 'none' }}
                 className="w-full bg-transparent text-xs text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none"
               />
               {searchTerm && (
@@ -923,28 +915,41 @@ export default function PayrollParameterPage() {
               )}
             </div>
 
-            {/* Dropdown trạng thái độc lập, không bị cắt chữ */}
+            {/* Dropdown trạng thái đồng bộ chiều cao 36px */}
             <div className="relative shrink-0">
               <select
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value as any)}
-                style={{ width: '135px', minWidth: '135px' }}
-                className="h-9 pl-3 pr-7 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 shadow-xs cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-all appearance-none"
+                style={{ width: '132px', minWidth: '132px', height: '36px', minHeight: '36px' }}
+                className="h-9! min-h-0! py-0! pl-3! pr-8! rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs! font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-all appearance-none"
               >
                 <option value="active" className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200">Đang áp dụng</option>
                 <option value="inactive" className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200">Đã ngừng</option>
                 <option value="all" className="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200">Tất cả</option>
               </select>
-              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[10px]" aria-hidden="true">
-                ▼
-              </span>
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </div>
+
+            <span className="hidden sm:block h-5 w-px bg-slate-200 dark:bg-slate-700 mx-0.5" aria-hidden="true" />
 
             {/* Cụm thao tác phụ: Xuất CSV & Làm mới */}
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
-                className="h-9 px-3 shrink-0 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200 shadow-xs transition-colors text-xs font-medium whitespace-nowrap flex items-center gap-1.5 cursor-pointer"
+                className="h-9 px-3 shrink-0 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200 transition-colors text-xs font-medium whitespace-nowrap flex items-center gap-1.5 cursor-pointer"
                 title="Xuất bảng tham số hiện tại ra tệp CSV (Excel)"
                 onClick={handleExportCsv}
               >
@@ -956,7 +961,7 @@ export default function PayrollParameterPage() {
 
               <button
                 type="button"
-                className="h-9 w-9 shrink-0 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200 shadow-xs flex items-center justify-center transition-colors cursor-pointer"
+                className="h-9 w-9 shrink-0 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-colors cursor-pointer"
                 title="Làm mới dữ liệu"
                 aria-label="Làm mới"
                 onClick={() => void loadData()}
@@ -982,10 +987,11 @@ export default function PayrollParameterPage() {
             {/* Nút chính "+ Thêm" theo tab */}
             <button
               type="button"
-              className="h-9 px-3.5 shrink-0 rounded-lg bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white font-medium text-xs sm:text-sm inline-flex items-center justify-center gap-1.5 shadow-sm shadow-sky-600/25 transition-all whitespace-nowrap cursor-pointer"
+              className="h-9 px-3.5 shrink-0 rounded-lg bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white font-semibold text-xs inline-flex items-center justify-center gap-1.5 shadow-xs transition-colors whitespace-nowrap cursor-pointer"
               onClick={cardConfig.onAdd}
             >
-              <span className="text-base leading-none font-bold">+</span> {cardConfig.addLabel}
+              <Icon name="plus" size={14} />
+              <span>{cardConfig.addLabel}</span>
             </button>
           </div>
         </div>
