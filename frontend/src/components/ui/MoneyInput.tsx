@@ -87,12 +87,17 @@ export default function MoneyInput({
           hasError
             ? 'border-rose-500 focus:ring-rose-500'
             : 'border-slate-300 dark:border-slate-700 focus:ring-sky-500'
-        } bg-white dark:bg-slate-800 px-3 ${prClass} text-sm text-right font-[tabular-nums] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 transition-colors ${
+        } bg-white dark:bg-slate-800 px-3 ${prClass} text-sm text-left font-[tabular-nums] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 transition-colors ${
           disabled ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 cursor-not-allowed' : ''
         } ${className}`}
         style={{
           fontVariantNumeric: 'tabular-nums',
           boxSizing: 'border-box',
+          height: '40px',
+          minHeight: '40px',
+          paddingTop: 0,
+          paddingBottom: 0,
+          paddingLeft: '12px',
           paddingRight: suffix ? (suffix.length > 2 ? '56px' : '36px') : '12px',
         }}
       />

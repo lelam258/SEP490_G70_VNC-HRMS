@@ -104,8 +104,8 @@ export default function CompensationPage() {
 
   // Load allowance types & sites once
   useEffect(() => {
-    void payrollParameterApi.listAllowances({ status: 'active' }).then(setAllowanceTypes).catch(() => {});
-    void payrollParameterApi.listSites().then(setSites).catch(() => {});
+    void payrollParameterApi.listAllowances({ status: 'active' }).then(setAllowanceTypes).catch(() => { });
+    void payrollParameterApi.listSites().then(setSites).catch(() => { });
   }, []);
 
   async function openDetails(contractId: string) {
@@ -176,10 +176,10 @@ export default function CompensationPage() {
     try {
       const res = editingAllowance
         ? await compensationApi.updateStaffAllowance(
-            selectedContract.contractId,
-            editingAllowance.staffAllowanceId,
-            input
-          )
+          selectedContract.contractId,
+          editingAllowance.staffAllowanceId,
+          input
+        )
         : await compensationApi.createStaffAllowance(selectedContract.contractId, input);
       setAllowanceModalOpen(false);
       // Refresh selected contract
@@ -262,7 +262,7 @@ export default function CompensationPage() {
       c.salaryType === 'daily' ? 'Lương ngày' : 'Lương tháng',
       c.monthlySalary ?? '',
       c.dailyRate ?? '',
-      c.standardWorkingDays ?? defaultWorkingDays,
+      c.salaryType === 'daily' ? 'Ngày/1 ngày' : (c.standardWorkingDays ?? defaultWorkingDays),
       c.isInsuranceEligible ? 'Có' : 'Không',
       c.insuranceSalaryBasis ?? '',
       c.taxMethod === 'flat_10' ? 'Khấu trừ 10%' : 'Biểu lũy tiến',
@@ -320,18 +320,16 @@ export default function CompensationPage() {
               <button
                 type="button"
                 onClick={() => setStatusFilter('all')}
-                className={`px-3 py-1 rounded-md font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
-                  statusFilter === 'all'
+                className={`px-3 py-1 rounded-md font-medium transition-all flex items-center gap-1.5 cursor-pointer ${statusFilter === 'all'
                     ? 'bg-white dark:bg-slate-700 text-sky-700 dark:text-sky-300 shadow-xs font-semibold'
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                }`}
+                  }`}
               >
                 <span>Tất cả</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-semibold ${
-                  statusFilter === 'all'
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-semibold ${statusFilter === 'all'
                     ? 'bg-sky-100 dark:bg-sky-900/60 text-sky-700 dark:text-sky-200'
                     : 'bg-slate-200/80 dark:bg-slate-600/60 text-slate-600 dark:text-slate-300'
-                }`}>
+                  }`}>
                   {counts.total}
                 </span>
               </button>
@@ -339,18 +337,16 @@ export default function CompensationPage() {
               <button
                 type="button"
                 onClick={() => setStatusFilter('active')}
-                className={`px-3 py-1 rounded-md font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
-                  statusFilter === 'active'
+                className={`px-3 py-1 rounded-md font-medium transition-all flex items-center gap-1.5 cursor-pointer ${statusFilter === 'active'
                     ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-xs font-semibold'
                     : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-                }`}
+                  }`}
               >
                 <span>Đang hoạt động</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-semibold ${
-                  statusFilter === 'active'
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-semibold ${statusFilter === 'active'
                     ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200'
                     : 'bg-slate-200/80 dark:bg-slate-600/60 text-slate-600 dark:text-slate-300'
-                }`}>
+                  }`}>
                   {counts.active}
                 </span>
               </button>
@@ -358,18 +354,16 @@ export default function CompensationPage() {
               <button
                 type="button"
                 onClick={() => setStatusFilter('inactive')}
-                className={`px-3 py-1 rounded-md font-medium transition-all flex items-center gap-1.5 cursor-pointer ${
-                  statusFilter === 'inactive'
+                className={`px-3 py-1 rounded-md font-medium transition-all flex items-center gap-1.5 cursor-pointer ${statusFilter === 'inactive'
                     ? 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 shadow-xs font-semibold'
                     : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
-                }`}
+                  }`}
               >
                 <span>Đã kết thúc</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-semibold ${
-                  statusFilter === 'inactive'
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-semibold ${statusFilter === 'inactive'
                     ? 'bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200'
                     : 'bg-slate-200/80 dark:bg-slate-600/60 text-slate-500 dark:text-slate-400'
-                }`}>
+                  }`}>
                   {counts.inactive}
                 </span>
               </button>
@@ -379,7 +373,7 @@ export default function CompensationPage() {
           {/* Phải: Tìm kiếm độc lập rộng rãi · Xuất CSV · Làm mới */}
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
             {/* Ô input tìm kiếm độc lập */}
-            <div className="flex items-center gap-1.5 pl-3 pr-2 h-9 w-60 sm:w-72 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-500/20 shadow-xs transition-all">
+            <div className="flex items-center gap-1.5 pl-3 pr-2 h-9 w-60 sm:w-72 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus-within:border-slate-400 dark:focus-within:border-slate-500 shadow-xs transition-all">
               <span className="shrink-0 text-slate-400 flex items-center pointer-events-none">
                 <Icon name="search" size={14} />
               </span>
@@ -388,7 +382,7 @@ export default function CompensationPage() {
                 placeholder="Tìm mã HĐ, tên/mã nhân viên..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                style={{ padding: 0, minHeight: 'unset', border: 'none', background: 'transparent' }}
+                style={{ padding: 0, minHeight: 'unset', border: 'none', background: 'transparent', outline: 'none' }}
                 className="w-full bg-transparent text-xs sm:text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none"
               />
               {searchTerm && (
@@ -411,7 +405,7 @@ export default function CompensationPage() {
               onClick={handleExportCsv}
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="text-slate-500 dark:text-slate-400">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
               </svg>
               <span>Xuất CSV</span>
             </button>
@@ -437,7 +431,7 @@ export default function CompensationPage() {
                 aria-hidden="true"
                 className={`text-slate-500 dark:text-slate-400 ${loading ? 'animate-spin' : ''}`}
               >
-                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
               </svg>
             </button>
           </div>
@@ -529,12 +523,18 @@ export default function CompensationPage() {
                 key: 'standardDays',
                 label: 'Công chuẩn',
                 sortable: true,
-                sortValue: c => c.standardWorkingDays ?? defaultWorkingDays,
-                render: c => (
-                  <div className="text-center font-medium">
-                    {c.standardWorkingDays ?? defaultWorkingDays} <span className="text-xs text-slate-500">ngày</span>
-                  </div>
-                ),
+                sortValue: c => (c.salaryType === 'daily' ? 0 : (c.standardWorkingDays ?? defaultWorkingDays)),
+                render: c =>
+                  c.salaryType === 'daily' ? (
+                    <div className="text-center">
+                      <span className="text-xs font-medium text-amber-800 dark:text-amber-300">Tính theo ngày</span>
+                      <div className="text-[11px] text-slate-400">Ngày / 1 ngày</div>
+                    </div>
+                  ) : (
+                    <div className="text-center font-medium">
+                      {c.standardWorkingDays ?? defaultWorkingDays} <span className="text-xs text-slate-500">ngày công</span>
+                    </div>
+                  ),
               },
               {
                 key: 'insuranceTax',
@@ -824,7 +824,7 @@ export default function CompensationPage() {
                           {h.monthlySalary ? formatVnd(h.monthlySalary) : '-'}
                         </td>
                         <td className="py-2.5 px-3 text-center text-slate-700">
-                          {h.standardWorkingDays ?? defaultWorkingDays}
+                          {h.salaryType === 'daily' ? 'Ngày / 1 ngày' : `${h.standardWorkingDays ?? defaultWorkingDays} ngày`}
                         </td>
                         <td className="py-2.5 px-3 text-right text-slate-700 whitespace-nowrap">
                           {h.insuranceSalaryBasis ? formatVnd(h.insuranceSalaryBasis) : <span className="text-slate-400 italic">Không đóng</span>}

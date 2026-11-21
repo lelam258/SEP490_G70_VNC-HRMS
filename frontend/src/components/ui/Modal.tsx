@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 
 export interface ModalContextValue {
   requestClose: () => void;
@@ -27,18 +27,22 @@ export default function Modal({
   children,
   onClose,
   busy = false,
-  maxWidth = '580px',
+  maxWidth,
   className = '',
   hasUnsavedChanges = false,
 }: ModalProps) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const headingId = useId();
+  const resolvedMaxWidth = maxWidth || (className.includes('schedule-dialog') ? '820px' : className.includes('directory-dialog') ? '660px' : '580px');
   const [showUnsavedPrompt, setShowUnsavedPrompt] = useState(false);
 
   useEffect(() => {
     const el = dialog.current;
+    const opener = document.activeElement;
     if (el && !el.open) {
       el.showModal();
     }
+    return () => { el?.close(); if (opener instanceof HTMLElement && opener.isConnected) opener.focus(); };
   }, []);
 
   const requestClose = () => {
@@ -52,7 +56,7 @@ export default function Modal({
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDialogElement>) => {
     // Nếu đang hiển thị xác nhận thì không đóng modal qua click backdrop
-    if (showUnsavedPrompt) return;
+    if (showUnsavedPrompt || e.target !== e.currentTarget) return;
 
     const rect = dialog.current?.getBoundingClientRect();
     if (rect) {
@@ -74,8 +78,9 @@ export default function Modal({
     <ModalContext.Provider value={{ requestClose }}>
       <dialog
         ref={dialog}
+        aria-labelledby={headingId}
         className={dialogClass}
-        style={{ maxWidth }}
+        style={{ maxWidth: resolvedMaxWidth, '--vnc-modal-max-width': resolvedMaxWidth } as CSSProperties}
         onCancel={(event) => {
           event.preventDefault();
           requestClose();
@@ -84,7 +89,7 @@ export default function Modal({
       >
         <div className="vnc-modal-header">
           <div className="min-w-0 pr-2">
-            <h2 className="vnc-modal-title">{title}</h2>
+            <h2 id={headingId} className="vnc-modal-title">{title}</h2>
             {subtitle && <div className="text-xs text-slate-500 mt-0.5">{subtitle}</div>}
           </div>
           <button
