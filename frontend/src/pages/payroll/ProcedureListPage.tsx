@@ -690,13 +690,13 @@ export default function ProcedureListPage() {
   // ============================================================================
   if (isReviewerRole) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 workspace-list-page">
         {error && <Alert variant="error">{error}</Alert>}
         {notice && <Alert variant="success">{notice}</Alert>}
 
         {/* BẢNG 1: DANH SÁCH PHIẾU CHỜ XỬ LÝ (ẨN HOÀN TOÀN NẾU KHÔNG CÓ PHIẾU CHỜ) */}
         {pendingQueueItems.length > 0 && (
-          <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden workspace-list-panel">
             <div className="px-5 py-3 bg-amber-50/60 border-b border-amber-200/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div className="flex items-center gap-2.5">
                 <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-amber-500 text-white font-bold text-xs">
@@ -716,7 +716,7 @@ export default function ProcedureListPage() {
               </span>
             </div>
 
-            <div className="p-4 procedure-table-wrap procedure-slip-scroll-box">
+            <div className="p-4 procedure-table-wrap procedure-slip-scroll-box workspace-list-body">
               <DataTable<ProcedureSlipListItem>
                 columns={pendingQueueColumns}
                 rows={pendingQueueItems}
@@ -728,7 +728,7 @@ export default function ProcedureListPage() {
         )}
 
         {/* BẢNG 2: LỊCH SỬ DUYỆT & TRA CỨU TÌNH HÌNH PHIẾU */}
-        <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden workspace-list-panel">
           <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="flex items-center gap-2.5">
               <span className="inline-flex items-center justify-center w-6 h-6 rounded-md bg-sky-700 text-white font-bold text-xs">
@@ -905,7 +905,7 @@ export default function ProcedureListPage() {
             </div>
           </div>
 
-          <div className="px-5 py-3 procedure-table-wrap procedure-slip-scroll-box">
+          <div className="px-5 py-3 procedure-table-wrap procedure-slip-scroll-box workspace-list-body">
             {loading ? (
               <div className="p-6 text-center text-slate-500 text-sm">
                 Đang tải lịch sử duyệt phiếu...
@@ -1062,7 +1062,7 @@ export default function ProcedureListPage() {
   // GIAO DIỆN DÀNH CHO MEDICAL STAFF, DEPARTMENT HEAD & HR MANAGER
   // ============================================================================
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 workspace-list-page">
       <div className="page-heading flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1>
@@ -1316,7 +1316,7 @@ export default function ProcedureListPage() {
       </div>
 
       {/* Bảng danh sách phiếu cá nhân / theo khoa */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs procedure-table-wrap procedure-slip-scroll-box">
+      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs procedure-table-wrap procedure-slip-scroll-box workspace-list-panel">
         {loading ? (
           <div className="p-8 text-center text-slate-500 text-sm">
             Đang tải dữ liệu phiếu thủ thuật...

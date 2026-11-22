@@ -12,6 +12,7 @@ type AuthState = {
   session: Session | null;
   setSession: (session: Session | null) => void;
   setUserName: (name: string) => void;
+  setUserAvatar: (avatarUrl: string | null) => void;
 };
 
 export const useAuthStore = create<AuthState>()(persist((set) => ({
@@ -19,6 +20,9 @@ export const useAuthStore = create<AuthState>()(persist((set) => ({
   setSession: (session) => set({ session: normalizeSession(session) }),
   setUserName: (name) => set((state) => (state.session ? {
     session: { ...state.session, user: { ...state.session.user, name } }
+  } : state)),
+  setUserAvatar: (avatarUrl) => set((state) => (state.session ? {
+    session: { ...state.session, user: { ...state.session.user, avatarUrl } }
   } : state)),
 }), {
   name: 'vnc.hrms.auth.v3',

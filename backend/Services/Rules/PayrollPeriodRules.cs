@@ -1,5 +1,6 @@
 using Vnc.HRMS.DTOs.Payroll;
 using Vnc.HRMS.Models;
+using Vnc.HRMS.Models.Organization;
 
 namespace Vnc.HRMS.Services.Rules;
 
@@ -246,8 +247,29 @@ public static class PayrollPeriodRules
         decimal OvertimePay,
         decimal OnCallPay,
         decimal PureAllowanceTotal,
-        List<PayslipAllowanceItemDto> PureAllowances
+        List<PayslipAllowanceItemDto> PureAllowances,
+        decimal NoonDutyCount = 0m,
+        decimal EveningDutyCount = 0m
     );
+
+    public static decimal ParseDutyCountFromName(string lineName)
+    {
+        var openIdx = lineName.LastIndexOf('(');
+        var closeIdx = lineName.LastIndexOf(')');
+        if (openIdx < 0 || closeIdx <= openIdx) return 0m;
+
+        var inner = lineName[(openIdx + 1)..closeIdx].Trim();
+        var numPart = inner.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(numPart)) return 0m;
+
+        return decimal.TryParse(
+            numPart.Replace(',', '.'),
+            System.Globalization.NumberStyles.Number,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out var count) && count >= 0m
+            ? count
+            : 0m;
+    }
 
     public static AllowanceSplitResult SplitPayslipAllowances(
         IEnumerable<PayslipAllowance> lines,
@@ -256,6 +278,8 @@ public static class PayrollPeriodRules
         decimal noonPay = 0m;
         decimal eveningPay = 0m;
         decimal overtimePay = 0m;
+        decimal noonCount = 0m;
+        decimal eveningCount = 0m;
         var pureItems = new List<PayslipAllowanceItemDto>();
 
         foreach (var line in lines)
@@ -263,12 +287,16 @@ public static class PayrollPeriodRules
             if (line.AllowanceId is null && line.Name.StartsWith("Tiền trực tối", StringComparison.OrdinalIgnoreCase))
             {
                 eveningPay += line.Amount;
+                eveningCount += ParseDutyCountFromName(line.Name);
             }
             else if (line.AllowanceId is null && line.Name.StartsWith("Tiền trực trưa", StringComparison.OrdinalIgnoreCase))
             {
                 noonPay += line.Amount;
+                noonCount += ParseDutyCountFromName(line.Name);
             }
-            else if (line.AllowanceId is null && line.Name.StartsWith("Tiền làm thêm giờ", StringComparison.OrdinalIgnoreCase))
+            else if (line.AllowanceId is null
+                && (line.Name.StartsWith("Tiền trực ngoài giờ", StringComparison.OrdinalIgnoreCase)
+                    || line.Name.StartsWith("Tiền làm thêm giờ", StringComparison.OrdinalIgnoreCase)))
             {
                 overtimePay += line.Amount;
             }
@@ -283,6 +311,53 @@ public static class PayrollPeriodRules
             ? pureItems.Sum(x => x.Amount)
             : Math.Max(0m, storedAllowanceTotal - onCallPay - overtimePay);
 
-        return new AllowanceSplitResult(noonPay, eveningPay, overtimePay, onCallPay, pureTotal, pureItems);
+        return new AllowanceSplitResult(
+            noonPay, eveningPay, overtimePay, onCallPay, pureTotal, pureItems, noonCount, eveningCount);
+    }
+
+    public static bool IsDoctorPosition(Position? position)
+        => position is not null
+            && (string.Equals(position.ScopeTag, "doctor", StringComparison.OrdinalIgnoreCase)
+                || position.Name.Contains("Bác sĩ", StringComparison.OrdinalIgnoreCase)
+                || position.Name.Contains("Giám đốc", StringComparison.OrdinalIgnoreCase));
+
+    public static decimal ResolveRate(
+        IReadOnlyList<PayrollRateConfig> configs,
+        string code,
+        Guid staffId,
+        Guid? positionId,
+        IReadOnlyDictionary<Guid, Position> positionsById,
+        bool isDoctorPosition,
+        decimal fallback)
+    {
+        var matching = configs
+            .Where(r => string.Equals(r.Code, code, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(r => r.EffectiveFrom)
+            .ToArray();
+
+        if (matching.Length == 0) return fallback;
+
+        var byStaff = matching.FirstOrDefault(r => r.StaffId == staffId);
+        if (byStaff is not null) return byStaff.Value;
+
+        if (positionId.HasValue)
+        {
+            var byPos = matching.FirstOrDefault(r => r.StaffId == null && r.PositionId == positionId.Value);
+            if (byPos is not null) return byPos.Value;
+        }
+
+        if (isDoctorPosition)
+        {
+            var byDoctorPos = matching.FirstOrDefault(r =>
+                r.StaffId == null && r.PositionId.HasValue
+                && positionsById.TryGetValue(r.PositionId.Value, out var pos)
+                && (string.Equals(pos.ScopeTag, "doctor", StringComparison.OrdinalIgnoreCase)
+                    || pos.Name.Contains("Bác sĩ", StringComparison.OrdinalIgnoreCase)));
+            if (byDoctorPos is not null) return byDoctorPos.Value;
+            if (string.Equals(code, "duty_night", StringComparison.OrdinalIgnoreCase)) return 200_000m;
+        }
+
+        var globalConfig = matching.FirstOrDefault(r => r.StaffId == null && r.PositionId == null);
+        return globalConfig?.Value ?? fallback;
     }
 }

@@ -188,7 +188,7 @@ internal static class AttendanceReconcileVerifyMonthlyRegression
                     staffA, facility1, new DateOnly(2026, 9, 10), "main",
                     [new TimePairInput("07:00", "11:30"), new TimePairInput("13:30", "17:00")],
                     "Bảng công giấy T09", "   ", null), ct)),
-                400, "MSG02", "UC 4.12 A1: Missing manual reason is rejected with MSG02");
+                400, "Trường thông tin này là bắt buộc", "UC 4.12 A1: Missing manual reason is rejected with MSG02");
 
             // A2: Check-out not after check-in -> MSG04
             await Reject(
@@ -196,7 +196,7 @@ internal static class AttendanceReconcileVerifyMonthlyRegression
                     staffA, facility1, new DateOnly(2026, 9, 10), "main",
                     [new TimePairInput("11:30", "07:00")],
                     "Bảng công giấy T09", "Sai thứ tự giờ", null), ct)),
-                400, "MSG04", "UC 4.12 A2: Check-out before check-in is rejected with MSG04");
+                400, "Dữ liệu giờ vào/ra không hợp lệ", "UC 4.12 A2: Check-out before check-in is rejected with MSG04");
 
             // A5: Inactive employee -> MSG25
             await Reject(
@@ -204,7 +204,7 @@ internal static class AttendanceReconcileVerifyMonthlyRegression
                     inactiveStaff, facility1, new DateOnly(2026, 9, 10), "main",
                     [new TimePairInput("07:00", "11:30")],
                     "Bảng công giấy", "Nhân viên ngừng hoạt động", null), ct)),
-                400, "MSG25", "UC 4.12 A5: Inactive employee manual attendance is rejected with MSG25");
+                400, "Nhân viên hoặc khoa/phòng đã chọn", "UC 4.12 A5: Inactive employee manual attendance is rejected with MSG25");
 
             // Normal Flow: Valid manual attendance matching published schedule on 2026-09-10 -> status 'pending'
             var createdMain = Json(await RecordCall(hr, s => s.CreateManual(hr, new CreateManualAttendanceRequest(
@@ -213,7 +213,7 @@ internal static class AttendanceReconcileVerifyMonthlyRegression
                 "Bảng chấm công giấy Khoa Nội", "Máy vân tay mất điện buổi sáng", null), ct)));
             var mainRecordId = createdMain.GetProperty("id").GetGuid();
             check(createdMain.GetProperty("status").GetString() == "pending" && !createdMain.GetProperty("flagged").GetBoolean()
-                && createdMain.GetProperty("message").GetString()!.Contains("MSG03"),
+                && createdMain.GetProperty("message").GetString()!.Contains("Đã lưu bản ghi chấm công thủ công chờ xác nhận"),
                 "UC 4.12 Normal Flow: Manual attendance matching schedule saves as pending with MSG03");
 
             // A2: Duplicate shift for same employee/date/shift -> MSG04
@@ -222,7 +222,7 @@ internal static class AttendanceReconcileVerifyMonthlyRegression
                     staffA, facility1, new DateOnly(2026, 9, 10), "main",
                     [new TimePairInput("07:00", "11:30")],
                     "Trùng ca", "Nhập trùng ca chính", null), ct)),
-                400, "MSG04", "UC 4.12 A2: Duplicate shift for same employee/date/shift is blocked with MSG04");
+                400, "Nhân viên đã có bản ghi chấm công", "UC 4.12 A2: Duplicate shift for same employee/date/shift is blocked with MSG04");
 
             // A3: Approved leave conflict on 2026-09-15 -> saved as 'flagged'
             var createdLeaveConflict = Json(await RecordCall(hr, s => s.CreateManual(hr, new CreateManualAttendanceRequest(
@@ -231,7 +231,7 @@ internal static class AttendanceReconcileVerifyMonthlyRegression
                 "Phiếu trực tối", "Đi trực tối nhưng kết thúc sớm lúc 18:00", null), ct)));
             var eveningRecordId = createdLeaveConflict.GetProperty("id").GetGuid();
             check(createdLeaveConflict.GetProperty("status").GetString() == "flagged" && createdLeaveConflict.GetProperty("flagged").GetBoolean()
-                && createdLeaveConflict.GetProperty("message").GetString()!.Contains("MSG04"),
+                && createdLeaveConflict.GetProperty("message").GetString()!.Contains("Cần đối chiếu"),
                 "UC 4.12 A3: Manual attendance on approved leave / early evening is flagged for supervisor review with MSG04");
 
             // =========================================================================
@@ -245,24 +245,24 @@ internal static class AttendanceReconcileVerifyMonthlyRegression
             // UC 4.13 A1: Cannot confirm a flagged record before reconciliation -> MSG04/MSG05
             await Reject(
                 () => RecordCall(hr, s => s.Verify(hr, eveningRecordId, new VerifyAttendanceRequest("confirm", "Cố xác nhận khi đang Flagged", null, eveningVersion), ct)),
-                400, "MSG04", "UC 4.13 A1: Flagged record cannot be confirmed before reconciliation (MSG04/MSG05)");
+                400, "Bản ghi đang ở trạng thái Cần đối chiếu", "UC 4.13 A1: Flagged record cannot be confirmed before reconciliation (MSG04/MSG05)");
 
             // UC 4.11 A5: Reconcile without reason -> MSG02
             await Reject(
                 () => RecordCall(hr, s => s.Reconcile(hr, eveningRecordId, new ReconcileAttendanceRequest("accept_manual", null, facility1, "", null, false, eveningVersion), ct)),
-                400, "MSG02", "UC 4.11 A5: Reconcile without supporting reason is rejected with MSG02");
+                400, "Vui lòng nhập lý do và căn cứ đối chiếu", "UC 4.11 A5: Reconcile without supporting reason is rejected with MSG02");
 
             // UC 4.11 A2: Early-finished evening shift (17:00-18:00 < 19:00) without supervisor confirmation -> MSG04 (GB-13)
             await Reject(
                 () => RecordCall(hr, s => s.Reconcile(hr, eveningRecordId, new ReconcileAttendanceRequest(
                     "accept_manual", [new TimePairInput("17:00", "18:00")], facility1,
                     "Đối chiếu phiếu trực tối", null, false, eveningVersion), ct)),
-                400, "MSG04", "UC 4.11 A2 (GB-13): Early-ended evening shift without supervisor confirmation is rejected with MSG04");
+                400, "Ca trực tối kết thúc sớm", "UC 4.11 A2 (GB-13): Early-ended evening shift without supervisor confirmation is rejected with MSG04");
 
             // UC 4.11 A1: Mark unresolved keeps record Flagged and excluded from payroll (MSG04, MSG05)
             var unresolvedRes = Json(await RecordCall(hr, s => s.Reconcile(hr, eveningRecordId, new ReconcileAttendanceRequest(
                 "mark_unresolved", null, facility1, "Chờ trưởng khoa ký xác nhận bổ sung", null, false, eveningVersion), ct)));
-            check(unresolvedRes.GetProperty("status").GetString() == "flagged" && unresolvedRes.GetProperty("message").GetString()!.Contains("MSG04"),
+            check(unresolvedRes.GetProperty("status").GetString() == "flagged" && unresolvedRes.GetProperty("message").GetString()!.Contains("Dữ liệu chưa thể đối chiếu thống nhất"),
                 "UC 4.11 A1: Mark unresolved keeps record Flagged with MSG04/MSG05");
 
             // UC 4.11 A3: Stale version during editing -> MSG44 (409)
@@ -270,7 +270,7 @@ internal static class AttendanceReconcileVerifyMonthlyRegression
                 () => RecordCall(hr, s => s.Reconcile(hr, eveningRecordId, new ReconcileAttendanceRequest(
                     "accept_manual", [new TimePairInput("17:00", "18:00")], facility1,
                     "Dùng version cũ", "BS Trưởng khoa xác nhận", true, eveningVersion), ct)),
-                409, "MSG44", "UC 4.11 A3: Conflicting edit version requests reload with MSG44");
+                409, "đã thay đổi", "UC 4.11 A3: Conflicting edit version requests reload with MSG44");
 
             // Refresh version and reconcile with supervisor confirmation (GB-13)
             eveningDetail = Json(await RecordCall(hr, s => s.Detail(hr, eveningRecordId, ct)));
@@ -286,12 +286,12 @@ internal static class AttendanceReconcileVerifyMonthlyRegression
             eveningVersion = eveningDetail.GetProperty("version").GetString()!;
             await Reject(
                 () => RecordCall(manager, s => s.Verify(manager, eveningRecordId, new VerifyAttendanceRequest("confirm", "Manager try", null, eveningVersion), ct)),
-                403, "MSG38", "UC 4.13 A5 (GB-41): Unauthorized role is denied attendance verification with MSG38");
+                403, "Bạn không có quyền", "UC 4.13 A5 (GB-41): Unauthorized role is denied attendance verification with MSG38");
 
             // UC 4.13 Step 4: Return for correction requires explanation (MSG02) and moves record back to Flagged
             await Reject(
                 () => RecordCall(hr, s => s.Verify(hr, eveningRecordId, new VerifyAttendanceRequest("return", "  ", null, eveningVersion), ct)),
-                400, "MSG02", "UC 4.13 Step 4: Returning a record for correction without explanation is rejected with MSG02");
+                400, "Vui lòng nhập lý do trả về", "UC 4.13 Step 4: Returning a record for correction without explanation is rejected with MSG02");
 
             var returnedEvening = Json(await RecordCall(hr, s => s.Verify(hr, eveningRecordId, new VerifyAttendanceRequest(
                 "return", "Yêu cầu đính kèm mã biên bản trực tối", null, eveningVersion), ct)));
@@ -340,7 +340,7 @@ internal static class AttendanceReconcileVerifyMonthlyRegression
 
             await Reject(
                 () => RecordCall(hr, s => s.LockMonthly(hr, testMonth, new LockMonthlyAttendanceRequest("Khóa sớm", earlySummary.GetProperty("version").GetString()!), ct)),
-                400, "GB-52", "UC 4.14 A2 (GB-52): Locking monthly attendance before consolidation open date is rejected");
+                400, "Chưa đến thời điểm tổng hợp", "UC 4.14 A2 (GB-52): Locking monthly attendance before consolidation open date is rejected");
 
             // Advance clock to 2026-09-29 (inside GB-52 consolidation window: 2026-09-28 .. 2026-10-05)
             setClock(new DateTimeOffset(2026, 9, 29, 15, 0, 0, TimeSpan.FromHours(7)));
@@ -366,7 +366,7 @@ internal static class AttendanceReconcileVerifyMonthlyRegression
 
             await Reject(
                 () => RecordCall(hr, s => s.LockMonthly(hr, testMonth, new LockMonthlyAttendanceRequest("Cố khóa khi còn ngoại lệ", blockedSummary.GetProperty("version").GetString()!), ct)),
-                400, "MSG04", "UC 4.14 A1: Locking monthly attendance while exceptions remain is rejected with MSG04/MSG05");
+                400, "bản ghi sai lệch", "UC 4.14 A1: Locking monthly attendance while exceptions remain is rejected with MSG04/MSG05");
 
             // Reconcile & confirm the blocking record so all exceptions in 2026-09 are resolved
             var blkDetail = Json(await RecordCall(hr, s => s.Detail(hr, blockingRecId, ct)));
@@ -385,7 +385,7 @@ internal static class AttendanceReconcileVerifyMonthlyRegression
             // Lock the monthly timesheet
             var lockRes = Json(await RecordCall(hr, s => s.LockMonthly(hr, testMonth, new LockMonthlyAttendanceRequest(
                 "Chốt công tháng 09/2026 chuyển tính lương", readySummary.GetProperty("version").GetString()!), ct)));
-            check(lockRes.GetProperty("status").GetString() == "locked" && lockRes.GetProperty("message").GetString()!.Contains("MSG03"),
+            check(lockRes.GetProperty("status").GetString() == "locked" && lockRes.GetProperty("message").GetString()!.Contains("Đã tổng hợp và khóa bảng chấm công tháng thành công"),
                 "UC 4.14 Step 6-7: LockMonthly locks MonthlyTimesheet and records locked_by/locked_at with MSG03");
 
             // Verify ordinary edits are blocked after MonthlyTimesheet is locked (UC 4.11 A4, 4.12 A4, 4.13 A4) -> MSG11
@@ -393,7 +393,7 @@ internal static class AttendanceReconcileVerifyMonthlyRegression
                 () => RecordCall(hr, s => s.CreateManual(hr, new CreateManualAttendanceRequest(
                     staffA, facility1, new DateOnly(2026, 9, 22), "main",
                     [new TimePairInput("07:00", "11:30")], "Sau khóa", "Thử nhập sau khi khóa tháng", null), ct)),
-                400, "MSG11", "UC 4.12 A4 / UC 4.14 Postcondition: Locked monthly timesheet rejects new manual entries with MSG11");
+                400, "Tháng đã khóa hoặc đã thanh toán", "UC 4.12 A4 / UC 4.14 Postcondition: Locked monthly timesheet rejects new manual entries with MSG11");
 
             // UC 4.14 A4 & A5 (GB-26, GB-52, GB-59): Accountant reopens PayrollLock during correction window (2026-10-08) -> allows correction and re-lock preserving prior snapshot
             setClock(new DateTimeOffset(2026, 10, 8, 9, 0, 0, TimeSpan.FromHours(7)));

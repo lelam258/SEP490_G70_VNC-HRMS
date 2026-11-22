@@ -56,6 +56,10 @@ export interface PayslipSummaryItem {
   reviewStatus: PayslipReviewStatus | string;
   reviewNote: string | null;
   reviewedAt: string | null;
+  noonDutyCount?: number;
+  eveningDutyCount?: number;
+  noonDutyRate?: number;
+  eveningDutyRate?: number;
 }
 
 export interface PayslipAllowanceItem {
@@ -164,4 +168,6 @@ export interface UpdatePayslipInlineInput {
   allowanceAndDutyTotal: number;
   commissionTotal: number;
   note?: string;
+  noonDutyCount?: number;
+  eveningDutyCount?: number;
 }

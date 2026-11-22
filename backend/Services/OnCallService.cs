@@ -168,7 +168,7 @@ public sealed class OnCallService(AppDbContext db, AttendanceAccess access, Atte
     public async Task<object> Verify(ClaimsPrincipal user, Guid id, VerifyOnCallRequest request, CancellationToken ct)
     {
         if (!user.IsInRole("hr_staff"))
-            throw new AppException(403, "MSG38: Bạn không có quyền truy cập chức năng hoặc xác nhận hồ sơ trực này.");
+            throw new AppException(403, "Bạn không có quyền truy cập chức năng hoặc xác nhận hồ sơ trực này.");
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         var shift = await db.OnCallShifts.SingleOrDefaultAsync(x => x.ShiftId == id, ct)
             ?? throw new AppException(404, "Không tìm thấy hồ sơ trực.");
@@ -176,7 +176,7 @@ public sealed class OnCallService(AppDbContext db, AttendanceAccess access, Atte
         await access.RequireOpenMonth(shift.ShiftDate.ToString("yyyy-MM"), ct);
         var decision = request.Decision?.Trim().ToLowerInvariant();
         if (decision is not ("confirm" or "return" or "reject"))
-            throw new AppException(400, "MSG02: Chọn Xác nhận hoặc Trả về để điều chỉnh.");
+            throw new AppException(400, "Chọn Xác nhận hoặc Trả về để điều chỉnh.");
         var previous = Snapshot(shift);
         if (!string.IsNullOrWhiteSpace(request.SupervisorEvidence))
             shift.SupervisorEvidence = AttendanceRules.Text(request.SupervisorEvidence, "Căn cứ xác nhận quản lý");
@@ -185,20 +185,20 @@ public sealed class OnCallService(AppDbContext db, AttendanceAccess access, Atte
             if (shift.Status == "confirmed") throw new AppException(409, "Hồ sơ trực này đã được xác nhận.");
             if (shift.Status is "cancelled" or "rejected") throw new AppException(400, "Hồ sơ trực đã hủy hoặc từ chối; không thể xác nhận.");
             if (!shift.ShiftStart.HasValue || !shift.ShiftEnd.HasValue || shift.ShiftEnd <= shift.ShiftStart)
-                throw new AppException(400, "MSG04: Dữ liệu giờ trực chưa đầy đủ hoặc không hợp lệ. Vui lòng kiểm tra lại.");
+                throw new AppException(400, "Dữ liệu giờ trực chưa đầy đủ hoặc không hợp lệ. Vui lòng kiểm tra lại.");
             var planned = ScheduleRules.Hours(shift.ShiftDate, shift.ShiftCategory);
             var earlyEvening = shift.ShiftCategory == "evening" && shift.ShiftEnd.Value.TimeOfDay < planned.End.ToTimeSpan();
             if (earlyEvening && string.IsNullOrWhiteSpace(shift.SupervisorEvidence)) {
                 var patientConfirmed = shift.ScheduleAssignmentId.HasValue
                     && await db.ScheduleAssignments.AnyAsync(x => x.Id == shift.ScheduleAssignmentId && x.PatientConfirmed, ct);
                 if (!patientConfirmed)
-                    throw new AppException(400, "MSG04: Ca trực tối kết thúc sớm do hết bệnh nhân bắt buộc có xác nhận của quản lý trước khi xác nhận (GB-13).");
+                    throw new AppException(400, "Ca trực tối kết thúc sớm do hết bệnh nhân bắt buộc có xác nhận của quản lý trước khi xác nhận.");
             }
             if (await db.LeaveRequests.AnyAsync(x => x.StaffId == shift.StaffId && x.Status == "approved" && x.StartDate <= shift.ShiftDate && x.EndDate >= shift.ShiftDate, ct))
-                throw new AppException(400, "MSG04: Nhân viên có nghỉ phép đã duyệt trong ngày trực. Cần đối chiếu lại.");
+                throw new AppException(400, "Nhân viên có nghỉ phép đã duyệt trong ngày trực. Cần đối chiếu lại.");
             if (await db.OnCallShifts.AnyAsync(x => x.ShiftId != shift.ShiftId && x.StaffId == shift.StaffId && x.ShiftDate == shift.ShiftDate
                 && x.Status == "confirmed" && (x.ShiftCategory == shift.ShiftCategory || (x.ShiftStart < shift.ShiftEnd && x.ShiftEnd > shift.ShiftStart)), ct))
-                throw new AppException(400, "MSG04: Đã có hồ sơ trực được xác nhận trùng ca hoặc thời gian cho nhân viên trong ngày này.");
+                throw new AppException(400, "Đã có hồ sơ trực được xác nhận trùng ca hoặc thời gian cho nhân viên trong ngày này.");
             shift.Status = "confirmed";
             shift.ConfirmedBy = AttendanceAccess.Actor(user);
             shift.ConfirmedAt = access.Now.UtcDateTime;
@@ -207,8 +207,8 @@ public sealed class OnCallService(AppDbContext db, AttendanceAccess access, Atte
             audit.Log("verify_on_call", "OnCallShift", shift.ShiftId, previous, Snapshot(shift));
         } else {
             if (string.IsNullOrWhiteSpace(request.Reason))
-                throw new AppException(400, "MSG02: Lý do trả về / yêu cầu đối chiếu lại là bắt buộc.");
-            var reason = AttendanceRules.Text(request.Reason, "MSG02: Lý do trả về / yêu cầu đối chiếu lại", true);
+                throw new AppException(400, "Lý do trả về / yêu cầu đối chiếu lại là bắt buộc.");
+            var reason = AttendanceRules.Text(request.Reason, "Lý do trả về / yêu cầu đối chiếu lại", true);
             shift.Status = decision == "reject" ? "rejected" : "pending";
             shift.ConfirmedBy = null;
             shift.ConfirmedAt = null;
@@ -224,8 +224,8 @@ public sealed class OnCallService(AppDbContext db, AttendanceAccess access, Atte
             id = shift.ShiftId,
             status = shift.Status,
             message = shift.Status == "confirmed"
-                ? "MSG03: Đã xác nhận hồ sơ trực. Dữ liệu đủ điều kiện tổng hợp công tháng."
-                : "MSG03: Đã trả hồ sơ trực về trạng thái chờ đối chiếu."
+                ? "Đã xác nhận hồ sơ trực. Dữ liệu đủ điều kiện tổng hợp công tháng."
+                : "Đã trả hồ sơ trực về trạng thái chờ đối chiếu."
         };
     }
 

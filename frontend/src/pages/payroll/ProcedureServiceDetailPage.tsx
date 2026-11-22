@@ -366,7 +366,7 @@ export default function ProcedureServiceDetailPage() {
 
   return (
     <section
-      className="directory-page space-y-6"
+      className="directory-page space-y-6 workspace-content-page"
       aria-labelledby="procedure-service-detail-heading"
     >
       {/* Breadcrumb & Header */}
@@ -449,6 +449,7 @@ export default function ProcedureServiceDetailPage() {
           </button>
         </div>
       </div>
+      <div className="workspace-section-body">
 
       {notice && (
         <Alert variant="success">
@@ -745,6 +746,7 @@ export default function ProcedureServiceDetailPage() {
           </div>
         </Modal>
       )}
+      </div>
     </section>
   );
 }

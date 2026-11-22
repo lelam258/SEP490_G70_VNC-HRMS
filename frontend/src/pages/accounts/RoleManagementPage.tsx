@@ -29,8 +29,9 @@ export default function RoleManagementPage() {
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Không gán được vai trò.'); }
     finally { setBusy(false); }
   }
-  return <section className="directory-page operations-page">
+  return <section className="directory-page operations-page workspace-content-page">
     <header className="directory-heading"><div><span className="eyebrow">QUẢN TRỊ HỆ THỐNG</span><h1>Quản lý vai trò</h1><p>Xem phạm vi quyền và phân công vai trò có sẵn cho tài khoản.</p></div><div className="operations-actions"><button type="button" className="button" onClick={() => { catalog.reload(); accounts.reload(); }}>Tải lại dữ liệu</button><Link className="button" to="/accounts">Quản lý tài khoản</Link></div></header>
+      <div className="workspace-section-body">
     {notice && <p className="alert success" role="status">{notice}</p>}
     <ResourceState loading={catalog.loading || accounts.loading} error={catalog.error || accounts.error} reload={() => { catalog.reload(); accounts.reload(); }} />
     <div className="operations-role-grid">{catalog.data?.map(item => <button type="button" key={item.id} className={`operations-role-card ${selected === item.id ? 'active' : ''}`} aria-pressed={selected === item.id} onClick={() => { setSelected(item.id); setAccountId(''); }}><strong>{item.name}</strong><p>{item.description}</p><span>{item.accountCount} tài khoản</span></button>)}</div>
@@ -44,5 +45,6 @@ export default function RoleManagementPage() {
       ]} />
     </section>}
     {confirm && <Modal title="Xác nhận gán vai trò" busy={busy} onClose={() => setConfirm(undefined)}><div className="operations-panel"><p>Chuyển <strong>{confirm.username}</strong> sang vai trò <strong>{role?.name}</strong>?</p><p>Các phiên cũ sẽ kết thúc để áp dụng quyền mới.</p>{error && <p className="alert error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="button" disabled={busy} onClick={() => setConfirm(undefined)}>Đóng</button><button type="button" className="button primary" disabled={busy} onClick={() => void assign()}>{busy ? 'Đang lưu…' : 'Xác nhận'}</button></div></div></Modal>}
-  </section>;
+  </div>
+</section>;
 }

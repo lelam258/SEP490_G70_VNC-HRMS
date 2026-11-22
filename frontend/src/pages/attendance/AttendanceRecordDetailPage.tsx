@@ -1,9 +1,11 @@
+import { attendanceText } from '../../utils/attendance';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import AttendanceShell from '../../components/attendance/AttendanceShell';
 import ResourceState from '../../components/attendance/ResourceState';
 import useApiResource from '../../hooks/useApiResource';
 import { attendanceApi } from '../../services/attendanceApi';
+import { ApiError } from '../../services/axiosClient';
 import type { AttendanceDetail, ReconcileAttendanceInput } from '../../types/attendance';
 import { useAuthStore } from '../../store/useAuthStore';
 import { attendanceLabel, clockTime, formatAttendanceNote, instant } from '../../utils/attendance';
@@ -100,7 +102,10 @@ export default function AttendanceRecordDetailPage() {
       resource.reload();
     } catch (cause) {
       setError(formatAttendanceNote(cause instanceof Error ? cause.message : 'Không thể lưu kết quả đối chiếu.'));
-      if (cause instanceof Error && cause.message.includes('MSG44')) {
+      if (
+        (cause instanceof ApiError && cause.status === 409) ||
+        (cause instanceof Error && cause.message.includes('MSG44'))
+      ) {
         resource.reload();
       }
     } finally {
@@ -131,7 +136,10 @@ export default function AttendanceRecordDetailPage() {
       resource.reload();
     } catch (cause) {
       setError(formatAttendanceNote(cause instanceof Error ? cause.message : 'Không thể xác nhận bản ghi chấm công.'));
-      if (cause instanceof Error && cause.message.includes('MSG44')) {
+      if (
+        (cause instanceof ApiError && cause.status === 409) ||
+        (cause instanceof Error && cause.message.includes('MSG44'))
+      ) {
         resource.reload();
       }
     } finally {
@@ -280,7 +288,7 @@ export default function AttendanceRecordDetailPage() {
                   <span>{data.supervisorConfirmed ? 'Đã XN quản lý' : 'Bằng chứng'}</span>
                 </div>
                 <p className="operations-note" style={{ margin: 0, color: '#1e293b' }}>
-                  {data.reconcileNote || data.note || 'Chưa có ghi chú khai báo thủ công.'}
+                  {attendanceText(data.reconcileNote || data.note) || 'Chưa có ghi chú khai báo thủ công.'}
                 </p>
                 {!!data.onCalls?.length && (
                   <small style={{ fontSize: 11, color: '#0369a1' }}>

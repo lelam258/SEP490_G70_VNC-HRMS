@@ -342,7 +342,7 @@ export default function CertificateListPage() {
   }
 
   return (
-    <section>
+    <section className="workspace-list-page">
       {/* Page Heading */}
       <div className="page-heading">
         <div>
@@ -450,9 +450,9 @@ export default function CertificateListPage() {
       </div>
 
       {/* Main Split-view Layout */}
-      <div className={`cert-split-container ${selectedStaff ? 'is-split' : ''}`}>
+      <div className={(`cert-split-container ${selectedStaff ? 'is-split' : ''}`) + " workspace-list-body"}>
         {/* LEFT PANEL: Staff Directory */}
-        <div className="cert-left-panel panel">
+        <div className="cert-left-panel panel workspace-list-panel">
           {/* Header of Left Panel */}
           <div className="list-heading border-b border-slate-200">
             <div>
@@ -533,7 +533,7 @@ export default function CertificateListPage() {
               </p>
             </div>
           ) : (
-            <div className="cert-table-wrapper">
+            <div className="cert-table-wrapper workspace-table-viewport">
               <table>
                 <thead>
                   <tr>
@@ -642,7 +642,7 @@ export default function CertificateListPage() {
 
         {/* RIGHT PANEL: Certificates / Degrees of Selected Staff (Split View) */}
         {selectedStaff && (
-          <div className="cert-right-panel panel">
+          <div className="cert-right-panel panel workspace-list-panel">
             {/* Header of Right Panel (Cân bằng chiều cao với Left Panel list-heading) */}
             <div className="list-heading border-b border-slate-200">
               <div className="flex items-center gap-2.5">
@@ -776,7 +776,7 @@ export default function CertificateListPage() {
                 </p>
               </div>
             ) : (
-              <div className="cert-table-wrapper">
+              <div className="cert-table-wrapper workspace-table-viewport">
                 <table>
                   <thead>
                     <tr>

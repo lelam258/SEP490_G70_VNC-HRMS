@@ -29,7 +29,7 @@ export default function AttendanceRecordListPage() {
   const data = resource.data;
 
   return (
-    <AttendanceShell
+    <AttendanceShell layout="list"
       title="Bảng chấm công"
       description="Tra cứu ngày công, đối chiếu nguồn chấm công, nhập thủ công và xác nhận ngày công."
       actions={
@@ -48,7 +48,7 @@ export default function AttendanceRecordListPage() {
         )
       }
     >
-      <section className="operations-panel">
+      <section className="operations-panel workspace-list-panel">
         <AttendanceFilters
           value={filter}
           options={options.data}

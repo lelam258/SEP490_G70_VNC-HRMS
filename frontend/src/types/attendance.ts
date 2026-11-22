@@ -151,5 +151,5 @@ export type OnCallContext = { staffId: string; date: string; facilityId: string;
 export type AuditEvent = { id: string; createdAt: string; userId: string | null; actor: string | null; action: string; module: string;
   entityType: string | null; entityId: string | null; facilityId: string | null; departmentId: string | null; staffId: string | null;
   workDate: string | null; result: string; oldStatus: string | null; newStatus: string | null;
-  oldValue: unknown; newValue: unknown; sourceUrl: string | null };
+  oldValue: unknown; newValue: unknown; sourceUrl: string | null; references?: Record<string, string> | null };
 export type AuditOptions = { users: AttendanceOption[]; actions: string[]; modules: string[]; facilities: AttendanceOption[] };

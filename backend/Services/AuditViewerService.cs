@@ -103,7 +103,38 @@ public sealed class AuditViewerService(AppDbContext db, AttendanceAccess access)
             entry = Legacy(change, await db.ScheduleWeeks.AsNoTracking().SingleAsync(x => x.Id == change.WeekId, ct));
         }
         var actors = await db.Users.AsNoTracking().Where(x => x.UserId == entry.UserId).ToDictionaryAsync(x => x.UserId, x => x.FullName ?? x.Username, ct);
-        return Display(entry, actors, user, history);
+        var references = await ReferenceNames(entry, ct);
+        return Display(entry, actors, user, history, references);
+    }
+
+    private async Task<Dictionary<string, string>> ReferenceNames(AuditLog entry, CancellationToken ct)
+    {
+        var ids = new HashSet<Guid>();
+        void Collect(JsonNode? node)
+        {
+            if (node is JsonObject obj) foreach (var pair in obj) Collect(pair.Value);
+            else if (node is JsonArray array) foreach (var item in array) Collect(item);
+            else if (node is JsonValue value && value.TryGetValue<string>(out var text) && Guid.TryParse(text, out var id)) ids.Add(id);
+        }
+        // Only resolve identifiers present in an event the caller is already authorized to read.
+        Collect(Mask(entry.OldValue)); Collect(Mask(entry.NewValue));
+        if (entry.StaffId.HasValue) ids.Add(entry.StaffId.Value);
+        if (entry.DepartmentId.HasValue) ids.Add(entry.DepartmentId.Value);
+        if (entry.FacilityId.HasValue) ids.Add(entry.FacilityId.Value);
+        var names = new Dictionary<string, string>();
+        foreach (var item in await db.Staff.AsNoTracking().Where(x => ids.Contains(x.StaffId))
+            .Select(x => new { x.StaffId, x.StaffCode, x.FullName }).ToArrayAsync(ct))
+            names[$"staffid:{item.StaffId}"] = $"{item.StaffCode} · {item.FullName}";
+        foreach (var item in await db.ScheduleFacilities.AsNoTracking().Where(x => ids.Contains(x.Id)).Select(x => new { x.Id, x.Name }).ToArrayAsync(ct))
+            names[$"facilityid:{item.Id}"] = item.Name;
+        foreach (var item in await db.Departments.AsNoTracking().Where(x => ids.Contains(x.DepartmentId)).Select(x => new { x.DepartmentId, x.Name }).ToArrayAsync(ct))
+            names[$"departmentid:{item.DepartmentId}"] = item.Name;
+        foreach (var item in await db.Users.AsNoTracking().Where(x => ids.Contains(x.UserId)).Select(x => new { x.UserId, x.FullName, x.Username }).ToArrayAsync(ct)) {
+            var name = item.FullName ?? item.Username;
+            foreach (var field in new[] { "userid", "actorid", "confirmedby", "reconciledby", "correctedby", "lockedby", "recordedby", "endrecordedby" })
+                names[$"{field}:{item.UserId}"] = name;
+        }
+        return names;
     }
 
     public async Task<object> Options(ClaimsPrincipal user, bool history, CancellationToken ct)
@@ -132,7 +163,7 @@ public sealed class AuditViewerService(AppDbContext db, AttendanceAccess access)
                 x.Action, x.EntityId?.ToString(), x.FacilityId?.ToString(), Status(x.OldValue), Status(x.NewValue) }.Select(AttendanceRules.Csv))));
     }
 
-    private static object Display(AuditLog entry, Dictionary<Guid, string> actors, ClaimsPrincipal user, bool history)
+    private static object Display(AuditLog entry, Dictionary<Guid, string> actors, ClaimsPrincipal user, bool history, Dictionary<string, string>? references = null)
     {
         var sourceUrl = entry.EntityType switch {
             "AttendanceRecord" when !user.IsInRole("accountant") => $"/attendance/records/{entry.EntityId}",
@@ -145,7 +176,7 @@ public sealed class AuditViewerService(AppDbContext db, AttendanceAccess access)
         return new { id = entry.LogId, entry.CreatedAt, entry.UserId, actor = entry.UserId.HasValue ? actors.GetValueOrDefault(entry.UserId.Value) ?? entry.Username : entry.Username,
             entry.Action, entry.Module, entry.EntityType, entry.EntityId, entry.FacilityId, entry.DepartmentId, entry.StaffId,
             entry.WorkDate, entry.Result, oldStatus = Status(entry.OldValue), newStatus = Status(entry.NewValue),
-            oldValue = Mask(entry.OldValue), newValue = Mask(entry.NewValue), sourceUrl };
+            oldValue = Mask(entry.OldValue), newValue = Mask(entry.NewValue), sourceUrl, references };
     }
 
     private static AuditLog Legacy(ScheduleChange change, ScheduleWeek week)

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import AttendanceShell from '../../components/attendance/AttendanceShell';
+import AuditChanges from '../../components/attendance/AuditChanges';
 import ResourceState from '../../components/attendance/ResourceState';
 import DataTable from '../../components/ui/DataTable';
 import Pagination from '../../components/ui/Pagination';
@@ -11,6 +12,13 @@ import { useAuthStore } from '../../store/useAuthStore';
 import type { AttendanceOptions, AuditEvent, AuditOptions, PageResult } from '../../types/attendance';
 import { attendanceLabel, instant } from '../../utils/attendance';
 import { clinicToday, shortDate } from '../../utils/schedule';
+
+const entityNames: Record<string, string> = {
+  User: 'Tài khoản', AttendanceRecord: 'Bản ghi chấm công', AttendanceImport: 'Đợt nhập chấm công',
+  OnCallShift: 'Hồ sơ trực', MonthlyTimesheet: 'Bảng công tháng', ScheduleWeek: 'Lịch tuần',
+  ScheduleAssignment: 'Phân công ca', PayrollLock: 'Kỳ lương', Staff: 'Nhân viên',
+};
+const entityName = (type: string | null) => type ? entityNames[type] || 'Bản ghi nghiệp vụ' : 'Sự kiện hệ thống';
 
 export default function AuditLogPage({ history = false }: { history?: boolean }) {
   const base = history ? '/attendance/history' : '/audit-logs';
@@ -35,7 +43,7 @@ export default function AuditLogPage({ history = false }: { history?: boolean })
   }
   const content = <>
     {error && <p className="alert error" role="alert">{error}</p>}
-    <section className="operations-panel"><form className="operations-filters" onSubmit={event => { event.preventDefault(); setQuery({ ...draft, page: 1, pageSize: query.pageSize }); }}>
+    <section className="operations-panel workspace-list-panel"><form className="operations-filters" onSubmit={event => { event.preventDefault(); setQuery({ ...draft, page: 1, pageSize: query.pageSize }); }}>
       {history && <label htmlFor="history-month">Tháng nghiệp vụ<input id="history-month" type="month" min="2000-01" max="9998-12" value={draft.month} onChange={event => setDraft({ ...draft, month: event.target.value })} /></label>}
       <label htmlFor="audit-from">Sự kiện từ ngày<input id="audit-from" type="date" value={draft.from} onChange={event => setDraft({ ...draft, from: event.target.value })} /></label>
       <label htmlFor="audit-to">Đến ngày<input id="audit-to" type="date" min={draft.from || undefined} value={draft.to} onChange={event => setDraft({ ...draft, to: event.target.value })} /></label>
@@ -52,7 +60,7 @@ export default function AuditLogPage({ history = false }: { history?: boolean })
         { key: 'time', label: 'Thời gian', render: item => <button type="button" className="text-button" onClick={() => setSelected(item.id)}>{instant(item.createdAt)}</button> },
         { key: 'actor', label: 'Người thao tác', render: item => item.actor || 'Hệ thống' },
         { key: 'module', label: 'Phân hệ / thao tác', render: item => <>{attendanceLabel(item.action)}<small className="table-secondary">{attendanceLabel(item.module)}</small></> },
-        { key: 'record', label: 'Bản ghi', render: item => <>{item.entityType || '—'}<small className="table-secondary">{item.workDate ? shortDate(item.workDate, true) : item.entityId?.slice(0, 8) || '—'}</small></> },
+        { key: 'record', label: 'Bản ghi', render: item => <>{entityName(item.entityType)}<small className="table-secondary">{item.workDate ? shortDate(item.workDate, true) : '—'}</small></> },
         { key: 'facility', label: 'Cơ sở', render: item => facility(item.facilityId) },
         { key: 'status', label: 'Trước → sau', render: item => `${attendanceLabel(item.oldStatus)} → ${attendanceLabel(item.newStatus)}` },
         { key: 'result', label: 'Kết quả', render: item => attendanceLabel(item.result) },
@@ -60,14 +68,13 @@ export default function AuditLogPage({ history = false }: { history?: boolean })
       ]} /><Pagination total={resource.data.total} page={resource.data.page} pageSize={resource.data.pageSize} label="sự kiện" onPageChange={page => setQuery({ ...query, page })} onPageSizeChange={pageSize => setQuery({ ...query, pageSize, page: 1 })} /></>}
     </section>
     {selected && <Modal title="Chi tiết sự kiện" onClose={() => setSelected('')} maxWidth="780px"><div className="operations-panel"><ResourceState {...detail} />{detail.data && <>
-      <dl className="operations-detail"><div><dt>Thời gian</dt><dd>{instant(detail.data.createdAt)}</dd></div><div><dt>Người thao tác</dt><dd>{detail.data.actor || 'Hệ thống'}</dd></div><div><dt>Thao tác</dt><dd>{attendanceLabel(detail.data.action)}</dd></div><div><dt>Cơ sở</dt><dd>{facility(detail.data.facilityId)}</dd></div><div className="wide"><dt>Mã bản ghi</dt><dd>{detail.data.entityId || '—'}</dd></div></dl>
-      <h3>Trước thay đổi</h3><pre className="operations-json">{JSON.stringify(detail.data.oldValue, null, 2) || '—'}</pre>
-      <h3>Sau thay đổi</h3><pre className="operations-json">{JSON.stringify(detail.data.newValue, null, 2) || '—'}</pre>
+      <dl className="operations-detail"><div><dt>Thời gian</dt><dd>{instant(detail.data.createdAt)}</dd></div><div><dt>Người thao tác</dt><dd>{detail.data.actor || 'Hệ thống'}</dd></div><div><dt>Thao tác</dt><dd>{attendanceLabel(detail.data.action)}</dd></div><div><dt>Cơ sở</dt><dd>{facility(detail.data.facilityId)}</dd></div><div className="wide"><dt>Loại bản ghi</dt><dd>{entityName(detail.data.entityType)}</dd></div></dl>
+      <AuditChanges before={detail.data.oldValue} after={detail.data.newValue} references={detail.data.references ?? {}} />
       <p className="operations-note">Thông tin nhạy cảm đã được ẩn. Sự kiện chỉ được xem.</p>
       {detail.data.sourceUrl && <Link className="button" to={detail.data.sourceUrl}>Mở bản ghi nguồn</Link>}
     </>}<div className="form-actions"><button type="button" className="button" onClick={() => setSelected('')}>Đóng</button></div></div></Modal>}
   </>;
-  return history ? <AttendanceShell title="Lịch sử chấm công / ca" description="Tra cứu các lần nhập, điều chỉnh, phân công và thay đổi trạng thái đã ghi nhận."
+  return history ? <AttendanceShell layout="list" title="Lịch sử chấm công / ca" description="Tra cứu các lần nhập, điều chỉnh, phân công và thay đổi trạng thái đã ghi nhận."
     actions={canExport && <button type="button" className="button" disabled={exporting || resource.loading || !!resource.error} onClick={() => void exportHistory()}>{exporting ? 'Đang xuất…' : 'Xuất lịch sử'}</button>}>{content}</AttendanceShell>
-    : <section className="directory-page operations-page"><header className="directory-heading"><div><span className="eyebrow">QUẢN TRỊ HỆ THỐNG</span><h1>Nhật ký hệ thống</h1><p>Tra cứu thay đổi tài khoản và nghiệp vụ đã được ghi nhận.</p></div></header>{content}</section>;
+    : <section className="directory-page operations-page workspace-list-page"><header className="directory-heading"><div><span className="eyebrow">QUẢN TRỊ HỆ THỐNG</span><h1>Nhật ký hệ thống</h1><p>Tra cứu thay đổi tài khoản và nghiệp vụ đã được ghi nhận.</p></div></header>{content}</section>;
 }

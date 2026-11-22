@@ -82,7 +82,7 @@ export default function DataTable<T>({
   }
 
   return (
-    <div className="table-scroll">
+    <div className="table-scroll" tabIndex={0} role="region" aria-label={caption || 'Danh sách dữ liệu'}>
       <table>
         {caption && <caption className="sr-only">{caption}</caption>}
         <thead>

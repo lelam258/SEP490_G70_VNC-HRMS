@@ -43,10 +43,13 @@ export default function AccountForm({ account, accounts, employees, mode, onBack
       if (result) setError(result);
     } finally { setBusy(false); }
   }
-  return <section className="account-form-page">
+  return <section className="account-form-page workspace-content-page">
     <button className="text-button back-button" onClick={back}><Icon name="arrow" size={18} /> Danh sách tài khoản</button>
+
     <div className="page-heading"><div><span className="eyebrow">QUẢN TRỊ HỆ THỐNG</span><h1>{mode === 'create' ? 'Tạo tài khoản' : mode === 'edit' ? 'Chỉnh sửa tài khoản' : 'Chi tiết tài khoản'}</h1><p className="muted">{mode === 'create' ? 'Thiết lập quyền truy cập hệ thống cho thành viên đội ngũ.' : 'Thông tin tài khoản và quyền truy cập của nhân viên.'}</p></div>{readonly && <div className="operations-actions">{accessAction}<button className="button primary" onClick={onEdit}><Icon name="edit" size={18} />Chỉnh sửa</button></div>}</div>
-    <div className="form-layout"><form onSubmit={submit} className="panel account-form" aria-label={mode === 'create' ? 'Tạo tài khoản' : 'Thông tin tài khoản'}>
+      <div className="workspace-section-body">
+    <div className="form-layout"><form onSubmit={submit} className="panel account-form workspace-form-panel" aria-label={mode === 'create' ? 'Tạo tài khoản' : 'Thông tin tài khoản'}>
+          <div className="workspace-form-fields">
       <div className="panel-heading"><span className="section-number">01</span><div><h2>Thông tin nhân viên</h2><p>Liên kết tài khoản với hồ sơ nhân viên hiện có hoặc tạo trước cho nhân sự mới.</p></div></div>
       <div className="form-section"><label htmlFor="account-employee">Nhân viên liên kết (không bắt buộc nếu tạo trước)</label><select id="account-employee" disabled={!!account?.employeeId || readonly} value={employeeId} onChange={e => { setEmployeeId(e.target.value); const selected = employees.find(x => x.id === e.target.value); if (selected) { setUsername(selected?.email?.split('@')[0] || selected?.code.toLowerCase() || ''); setEmail(selected?.email || ''); setFullName(selected?.name || ''); } }}><option value="">Chưa liên kết hồ sơ nhân viên (Tạo tài khoản trước cho nhân sự)</option>{available.map(e => <option key={e.id} value={e.id}>{e.code} — {e.name}</option>)}</select><p className="field-hint">Bạn có thể tạo tài khoản trước cho nhân sự khám chữa bệnh hoặc quản trị. Sau đó HR Manager có thể chọn liên kết tài khoản này khi hoàn thiện hồ sơ nhân viên.</p>
       {employee && <div className="employee-preview"><span className="avatar">{initials(employee.name)}</span><div><strong>{employee.name}</strong><span>{employee.code} · {employee.department}</span><small>{employee.email}</small></div></div>}</div>
@@ -58,7 +61,9 @@ export default function AccountForm({ account, accounts, employees, mode, onBack
         {account && <dl className="metadata"><div><dt>Ngày tạo</dt><dd>{formatDate(account.createdAt)}</dd></div><div><dt>Cập nhật gần nhất</dt><dd>{formatDate(account.updatedAt)}</dd></div><div><dt>Đăng nhập gần nhất</dt><dd>{formatDate(account.lastLogin)}</dd></div></dl>}
         {error && <div className="alert error" role="alert">{error}</div>}
       </div>
-      {!readonly && <div className="form-actions"><button type="button" className="button" onClick={back}>Hủy</button><button type="submit" className="button primary" disabled={busy || (mode === 'create' && !username.trim())}><Icon name="check" size={18} />{busy ? 'Đang lưu…' : mode === 'create' ? 'Tạo tài khoản' : 'Lưu thay đổi'}</button></div>}
+      </div>
+          {!readonly && <div className="form-actions"><button type="button" className="button" onClick={back}>Hủy</button><button type="submit" className="button primary" disabled={busy || (mode === 'create' && !username.trim())}><Icon name="check" size={18} />{busy ? 'Đang lưu…' : mode === 'create' ? 'Tạo tài khoản' : 'Lưu thay đổi'}</button></div>}
     </form><aside className="form-guide"><span className="guide-icon"><Icon name="shield" size={26} /></span><h3>Đúng người, đúng quyền</h3><p>Mỗi nhân viên được liên kết với một tài khoản duy nhất.</p><ul><li><strong>Vai trò</strong> xác định phạm vi chức năng được sử dụng.</li><li><strong>Ngừng hoạt động</strong> khi tài khoản không còn được sử dụng.</li><li><strong>Đã khóa</strong> để tạm thời chặn quyền truy cập.</li></ul><div className="guide-note">Mật khẩu được bảo vệ trong hệ thống. Gửi mật khẩu ban đầu cho nhân viên qua kênh riêng; nhân viên có thể đổi mật khẩu sau khi đăng nhập.</div></aside></div>
-  </section>;
+  </div>
+</section>;
 }

@@ -524,7 +524,7 @@ export default function ComplianceDashboardPage() {
   }, [activeCard, kpis.certExpiringThresholdDays, kpis.cmeAlertThresholdDays]);
 
   return (
-    <section className="max-w-6xl mx-auto space-y-6">
+    <section className="max-w-6xl mx-auto space-y-6 workspace-content-page">
       {/* Tiêu đề trang & Nút hành động */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -558,6 +558,7 @@ export default function ComplianceDashboardPage() {
           </button>
         </div>
       </div>
+      <div className="workspace-section-body">
 
       {/* Thanh Bộ lọc Báo cáo (1. Report Type - 2. Period - 3. Authorized Scope) */}
       <ReportFilterBar
@@ -769,7 +770,7 @@ export default function ComplianceDashboardPage() {
               Không có chứng chỉ nào khớp với bộ lọc hiện tại.
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto workspace-table-region">
               <table className="w-full border-collapse border border-slate-200 text-sm">
                 <thead>
                   <tr className="bg-slate-50 text-left text-xs font-bold text-slate-800">
@@ -887,7 +888,7 @@ export default function ComplianceDashboardPage() {
               Không có chu kỳ CME nào thuộc diện cảnh báo (Có nguy cơ). Bấm &ldquo;Xem tất cả chu kỳ CME&rdquo; để xem toàn bộ.
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto workspace-table-region">
               <table className="w-full border-collapse border border-slate-200 text-sm">
                 <thead>
                   <tr className="bg-slate-50 text-left text-xs font-bold text-slate-800">
@@ -1045,6 +1046,7 @@ export default function ComplianceDashboardPage() {
           </div>
         </div>
       )}
+      </div>
     </section>
   );
 }

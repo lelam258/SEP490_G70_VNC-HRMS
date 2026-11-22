@@ -189,7 +189,7 @@ export default function ProcedureDetailPage() {
     (isAccountant && detail.status === 'pending' && !detail.isPeriodLocked);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 workspace-content-page">
       {/* Header & Action Bar */}
       <div className="page-heading flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -297,6 +297,7 @@ export default function ProcedureDetailPage() {
           )}
         </div>
       </div>
+      <div className="workspace-section-body">
 
       {notice && <Alert variant="success">{notice}</Alert>}
 
@@ -751,6 +752,7 @@ export default function ProcedureDetailPage() {
           </form>
         </Modal>
       )}
+      </div>
     </div>
   );
 }

@@ -95,7 +95,8 @@ type InlineTaxMode = 'progressive' | 'flat_10_gross' | 'flat_10_after';
 interface InlineBaseRef {
   unitDailyRate: number;
   fixedAllowanceAndOt: number;
-  unitDutyRate: number;
+  eveningDutyRate: number;
+  noonDutyRate: number;
   originalGross: number;
   originalInsurance: number;
   originalUnion: number;
@@ -226,7 +227,8 @@ export default function PayrollPeriodDetailPage() {
   const [inlineBaseRef, setInlineBaseRef] = useState<InlineBaseRef | null>(null);
   const [inlineDraft, setInlineDraft] = useState({
     workDays: '0',
-    onCallDays: '0',
+    eveningDutyCount: '0',
+    noonDutyCount: '0',
     basePay: '0',
     allowanceAndDutyTotal: '0',
     commissionTotal: '0',
@@ -437,13 +439,19 @@ export default function PayrollPeriodDetailPage() {
   const handleStartInlineEdit = (r: PayslipSummaryItem) => {
     const dutyAndAllowance = (r.allowanceTotal || 0) + (r.onCallPay || 0) + (r.overtimePay || 0);
     const { taxMode, familyDeduction } = inferInlineTaxProfile(r);
+    const noonCount = r.noonDutyCount ?? 0;
+    const eveningCount =
+      (r.eveningDutyCount ?? 0) === 0 && noonCount === 0 && (r.onCallDays || 0) > 0
+        ? (r.onCallDays || 0)
+        : (r.eveningDutyCount ?? 0);
     setError('');
     setNotice('');
     setEditingRowId(r.payslipId);
     setInlineBaseRef({
       unitDailyRate: (r.workDays || 0) > 0 ? (r.basePay || 0) / (r.workDays || 1) : 0,
       fixedAllowanceAndOt: (r.allowanceTotal || 0) + (r.overtimePay || 0),
-      unitDutyRate: (r.onCallDays || 0) > 0 && (r.onCallPay || 0) > 0 ? (r.onCallPay || 0) / (r.onCallDays || 1) : 100_000,
+      eveningDutyRate: r.eveningDutyRate ?? 100_000,
+      noonDutyRate: r.noonDutyRate ?? 50_000,
       originalGross: r.grossPay || 0,
       originalInsurance: r.insuranceDeduction || 0,
       originalUnion: r.otherDeduction || 0,
@@ -454,7 +462,8 @@ export default function PayrollPeriodDetailPage() {
     });
     setInlineDraft({
       workDays: String(r.workDays || 0),
-      onCallDays: String(r.onCallDays || 0),
+      eveningDutyCount: String(eveningCount),
+      noonDutyCount: String(noonCount),
       basePay: formatNumberWithDots(Math.round(r.basePay || 0)),
       allowanceAndDutyTotal: formatNumberWithDots(Math.round(dutyAndAllowance)),
       commissionTotal: formatNumberWithDots(Math.round(r.commissionTotal || 0)),
@@ -480,14 +489,30 @@ export default function PayrollPeriodDetailPage() {
     });
   };
 
-  const handleOnCallDaysChange = (value: string) => {
+  const handleDutyCountChange = (type: 'evening' | 'noon', value: string) => {
     const trimmed = value.trim();
     const parsed = Number(trimmed);
     setInlineDraft((prev) => {
-      const next = { ...prev, onCallDays: value };
-      if (trimmed !== '' && !isNaN(parsed) && parsed >= 0 && inlineBaseRef) {
+      const next =
+        type === 'evening'
+          ? { ...prev, eveningDutyCount: value }
+          : { ...prev, noonDutyCount: value };
+      const eveningVal = type === 'evening' ? parsed : Number(prev.eveningDutyCount || 0);
+      const noonVal = type === 'noon' ? parsed : Number(prev.noonDutyCount || 0);
+      if (
+        trimmed !== '' &&
+        !isNaN(parsed) &&
+        parsed >= 0 &&
+        !isNaN(eveningVal) &&
+        eveningVal >= 0 &&
+        !isNaN(noonVal) &&
+        noonVal >= 0 &&
+        inlineBaseRef
+      ) {
         const recalcAllowDuty = Math.round(
-          inlineBaseRef.fixedAllowanceAndOt + inlineBaseRef.unitDutyRate * parsed
+          inlineBaseRef.fixedAllowanceAndOt +
+            eveningVal * inlineBaseRef.eveningDutyRate +
+            noonVal * inlineBaseRef.noonDutyRate
         );
         next.allowanceAndDutyTotal = formatNumberWithDots(recalcAllowDuty);
       }
@@ -499,13 +524,18 @@ export default function PayrollPeriodDetailPage() {
     if (!month || savingInline) return;
 
     const workDaysVal = Number(inlineDraft.workDays);
-    const onCallDaysVal = Number(inlineDraft.onCallDays);
+    const eveningVal = Number(inlineDraft.eveningDutyCount || 0);
+    const noonVal = Number(inlineDraft.noonDutyCount || 0);
     if (isNaN(workDaysVal) || workDaysVal < 0 || workDaysVal > 31) {
       setError('Số ngày công phải nằm trong khoảng từ 0 đến 31.');
       return;
     }
-    if (isNaN(onCallDaysVal) || onCallDaysVal < 0 || onCallDaysVal > 62) {
-      setError('Số ca trực phải nằm trong khoảng từ 0 đến 62.');
+    if (isNaN(eveningVal) || eveningVal < 0 || eveningVal > 31) {
+      setError('Số ca trực tối phải nằm trong khoảng từ 0 đến 31.');
+      return;
+    }
+    if (isNaN(noonVal) || noonVal < 0 || noonVal > 31) {
+      setError('Số ca trực trưa phải nằm trong khoảng từ 0 đến 31.');
       return;
     }
 
@@ -515,7 +545,9 @@ export default function PayrollPeriodDetailPage() {
     try {
       const updated = await payrollPeriodApi.updatePayslipInline(month, payslipId, {
         workDays: workDaysVal,
-        onCallDays: onCallDaysVal,
+        onCallDays: Math.round((eveningVal + noonVal) * 100) / 100,
+        eveningDutyCount: eveningVal,
+        noonDutyCount: noonVal,
         basePay: parseNumberFromDots(inlineDraft.basePay),
         allowanceAndDutyTotal: parseNumberFromDots(inlineDraft.allowanceAndDutyTotal),
         commissionTotal: parseNumberFromDots(inlineDraft.commissionTotal),
@@ -668,8 +700,10 @@ export default function PayrollPeriodDetailPage() {
       'Loại HĐ',
       'Ngày công',
       'Ca trực',
+      'Trực tối',
+      'Trực trưa',
       'Lương ngày công (VND)',
-      'Tiền trực & OT (VND)',
+      'Tiền trực (VND)',
       'Phụ cấp (VND)',
       'Hoa hồng TT (VND)',
       'Tổng Gross (VND)',
@@ -688,6 +722,8 @@ export default function PayrollPeriodDetailPage() {
       `"${p.contractType || ''}"`,
       p.workDays || 0,
       p.onCallDays || 0,
+      p.eveningDutyCount ?? 0,
+      p.noonDutyCount ?? 0,
       p.basePay || 0,
       (p.onCallPay || 0) + (p.overtimePay || 0),
       p.allowanceTotal || 0,
@@ -766,11 +802,11 @@ export default function PayrollPeriodDetailPage() {
       label: 'Công & Lương CB',
       sortable: true,
       sortValue: (r) => r.basePay || 0,
-      className: 'px-2.5! py-3!',
+      className: 'px-2.5! py-3! text-center',
       render: (r: PayslipSummaryItem) => {
         if (editingRowId === r.payslipId) {
           return (
-            <div className="space-y-1">
+            <div className="space-y-1 flex flex-col items-center">
               <input
                 type="text"
                 inputMode="numeric"
@@ -784,46 +820,89 @@ export default function PayrollPeriodDetailPage() {
                 style={{ width: '108px', height: '28px', minHeight: '28px', padding: '2px 6px', fontSize: '12px' }}
                 className="rounded border border-sky-400 bg-white text-slate-900 font-semibold tabular-nums focus:outline-none focus:ring-1 focus:ring-sky-500"
               />
-              <div className="flex items-center gap-1 text-[10px] text-slate-500">
-                <input
-                  type="number"
-                  min={0}
-                  max={31}
-                  step="0.5"
-                  aria-label="Số ngày công"
-                  value={inlineDraft.workDays}
-                  onChange={(e) => handleWorkDaysChange(e.target.value)}
-                  onKeyDown={(e) => handleInlineKeyDown(e, r.payslipId)}
-                  disabled={savingInline}
-                  style={{ width: '48px', height: '22px', minHeight: '22px', padding: '1px 4px', fontSize: '11px' }}
-                  className="rounded border border-slate-300 bg-white text-slate-800 tabular-nums focus:outline-none focus:ring-1 focus:ring-sky-500"
-                />
-                <span>công ·</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={62}
-                  step="0.5"
-                  aria-label="Số ca trực"
-                  value={inlineDraft.onCallDays}
-                  onChange={(e) => handleOnCallDaysChange(e.target.value)}
-                  onKeyDown={(e) => handleInlineKeyDown(e, r.payslipId)}
-                  disabled={savingInline}
-                  style={{ width: '44px', height: '22px', minHeight: '22px', padding: '1px 4px', fontSize: '11px' }}
-                  className="rounded border border-slate-300 bg-white text-slate-800 tabular-nums focus:outline-none focus:ring-1 focus:ring-sky-500"
-                />
-                <span>trực</span>
+              <div className="flex flex-col items-center gap-1 text-[10px] text-slate-500">
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    min={0}
+                    max={31}
+                    step="0.5"
+                    aria-label="Số ngày công"
+                    title="Số ngày công"
+                    value={inlineDraft.workDays}
+                    onChange={(e) => handleWorkDaysChange(e.target.value)}
+                    onKeyDown={(e) => handleInlineKeyDown(e, r.payslipId)}
+                    disabled={savingInline}
+                    style={{ width: '46px', height: '22px', minHeight: '22px', padding: '1px 4px', fontSize: '11px' }}
+                    className="rounded border border-slate-300 bg-white text-slate-800 tabular-nums focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                  <span>công</span>
+                </div>
+                <div className="flex items-center gap-1 whitespace-nowrap">
+                  <input
+                    type="number"
+                    min={0}
+                    max={31}
+                    step="0.5"
+                    aria-label="Số ca trực tối"
+                    title={`Số ca trực tối (${formatVnd(r.eveningDutyRate ?? 100_000)}/ca)`}
+                    value={inlineDraft.eveningDutyCount}
+                    onChange={(e) => handleDutyCountChange('evening', e.target.value)}
+                    onKeyDown={(e) => handleInlineKeyDown(e, r.payslipId)}
+                    disabled={savingInline}
+                    style={{ width: '40px', height: '22px', minHeight: '22px', padding: '1px 3px', fontSize: '11px' }}
+                    className="rounded border border-slate-300 bg-white text-slate-800 tabular-nums focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                  <span>tối ·</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={31}
+                    step="0.5"
+                    aria-label="Số ca trực trưa"
+                    title={`Số ca trực trưa (${formatVnd(r.noonDutyRate ?? 50_000)}/ca)`}
+                    value={inlineDraft.noonDutyCount}
+                    onChange={(e) => handleDutyCountChange('noon', e.target.value)}
+                    onKeyDown={(e) => handleInlineKeyDown(e, r.payslipId)}
+                    disabled={savingInline}
+                    style={{ width: '40px', height: '22px', minHeight: '22px', padding: '1px 3px', fontSize: '11px' }}
+                    className="rounded border border-slate-300 bg-white text-slate-800 tabular-nums focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                  <span>trưa</span>
+                </div>
               </div>
             </div>
           );
         }
+        const noon = r.noonDutyCount ?? 0;
+        const evening = r.eveningDutyCount ?? 0;
+        const totalDuty = r.onCallDays || 0;
+        const dutyParts: string[] = [];
+        if (evening > 0) dutyParts.push(`${evening} tối`);
+        if (noon > 0) dutyParts.push(`${noon} trưa`);
+
+        const hasExactSplit = (noon > 0 || evening > 0) && Math.abs(noon + evening - totalDuty) < 0.01;
+        const dutySummary =
+          totalDuty === 0
+            ? '0 trực'
+            : hasExactSplit
+            ? dutyParts.join(', ')
+            : `${totalDuty} trực`;
+
+        const dutyTooltip =
+          totalDuty > 0 && (noon > 0 || evening > 0)
+            ? hasExactSplit
+              ? `${evening} trực tối · ${noon} trực trưa (Tổng ${totalDuty} ca trực)`
+              : `Tổng ${totalDuty} ca trực (Dữ liệu chấm công gốc: ${evening} trực tối · ${noon} trực trưa)`
+            : undefined;
+
         return (
           <div className="tabular-nums leading-tight">
             <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
               {formatVnd(r.basePay || 0)}
             </div>
-            <div className="text-[10px] text-slate-500">
-              {r.workDays || 0} công · {r.onCallDays || 0} trực
+            <div className="text-[10px] text-slate-500 whitespace-nowrap" title={dutyTooltip}>
+              {r.workDays || 0} công · {dutySummary}
             </div>
           </div>
         );
@@ -834,7 +913,7 @@ export default function PayrollPeriodDetailPage() {
       label: 'Trực & Phụ cấp',
       sortable: true,
       sortValue: (r) => (r.allowanceTotal || 0) + (r.onCallPay || 0) + (r.overtimePay || 0),
-      className: 'px-2.5! py-3!',
+      className: 'px-2.5! py-3! text-center',
       render: (r: PayslipSummaryItem) => {
         if (editingRowId === r.payslipId) {
           return (
@@ -859,11 +938,11 @@ export default function PayrollPeriodDetailPage() {
         const dutyOt = (r.onCallPay || 0) + (r.overtimePay || 0);
         const total = (r.allowanceTotal || 0) + dutyOt;
         return (
-          <div className="tabular-nums leading-tight">
+          <div className={`tabular-nums leading-tight${total === 0 ? ' text-center' : ''}`}>
             <div className="text-xs font-medium text-slate-800 dark:text-slate-200">{formatVnd(total)}</div>
             {dutyOt > 0 && (
               <div className="text-[10px] text-slate-500">
-                Trực/OT: {formatVnd(dutyOt)}
+                Tiền trực: {formatVnd(dutyOt)}
               </div>
             )}
           </div>
@@ -875,7 +954,7 @@ export default function PayrollPeriodDetailPage() {
       label: 'Hoa hồng TT',
       sortable: true,
       sortValue: (r) => r.commissionTotal || 0,
-      className: 'px-2.5! py-3!',
+      className: 'px-2.5! py-3! text-center',
       render: (r: PayslipSummaryItem) => {
         if (editingRowId === r.payslipId) {
           return (
@@ -897,9 +976,14 @@ export default function PayrollPeriodDetailPage() {
             />
           );
         }
+        const commission = r.commissionTotal || 0;
         return (
-          <span className="text-xs font-medium text-slate-800 dark:text-slate-200 tabular-nums">
-            {formatVnd(r.commissionTotal || 0)}
+          <span
+            className={`text-xs font-medium text-slate-800 dark:text-slate-200 tabular-nums${
+              commission === 0 ? ' block text-center' : ''
+            }`}
+          >
+            {formatVnd(commission)}
           </span>
         );
       },
@@ -909,7 +993,7 @@ export default function PayrollPeriodDetailPage() {
       label: 'Tổng Gross',
       sortable: true,
       sortValue: (r) => r.grossPay || 0,
-      className: 'px-2.5! py-3!',
+      className: 'px-2.5! py-3! text-center',
       render: (r: PayslipSummaryItem) => {
         if (editingRowId === r.payslipId) {
           return (
@@ -919,9 +1003,14 @@ export default function PayrollPeriodDetailPage() {
             </div>
           );
         }
+        const gross = r.grossPay || 0;
         return (
-          <span className="text-xs font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
-            {formatVnd(r.grossPay || 0)}
+          <span
+            className={`text-xs font-semibold text-slate-900 dark:text-slate-100 tabular-nums${
+              gross === 0 ? ' block text-center' : ''
+            }`}
+          >
+            {formatVnd(gross)}
           </span>
         );
       },
@@ -931,7 +1020,7 @@ export default function PayrollPeriodDetailPage() {
       label: 'BHXH, CĐ & Thuế',
       sortable: true,
       sortValue: (r) => (r.insuranceDeduction || 0) + (r.otherDeduction || 0) + (r.taxDeduction || 0),
-      className: 'px-2.5! py-3!',
+      className: 'px-2.5! py-3! text-center',
       render: (r: PayslipSummaryItem) => {
         if (editingRowId === r.payslipId) {
           return (
@@ -953,7 +1042,7 @@ export default function PayrollPeriodDetailPage() {
         const insAndUnion = (r.insuranceDeduction || 0) + (r.otherDeduction || 0);
         const totalDed = insAndUnion + (r.taxDeduction || 0);
         return (
-          <div className="tabular-nums leading-tight">
+          <div className={`tabular-nums leading-tight${totalDed === 0 ? ' text-center' : ''}`}>
             <div className="text-xs font-medium text-rose-700 dark:text-rose-400">{formatVnd(totalDed)}</div>
             {insAndUnion > 0 && (
               <div className="text-[10px] text-slate-500">BH/CĐ: {formatVnd(insAndUnion)}</div>
@@ -970,7 +1059,7 @@ export default function PayrollPeriodDetailPage() {
       label: 'Thực lĩnh (Net)',
       sortable: true,
       sortValue: (r) => r.netPay || 0,
-      className: 'px-2.5! py-3!',
+      className: 'px-2.5! py-3! text-center',
       render: (r: PayslipSummaryItem) => {
         if (editingRowId === r.payslipId) {
           return (
@@ -982,9 +1071,14 @@ export default function PayrollPeriodDetailPage() {
             </div>
           );
         }
+        const net = r.netPay || 0;
         return (
-          <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 tabular-nums">
-            {formatVnd(r.netPay || 0)}
+          <span
+            className={`text-xs font-bold text-emerald-700 dark:text-emerald-400 tabular-nums${
+              net === 0 ? ' block text-center' : ''
+            }`}
+          >
+            {formatVnd(net)}
           </span>
         );
       },
@@ -994,7 +1088,7 @@ export default function PayrollPeriodDetailPage() {
       label: 'Rà soát',
       sortable: true,
       sortValue: (r) => r.reviewStatus || 'pending',
-      className: 'px-2! py-3!',
+      className: 'px-2! py-3! text-center',
       render: (r: PayslipSummaryItem) => (
         <div className="space-y-0.5 leading-tight">
           <span
@@ -1006,7 +1100,7 @@ export default function PayrollPeriodDetailPage() {
             {REVIEW_STATUS_LABELS[r.reviewStatus] || r.reviewStatus}
           </span>
           {r.reviewNote && (
-            <div className="text-[10px] text-rose-600 max-w-[110px] truncate" title={r.reviewNote}>
+            <div className="text-[10px] text-rose-600 max-w-[110px] truncate mx-auto" title={r.reviewNote}>
               {r.reviewNote}
             </div>
           )}
@@ -1016,11 +1110,11 @@ export default function PayrollPeriodDetailPage() {
     {
       key: 'actions',
       label: 'Thao tác',
-      className: 'pl-2! pr-4! py-3!',
+      className: 'pl-2! pr-4! py-3! text-center',
       render: (r: PayslipSummaryItem) => {
         if (editingRowId === r.payslipId) {
           return (
-            <div className="flex items-center gap-1.5 whitespace-nowrap">
+            <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
               <button
                 type="button"
                 className="h-7 px-2.5 rounded bg-teal-600 hover:bg-teal-700 text-white text-[11px] font-semibold cursor-pointer disabled:opacity-60 transition-colors"
@@ -1042,7 +1136,7 @@ export default function PayrollPeriodDetailPage() {
         }
 
         return (
-          <div className="flex items-center gap-2 whitespace-nowrap">
+          <div className="flex items-center justify-center gap-2 whitespace-nowrap">
             {!isFinalizedOrLocked && (
               <button
                 type="button"
@@ -1077,7 +1171,7 @@ export default function PayrollPeriodDetailPage() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 workspace-content-page">
       {notice && <Alert variant="success">{notice}</Alert>}
       {error && <Alert variant="error">{error}</Alert>}
 
@@ -1222,6 +1316,7 @@ export default function PayrollPeriodDetailPage() {
           </div>
         )}
       </div>
+      <div className="workspace-section-body">
 
       {/* Unified Overview Card: Progress Stepper + Readiness & Financial KPI Strip */}
       {detail && (
@@ -1340,15 +1435,11 @@ export default function PayrollPeriodDetailPage() {
                 <span className="text-lg font-bold text-slate-900 tabular-nums">
                   {detail.employeeCount || 0} nhân sự
                 </span>
-                <span
-                  className={`text-xs ${
-                    reviewStats.flagged > 0 ? 'text-rose-600 font-medium' : 'text-slate-500'
-                  }`}
-                >
-                  {reviewStats.flagged > 0
-                    ? `• ${reviewStats.flagged} cần hiệu chỉnh`
-                    : `• Đã rà soát ${reviewStats.reviewed}/${reviewStats.total}`}
-                </span>
+                {reviewStats.flagged > 0 && (
+                  <span className="text-xs text-rose-600 font-medium">
+                    • {reviewStats.flagged} cần hiệu chỉnh
+                  </span>
+                )}
               </div>
             </div>
 
@@ -1423,7 +1514,7 @@ export default function PayrollPeriodDetailPage() {
       <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
         <div className="p-3.5 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900">
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-2 pl-3 pr-2 h-9 w-52 sm:w-64 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-500/20 shadow-xs transition-all">
+            <div className="flex items-center gap-2 pl-3 pr-2 h-9 w-52 sm:w-64 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus-within:border-slate-400 dark:focus-within:border-slate-500 shadow-xs transition-all">
               <span className="shrink-0 text-slate-400 flex items-center pointer-events-none">
                 <Icon name="search" size={14} />
               </span>
@@ -1431,7 +1522,7 @@ export default function PayrollPeriodDetailPage() {
                 type="text"
                 placeholder="Tìm tên, mã nhân viên..."
                 className="w-full bg-transparent text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none"
-                style={{ padding: 0, minHeight: 'unset', border: 'none', background: 'transparent' }}
+                style={{ padding: 0, minHeight: 'unset', border: 'none', background: 'transparent', outline: 'none' }}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -1562,7 +1653,7 @@ export default function PayrollPeriodDetailPage() {
               {formatMonthDisplay(detail.payMonth)}
             </span>
           }
-          maxWidth="820px"
+          maxWidth="860px"
           onClose={() => {
             if (!savingReview) {
               setSelectedSummary(null);
@@ -1601,7 +1692,7 @@ export default function PayrollPeriodDetailPage() {
                       {payslipDetail.workDays} công
                     </strong>
                     <span className="text-[10px] text-slate-500">
-                      {payslipDetail.onCallDays} ca trực · {payslipDetail.overtimeHours}h OT
+                      {payslipDetail.onCallDays} ca trực · {payslipDetail.overtimeHours}h ngoài giờ
                     </span>
                   </div>
 
@@ -1675,9 +1766,14 @@ export default function PayrollPeriodDetailPage() {
                       Chấm công &amp; Ca trực xác nhận
                     </div>
                     <div className="flex justify-between gap-2">
-                      <span className="text-slate-500">Ngày công tính lương (Gồm phép):</span>
-                      <strong className="text-slate-800 text-right">
-                        {payslipDetail.workDays} công ({payslipDetail.paidLeaveDays} phép lương,{' '}
+                      <span
+                        className="text-slate-500 whitespace-nowrap shrink-0"
+                        title="Ngày công tính lương (đã bao gồm phép có lương)"
+                      >
+                        Ngày công tính lương:
+                      </span>
+                      <strong className="text-slate-800 text-right whitespace-nowrap">
+                        {payslipDetail.workDays} công ({payslipDetail.paidLeaveDays} phép,{' '}
                         {payslipDetail.unpaidLeaveDays} không lương)
                       </strong>
                     </div>
@@ -1688,7 +1784,7 @@ export default function PayrollPeriodDetailPage() {
                       </strong>
                     </div>
                     <div className="flex justify-between gap-2">
-                      <span className="text-slate-500">Giờ làm thêm (Ngoài giờ):</span>
+                      <span className="text-slate-500">Giờ trực ngoài giờ:</span>
                       <strong className="text-slate-800 text-right">{payslipDetail.overtimeHours} giờ (× 150%)</strong>
                     </div>
                     <div className="flex justify-between items-center gap-2">
@@ -1732,7 +1828,7 @@ export default function PayrollPeriodDetailPage() {
                         )}
                         {payslipDetail.overtimePay > 0 && (
                           <div className="flex justify-between py-1 border-b border-dashed border-slate-200">
-                            <span className="text-slate-600">Tiền làm thêm giờ ({payslipDetail.overtimeHours}h):</span>
+                            <span className="text-slate-600">Tiền trực ngoài giờ ({payslipDetail.overtimeHours}h):</span>
                             <strong className="text-slate-800 tabular-nums">{formatVnd(payslipDetail.overtimePay)}</strong>
                           </div>
                         )}
@@ -1942,7 +2038,7 @@ export default function PayrollPeriodDetailPage() {
       {finalizeModalOpen && detail && (
         <Modal
           title={`Chốt & Khóa sổ kỳ lương ${formatMonthDisplay(detail.payMonth)}`}
-          subtitle="Xác nhận phát hành phiếu lương chính thức (MSG13)"
+          subtitle="Xác nhận phát hành phiếu lương chính thức"
           onClose={() => {
             if (!finalizing) {
               setFinalizeModalOpen(false);
@@ -2167,6 +2263,7 @@ export default function PayrollPeriodDetailPage() {
           </div>
         </Modal>
       )}
+      </div>
     </div>
   );
 }

@@ -177,34 +177,29 @@ export default function LeaveRequestFormPage() {
   const selectedType = leaveTypes.find((t) => t.code === leaveType);
 
   return (
-    <div className="panel leave-request-form-container" style={{ maxWidth: '680px', margin: '0 auto', padding: '1.5rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '1px solid var(--color-border, #e5e7eb)', paddingBottom: '1rem' }}>
-        <div>
-          <h1 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>
-            {isEdit ? 'Sửa đơn nghỉ phép' : 'Tạo đơn nghỉ phép mới'}
-          </h1>
-          <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted, #6b7280)' }}>
-            {isEdit
-              ? 'Chỉ sửa được khi đơn còn chờ duyệt'
-              : 'Điền thông tin khoảng thời gian và lý do nghỉ phép'}
-          </p>
-        </div>
+    <div className="panel leave-request-form-container workspace-content-page" style={{ maxWidth: '760px', margin: '0 auto', padding: '1rem 1.25rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', borderBottom: '1px solid var(--color-border, #e5e7eb)', paddingBottom: '0.65rem' }}>
+        <h1 style={{ fontSize: '1.15rem', fontWeight: 600, margin: 0 }}>
+          {isEdit ? 'Sửa đơn nghỉ phép' : 'Tạo đơn nghỉ phép mới'}
+        </h1>
         <button
           type="button"
           className="button secondary small"
           onClick={() => navigate('/me/leave-requests')}
           disabled={submitting}
         >
-          <Icon name="arrow" /> Quay lại
+          <Icon name="arrow" size={14} /> Quay lại
         </button>
       </div>
+      <div className="workspace-section-body">
 
       {error && <Alert variant="error">{error}</Alert>}
       {notEditable && <Alert variant="error">{notEditable}</Alert>}
 
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <form className="workspace-form-panel" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <div className="workspace-form-fields workspace-form-stack">
         <div className="field">
-          <label htmlFor="leave-type-select" style={{ fontWeight: 600, fontSize: '12px', marginBottom: '6px', display: 'block' }}>
+          <label htmlFor="leave-type-select" style={{ fontWeight: 600, fontSize: '12px', marginBottom: '4px', display: 'block' }}>
             Loại nghỉ phép <span style={{ color: '#dc2626' }}>*</span>
           </label>
           <select
@@ -222,34 +217,32 @@ export default function LeaveRequestFormPage() {
           </select>
 
           {selectedType && (
-            <div style={{ marginTop: '0.5rem', padding: '0.625rem 0.75rem', borderRadius: '6px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '0.8125rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: selectedType.description ? '0.375rem' : '0' }}>
-                {selectedType.isPaid ? (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600, backgroundColor: '#dcfce7', color: '#15803d' }}>
-                    ● Hưởng 100% nguyên lương
-                  </span>
-                ) : selectedType.code === 'sick' || selectedType.code === 'maternity' ? (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600, backgroundColor: '#e0f2fe', color: '#0369a1' }}>
-                    ● Hưởng trợ cấp BHXH
-                  </span>
-                ) : (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600, backgroundColor: '#fef3c7', color: '#92400e' }}>
-                    ● Không hưởng lương
-                  </span>
-                )}
-              </div>
+            <div style={{ marginTop: '0.4rem', padding: '0.4rem 0.65rem', borderRadius: '6px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {selectedType.isPaid ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '1px 7px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600, backgroundColor: '#dcfce7', color: '#15803d', flexShrink: 0 }}>
+                  ● Hưởng 100% nguyên lương
+                </span>
+              ) : selectedType.code === 'sick' || selectedType.code === 'maternity' ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '1px 7px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600, backgroundColor: '#e0f2fe', color: '#0369a1', flexShrink: 0 }}>
+                  ● Hưởng trợ cấp BHXH
+                </span>
+              ) : (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '1px 7px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600, backgroundColor: '#fef3c7', color: '#92400e', flexShrink: 0 }}>
+                  ● Không hưởng lương
+                </span>
+              )}
               {selectedType.description && (
-                <div style={{ color: '#475569', lineHeight: 1.45, fontSize: '0.8125rem' }}>
+                <span style={{ color: '#475569', lineHeight: 1.35 }}>
                   {selectedType.description}
-                </div>
+                </span>
               )}
             </div>
           )}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
           <div className="field">
-            <label htmlFor="start-date" style={{ fontWeight: 600, fontSize: '12px', marginBottom: '6px', display: 'block' }}>
+            <label htmlFor="start-date" style={{ fontWeight: 600, fontSize: '12px', marginBottom: '4px', display: 'block' }}>
               Từ ngày <span style={{ color: '#dc2626' }}>*</span>
             </label>
             <input
@@ -265,7 +258,7 @@ export default function LeaveRequestFormPage() {
           </div>
 
           <div className="field">
-            <label htmlFor="end-date" style={{ fontWeight: 600, fontSize: '12px', marginBottom: '6px', display: 'block' }}>
+            <label htmlFor="end-date" style={{ fontWeight: 600, fontSize: '12px', marginBottom: '4px', display: 'block' }}>
               Đến ngày <span style={{ color: '#dc2626' }}>*</span>
             </label>
             <input
@@ -283,11 +276,11 @@ export default function LeaveRequestFormPage() {
 
         {/* Working Days Summary / Calculation */}
         <div style={{
-          padding: '0.75rem 1rem',
+          padding: '0.45rem 0.75rem',
           borderRadius: '6px',
           backgroundColor: daysError ? '#fef2f2' : '#f0fdf4',
           border: `1px solid ${daysError ? '#fecaca' : '#bbf7d0'}`,
-          fontSize: '0.875rem',
+          fontSize: '0.8125rem',
         }}>
           {daysError ? (
             <span style={{ color: '#dc2626', fontWeight: 500 }}>{daysError}</span>
@@ -300,13 +293,13 @@ export default function LeaveRequestFormPage() {
 
         {/* Reason Field with bottom-right dynamic counter */}
         <div className="field">
-          <label htmlFor="reason" style={{ fontWeight: 600, fontSize: '12px', marginBottom: '6px', display: 'block' }}>
+          <label htmlFor="reason" style={{ fontWeight: 600, fontSize: '12px', marginBottom: '4px', display: 'block' }}>
             Lý do nghỉ phép <span style={{ color: '#dc2626' }}>*</span>
           </label>
           <textarea
             id="reason"
             className="input"
-            rows={4}
+            rows={3}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="Mô tả cụ thể lý do xin nghỉ phép..."
@@ -314,7 +307,7 @@ export default function LeaveRequestFormPage() {
             required
             style={{ width: '100%', resize: 'vertical' }}
           />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '2px' }}>
             <small style={{
               fontSize: '11px',
               fontWeight: isReasonValid ? 400 : 600,
@@ -328,7 +321,7 @@ export default function LeaveRequestFormPage() {
 
         {/* Custom File Upload Area */}
         <div className="field">
-          <label style={{ fontWeight: 600, fontSize: '12px', marginBottom: '6px', display: 'block' }}>
+          <label style={{ fontWeight: 600, fontSize: '12px', marginBottom: '4px', display: 'block' }}>
             Tệp đính kèm (tùy chọn)
           </label>
           <input
@@ -438,7 +431,8 @@ export default function LeaveRequestFormPage() {
           )}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
+        </div>
+        <div className="form-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.25rem' }}>
           <button
             type="button"
             className="button secondary"
@@ -451,7 +445,7 @@ export default function LeaveRequestFormPage() {
             type="submit"
             className="button primary"
             disabled={isSubmitDisabled}
-            style={{ minWidth: '165px' }}
+            style={{ minWidth: '145px' }}
           >
             {submitting ? (
               <>
@@ -466,6 +460,7 @@ export default function LeaveRequestFormPage() {
           </button>
         </div>
       </form>
+      </div>
     </div>
   );
 }

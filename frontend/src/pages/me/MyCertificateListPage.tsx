@@ -254,7 +254,7 @@ export default function MyCertificateListPage() {
   }, [certificates, searchTerm, categoryFilter, statusFilter]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 workspace-list-page">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-slate-200">
         <div>
@@ -699,8 +699,8 @@ export default function MyCertificateListPage() {
         </div>
       ) : (
         /* Table View */
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
-          <div className="overflow-x-auto">
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs workspace-list-panel">
+          <div className="overflow-x-auto workspace-table-viewport">
             <table className="w-full text-left text-xs text-slate-700">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[10px] font-semibold tracking-wider">
                 <tr>

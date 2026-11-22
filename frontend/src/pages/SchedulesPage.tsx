@@ -157,13 +157,14 @@ export default function SchedulesPage() {
   const departments = scheduleDepartments(options, facilityId);
   const staff = scheduleStaff(options, facilityId, departmentId);
   const actionRow = action?.row;
-  return <section className="schedule-page schedule-workspace">
+  return <section className="schedule-page schedule-workspace workspace-list-page">
     <header className="schedule-page-header"><div><span className="eyebrow">VNC · NHÂN SỰ</span><h1>Lịch làm việc</h1><p>{manager ? 'Lập lịch tuần kế tiếp · Chốt trước 00:00 thứ Hai' : globalReader ? 'Theo dõi lịch làm việc tại các cơ sở' : 'Lịch cá nhân đã công bố'}</p></div>
       {manager && <div className="schedule-primary-actions">{currentStatus?.closed
         ? <button id="schedule-reopen" disabled={unavailable || !permissions.canReopen} onClick={() => openAction('reopen')}><Icon name="edit" size={16} />Mở lại tuần</button>
         : <button disabled={unavailable || !permissions.canPublish} onClick={() => openAction('publish')}><Icon name="check" size={16} />{currentStatus?.isCorrection ? 'Chốt lại tuần' : 'Chốt tuần'}</button>}
         <button id="schedule-create" className="schedule-primary-button" disabled={unavailable || !options || !canEdit} onClick={() => openEditor()}><Icon name="plus" size={17} />Phân công</button></div>}
     </header>
+      <div className="workspace-section-body workspace-list-body">
     {notice && <div className="alert success" role="status"><Icon name="check" size={17} /><span>{notice}</span><button className="schedule-dismiss" aria-label="Đóng thông báo" onClick={() => setNotice('')}>×</button></div>}
     {error && <div className="alert error" role="alert"><span>{error}</span><button disabled={loading || saving} onClick={() => void load()}>Tải lại</button></div>}
     <div className="schedule-filters">
@@ -188,5 +189,6 @@ export default function SchedulesPage() {
       {action.type === 'cancel' && actionRow && !canChangeShift(actionRow.assignment.date, actionRow.assignment.shift, serverNow) && <p className="alert error" role="alert">Ca phải bắt đầu ít nhất 24 giờ sau khi xác nhận hủy.</p>}
       <div className="schedule-modal-actions"><button type="button" disabled={saving} onClick={closeDialog}>Đóng</button><button type="submit" className={action.type === 'cancel' ? 'schedule-danger-button' : 'schedule-primary-button'} disabled={saving || (action.type === 'publish' && !permissions.canPublish) || (action.type === 'cancel' && (!canEdit || !actionNote.trim() || (!!actionRow && !canChangeShift(actionRow.assignment.date, actionRow.assignment.shift, serverNow)))) || (action.type === 'reopen' && (!actionNote.trim() || !permissions.canReopen))}>{saving ? 'Đang lưu…' : action.type === 'publish' ? 'Chốt tuần' : action.type === 'reopen' ? 'Mở lại tuần' : action.type === 'cancel' ? 'Xác nhận hủy' : 'Xác nhận'}</button></div>
     </form></div></Modal>}
-  </section>;
+  </div>
+</section>;
 }

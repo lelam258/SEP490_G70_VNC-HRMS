@@ -30,6 +30,18 @@
 .operations-detail dd { margin:0; font-size:13px; font-weight:500; color:#0f172a; overflow-wrap:anywhere; }
 .operations-detail .wide { grid-column:1/-1; }
 .operations-json { max-height:300px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; background:#f8fafc; padding:12px; border-radius:8px; font-size:12px; border:1px solid #e2e8f0; }
+.audit-comparison-scroll { overflow-x:auto; }
+.audit-comparison { width:100%; border-collapse:collapse; font-size:13px; }
+.audit-comparison th, .audit-comparison td { padding:10px; border:1px solid #e2e8f0; text-align:left; vertical-align:top; overflow-wrap:anywhere; min-width:120px; }
+.audit-comparison thead { background:#f1f5f9; }
+.audit-comparison .audit-changed { background:#fffbeb; }
+.audit-value-list { margin:0; padding-left:18px; }
+.audit-value-fields { margin:0; }
+.audit-value-fields > div { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+.audit-value-fields dt { font-weight:600; }
+.audit-value-fields dd { margin:0; }
+.audit-raw { margin-top:16px; }
+.audit-raw summary { cursor:pointer; font-weight:600; }
 .operations-checkbox { display:flex!important; flex-direction:row!important; align-items:start; gap:8px; margin:10px 0; font-size:12.5px; }
 .operations-checkbox input { width:auto; margin-top:3px; }
 .operations-role-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:14px 0; }

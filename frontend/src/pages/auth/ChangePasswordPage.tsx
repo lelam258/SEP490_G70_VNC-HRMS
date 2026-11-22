@@ -55,7 +55,7 @@ export default function ChangePasswordPage() {
   const isFormValid = current.trim().length > 0 && password.length >= 6 && password === confirmation;
 
   return (
-    <section style={{ padding: '0.5rem 1rem' }}>
+    <section className="workspace-content-page" style={{ padding: '0.5rem 1rem' }}>
       <div className="change-password-card">
         {/* Header with Security Shield Icon */}
         <div className="change-password-header">
@@ -169,6 +169,8 @@ export default function ChangePasswordPage() {
             </button>
           </div>
         </form>
+      </div>
+      <div className="workspace-section-body">
       </div>
     </section>
   );

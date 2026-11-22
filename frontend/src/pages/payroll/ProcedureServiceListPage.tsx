@@ -159,7 +159,7 @@ export default function ProcedureServiceListPage() {
 
   return (
     <section
-      className="directory-page directory-procedure-services"
+      className="directory-page directory-procedure-services workspace-list-page"
       aria-labelledby="procedure-services-page-title"
     >
       <header className="directory-heading">
@@ -203,7 +203,7 @@ export default function ProcedureServiceListPage() {
       )}
 
       <section
-        className="directory-panel"
+        className="directory-panel workspace-list-panel"
         aria-label="Danh sách dịch vụ thủ thuật"
         aria-busy={loading}
       >
@@ -296,7 +296,7 @@ export default function ProcedureServiceListPage() {
           </div>
         )}
 
-        <div className="directory-table">
+        <div className="directory-table workspace-list-body">
           {loading ? (
             <p className="directory-loading" role="status">
               Đang tải danh mục thủ thuật…

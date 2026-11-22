@@ -305,7 +305,7 @@ export default function MyCmeListPage() {
   };
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-2.5 workspace-list-page">
       {/* Top Header - Compact */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b border-slate-200">
         <div className="flex items-center gap-2">
@@ -582,7 +582,7 @@ export default function MyCmeListPage() {
       )}
 
       {/* Submissions Section */}
-      <div className="space-y-2">
+      <div className="space-y-2 workspace-list-body">
         {/* Section Header & Integrated Search / Filter Bar */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 bg-white py-2 px-3 rounded-xl border border-slate-200 shadow-2xs">
           {/* Left: Scope title and Record count */}
@@ -718,8 +718,8 @@ export default function MyCmeListPage() {
           </div>
         ) : (
           /* Sleek Table (table-fixed 100% width, No Horizontal Scrollbar) */
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
-            <div className="w-full">
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs workspace-list-panel">
+            <div className="w-full workspace-table-viewport">
               <table className="cme-table w-full text-left text-xs text-slate-700">
                 <colgroup>
                   <col className="w-[32%]" />
