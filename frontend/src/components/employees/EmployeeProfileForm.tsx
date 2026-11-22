@@ -110,10 +110,11 @@ export default function EmployeeProfileForm({
   const departmentDisplay = currentDept?.name || employee.department || 'Chưa phân khoa';
 
   return (
-    <section className="account-form-page">
+    <section className="account-form-page workspace-content-page">
       <button className="text-button back-button" type="button" onClick={handleBack}>
         <Icon name="arrow" size={18} /> Danh sách nhân viên
       </button>
+
 
       <div className="page-heading">
         <div>
@@ -131,9 +132,11 @@ export default function EmployeeProfileForm({
           </button>
         )}
       </div>
+      <div className="workspace-section-body">
 
       <div className="form-layout">
-        <form onSubmit={handleSubmit} className="panel account-form" aria-label="Hồ sơ nhân viên">
+        <form onSubmit={handleSubmit} className="panel account-form workspace-form-panel" aria-label="Hồ sơ nhân viên">
+          <div className="workspace-form-fields">
           {/* Header Preview Banner */}
           <div className="employee-preview" style={{ margin: '20px 27px 0', border: '1px solid #dce8e5' }}>
             <span className="avatar" style={{ width: 50, height: 50, fontSize: 16 }}>
@@ -406,6 +409,7 @@ export default function EmployeeProfileForm({
           </div>
 
           {/* Actions */}
+          </div>
           {!readonly && (
             <div className="form-actions">
               <button type="button" className="button" disabled={saving || busy} onClick={handleBack}>
@@ -443,6 +447,7 @@ export default function EmployeeProfileForm({
             Để cấp tài khoản đăng nhập cho nhân viên mới, Quản trị viên (Administrator) sẽ liên kết hồ sơ này trong mục Quản lý tài khoản.
           </div>
         </aside>
+      </div>
       </div>
     </section>
   );

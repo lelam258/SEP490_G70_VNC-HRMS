@@ -452,7 +452,7 @@ public sealed partial class PayrollPeriodService(
 
         if (IsLockedOrFinalizedStatus(entity.Status))
         {
-            throw new AppException(400, "MSG11: Kỳ lương đã bị khóa sổ, không thể tính toán lại. Vui lòng mở lại kỳ lương trước.");
+            throw new AppException(400, "Kỳ lương đã bị khóa sổ, không thể tính toán lại. Vui lòng mở lại kỳ lương trước.");
         }
 
         var (y, m) = PayrollPeriodRules.ParsePayMonth(normalizedMonth);
@@ -710,7 +710,7 @@ public sealed partial class PayrollPeriodService(
 
         if (IsLockedOrFinalizedStatus(period.Status))
         {
-            throw new AppException(400, "MSG11: Kỳ lương đã bị khóa sổ, không thể thay đổi trạng thái rà soát.");
+            throw new AppException(400, "Kỳ lương đã bị khóa sổ, không thể thay đổi trạng thái rà soát.");
         }
 
         var reviewStatus = request?.ReviewStatus?.Trim().ToLowerInvariant() ?? string.Empty;
@@ -765,7 +765,7 @@ public sealed partial class PayrollPeriodService(
 
         if (IsLockedOrFinalizedStatus(period.Status))
         {
-            throw new AppException(400, "MSG11: Kỳ lương đã bị khóa sổ, không thể rà soát.");
+            throw new AppException(400, "Kỳ lương đã bị khóa sổ, không thể rà soát.");
         }
 
         var payslips = await repository.GetPayslipsByMonthAsync(normalizedMonth, ct);
@@ -815,7 +815,7 @@ public sealed partial class PayrollPeriodService(
 
         if (IsLockedOrFinalizedStatus(period.Status))
         {
-            throw new AppException(400, "MSG11: Kỳ lương đã bị khóa sổ, không thể xác nhận lại.");
+            throw new AppException(400, "Kỳ lương đã bị khóa sổ, không thể xác nhận lại.");
         }
 
         var payslips = await repository.GetPayslipsByMonthAsync(normalizedMonth, ct);
@@ -864,7 +864,7 @@ public sealed partial class PayrollPeriodService(
 
         if (request is null || !request.ConfirmLock)
         {
-            throw new AppException(400, "MSG13: Vui lòng xác nhận chốt và khóa bảng lương chính thức.");
+            throw new AppException(400, "Vui lòng xác nhận chốt và khóa bảng lương chính thức.");
         }
 
         var period = await repository.FindByMonthAsync(normalizedMonth, ct)
@@ -872,7 +872,7 @@ public sealed partial class PayrollPeriodService(
 
         if (IsLockedOrFinalizedStatus(period.Status))
         {
-            throw new AppException(400, "MSG11: Kỳ lương đã được chốt và khóa sổ trước đó.");
+            throw new AppException(400, "Kỳ lương đã được chốt và khóa sổ trước đó.");
         }
 
         var normStatus = period.Status?.Trim().ToLowerInvariant();
@@ -884,12 +884,12 @@ public sealed partial class PayrollPeriodService(
         var (attendanceLocked, proceduresVerified) = await repository.GetPeriodReadinessAsync(normalizedMonth, ct);
         if (!attendanceLocked)
         {
-            throw new AppException(400, "MSG05: Bảng chấm công tháng chưa được khóa. Không thể chốt sổ lương chính thức.");
+            throw new AppException(400, "Bảng chấm công tháng chưa được khóa. Không thể chốt sổ lương chính thức.");
         }
 
         if (!proceduresVerified)
         {
-            throw new AppException(400, "MSG09: Còn phiếu thủ thuật y tế trong tháng chưa được xác minh. Không thể chốt sổ lương chính thức.");
+            throw new AppException(400, "Còn phiếu thủ thuật y tế trong tháng chưa được xác minh. Không thể chốt sổ lương chính thức.");
         }
 
         var payslips = await repository.GetPayslipsByMonthAsync(normalizedMonth, ct);
@@ -1024,7 +1024,7 @@ public sealed partial class PayrollPeriodService(
 
         if (IsLockedOrFinalizedStatus(period.Status))
         {
-            throw new AppException(400, "MSG11: Kỳ lương đã bị khóa sổ, không thể chỉnh sửa phiếu lương. Vui lòng mở lại kỳ lương trước.");
+            throw new AppException(400, "Kỳ lương đã bị khóa sổ, không thể chỉnh sửa phiếu lương. Vui lòng mở lại kỳ lương trước.");
         }
 
         var payslip = await repository.FindPayslipAsync(normalizedMonth, payslipId, ct)

@@ -150,7 +150,7 @@ export default function LeaveApprovalPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 workspace-list-page">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -321,14 +321,14 @@ export default function LeaveApprovalPage() {
       </div>
 
       {/* Main Table Card */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden workspace-list-panel">
         {error && (
           <div className="p-4 bg-rose-50 border-b border-rose-100 text-xs text-rose-700">
             {error}
           </div>
         )}
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto workspace-table-viewport">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/75 text-slate-600 font-semibold">

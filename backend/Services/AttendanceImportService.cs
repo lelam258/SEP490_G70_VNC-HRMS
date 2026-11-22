@@ -148,17 +148,14 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
         if (row.AttendanceId.HasValue) throw new AppException(409, "Dòng đã được lưu vào chấm công; cần luồng đối chiếu để điều chỉnh.");
         if (!new[] { "main", "noon", "evening" }.Contains(request.ShiftType)) throw new AppException(400, "Ca không hợp lệ.");
         var pairs = AttendanceRules.Pairs(request.WorkDate, request.Pairs);
-        var previous = RowSummary(row);
+        var previous = RowSummary(batch, row);
         row.StaffId = request.StaffId; row.WorkDate = request.WorkDate; row.ShiftType = request.ShiftType;
         row.TimePairsJson = JsonSerializer.Serialize(pairs);
         row.CorrectionReason = AttendanceRules.Text(request.Reason, "Lý do điều chỉnh", true);
         row.CorrectedBy = AttendanceAccess.Actor(user); row.CorrectedAt = access.Now.UtcDateTime;
         row.ValidationStatus = "valid"; // An evidenced correction may also restore an explicitly excluded source row.
         await Validate(batch, rows, ct); Totals(batch, rows);
-        audit.Log("correct_import_row", "AttendanceImport", batch.ImportId, previous, new {
-            batch.FacilityId, batch.PayMonth, row.StaffId, row.WorkDate, status = row.ValidationStatus, row.CorrectionReason, rowId = row.Id,
-            pairs = JsonSerializer.Deserialize<AttendanceTimePair[]>(row.TimePairsJson)
-        });
+        audit.Log("correct_import_row", "AttendanceImport", batch.ImportId, previous, RowSummary(batch, row));
         await access.RequireOpenImportMonth(batch.PayMonth!, ct);
         await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
         return new { message = "Đã lưu điều chỉnh và kiểm tra lại. Dữ liệu gốc được giữ trong đợt nhập.", status = row.ValidationStatus };
@@ -174,14 +171,14 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
         var row = rows.SingleOrDefault(x => x.Id == rowId) ?? throw new AppException(404, "Không tìm thấy dòng nhập.");
         AttendanceRules.RequireVersion(row.Version, request.Version);
         if (row.AttendanceId.HasValue) throw new AppException(409, "Không thể loại bản ghi đã lưu vào chấm công.");
-        var previous = RowSummary(row);
+        var previous = RowSummary(batch, row);
         row.CorrectionReason = AttendanceRules.Text(request.Reason, "Lý do loại khỏi đợt nhập", true);
         row.CorrectedBy = AttendanceAccess.Actor(user); row.CorrectedAt = access.Now.UtcDateTime;
         row.ValidationStatus = "excluded"; row.ErrorCode = null;
         row.ValidationNote = "Đã chủ động loại khỏi đợt nhập: " + row.CorrectionReason;
         await Validate(batch, rows, ct); Totals(batch, rows);
         audit.Log("exclude_import_row", "AttendanceImport", batch.ImportId, previous,
-            new { batch.FacilityId, batch.PayMonth, row.StaffId, row.WorkDate, rowId = row.Id, status = row.ValidationStatus, row.CorrectionReason });
+            RowSummary(batch, row));
         await access.RequireOpenImportMonth(batch.PayMonth!, ct);
         await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
         return new { message = "Đã loại dòng khỏi đợt nhập và kiểm tra lại các dòng còn lại. Dữ liệu gốc được giữ nguyên." };
@@ -368,7 +365,10 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
         using var json = JsonDocument.Parse(mapping);
         return json.RootElement.TryGetProperty("dateOrder", out var order) && order.ValueKind == JsonValueKind.String ? order.GetString()! : "auto";
     }
-    private static object RowSummary(AttendanceImportRow row) => new { row.StaffId, row.WorkDate, row.ShiftType, row.ValidationStatus, row.TimePairsJson, row.CorrectionReason };
+    private static object RowSummary(AttendanceImport batch, AttendanceImportRow row) => new {
+        batch.FacilityId, batch.PayMonth, rowId = row.Id, row.StaffId, row.WorkDate, row.ShiftType,
+        status = row.ValidationStatus, pairs = JsonSerializer.Deserialize<AttendanceTimePair[]>(row.TimePairsJson), row.CorrectionReason
+    };
     private static string BatchVersion(AttendanceImport batch, IEnumerable<AttendanceImportRow> rows)
         => AttendanceRules.Version(new { batch.ImportId, batch.Status, rows = rows.OrderBy(x => x.Id).Select(x => new {
             x.Id, version = Convert.ToBase64String(x.Version), x.StaffId, x.WorkDate, x.ShiftType, x.TimePairsJson,

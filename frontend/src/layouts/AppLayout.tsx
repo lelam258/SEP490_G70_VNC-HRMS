@@ -21,6 +21,7 @@ export default function AppLayout() {
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.querySelector('.workspace-main')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.querySelector('.page-content')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [location.pathname]);
 
   useEffect(() => {

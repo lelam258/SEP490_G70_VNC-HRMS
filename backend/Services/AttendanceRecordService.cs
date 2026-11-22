@@ -90,7 +90,7 @@ public sealed class AttendanceRecordService(
         var scoped = (await Scope(user, ct)).Where(x => x.AttendanceId == id);
         var record = await scoped.SingleOrDefaultAsync(ct);
         if (record is null) {
-            if (await db.AttendanceRecords.AnyAsync(x => x.AttendanceId == id, ct)) throw new AppException(403, "MSG38: Bạn không có quyền xem bản ghi này.");
+            if (await db.AttendanceRecords.AnyAsync(x => x.AttendanceId == id, ct)) throw new AppException(403, "Bạn không có quyền xem bản ghi này.");
             throw new AppException(404, "Không tìm thấy bản ghi chấm công.");
         }
         var item = await Items(scoped).SingleAsync(ct);
@@ -215,30 +215,30 @@ public sealed class AttendanceRecordService(
         if (request.StaffId == Guid.Empty || request.FacilityId == Guid.Empty || request.WorkDate == default
             || string.IsNullOrWhiteSpace(request.ShiftType) || request.Pairs is null || request.Pairs.Length == 0
             || string.IsNullOrWhiteSpace(request.Reason))
-            throw new AppException(400, "MSG02: Trường thông tin này là bắt buộc (nhân viên, cơ sở, ngày làm việc, ca, giờ vào/ra và lý do).");
+            throw new AppException(400, "Trường thông tin này là bắt buộc (nhân viên, cơ sở, ngày làm việc, ca, giờ vào/ra và lý do).");
 
-        var reason = AttendanceRules.Text(request.Reason, "MSG02: Lý do / bằng chứng nhập thủ công", true);
+        var reason = AttendanceRules.Text(request.Reason, "Lý do / bằng chứng nhập thủ công", true);
         var sourceRef = AttendanceRules.Text(request.SourceReference, "Nguồn tham chiếu", false, 200);
         var supervisorEvidence = AttendanceRules.Text(request.SupervisorEvidence, "Xác nhận của quản lý", false, 500);
         var shiftType = request.ShiftType.Trim().ToLowerInvariant();
         if (shiftType is not ("main" or "noon" or "evening"))
-            throw new AppException(400, "MSG02: Loại ca không hợp lệ. Vui lòng chọn Ca chính (main), Trực trưa (noon) hoặc Trực tối (evening).");
+            throw new AppException(400, "Loại ca không hợp lệ. Vui lòng chọn Ca chính (main), Trực trưa (noon) hoặc Trực tối (evening).");
 
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         await access.RequireOpenMonth(request.WorkDate.ToString("yyyy-MM"), ct);
 
         if (request.WorkDate > access.Today)
-            throw new AppException(400, "MSG04: Không thể nhập chấm công thủ công cho ngày trong tương lai.");
+            throw new AppException(400, "Không thể nhập chấm công thủ công cho ngày trong tương lai.");
 
         // A5: Employee is inactive or mapping is missing (MSG25)
         var staff = await db.Staff.AsNoTracking().SingleOrDefaultAsync(x => x.StaffId == request.StaffId, ct);
         if (staff is null || staff.Status != "active" || !staff.DepartmentId.HasValue
             || !await db.Departments.AsNoTracking().AnyAsync(x => x.DepartmentId == staff.DepartmentId && x.Status == "active", ct)
             || request.WorkDate < staff.DateJoined || (staff.DateLeft.HasValue && request.WorkDate > staff.DateLeft.Value))
-            throw new AppException(400, "MSG25: Nhân viên hoặc khoa/phòng đã chọn không tồn tại, đã ngừng hoạt động hoặc ngoài thời gian công tác.");
+            throw new AppException(400, "Nhân viên hoặc khoa/phòng đã chọn không tồn tại, đã ngừng hoạt động hoặc ngoài thời gian công tác.");
 
         if (!await db.ScheduleFacilities.AsNoTracking().AnyAsync(x => x.Id == request.FacilityId && x.Status == "active", ct))
-            throw new AppException(400, "MSG25: Cơ sở làm việc không tồn tại hoặc đã ngừng hoạt động.");
+            throw new AppException(400, "Cơ sở làm việc không tồn tại hoặc đã ngừng hoạt động.");
 
         // A2: Check-out is not after check-in, or the shift overlaps a verified record (MSG04)
         AttendanceTimePair[] pairs;
@@ -247,18 +247,18 @@ public sealed class AttendanceRecordService(
             pairs = AttendanceRules.Pairs(request.WorkDate, request.Pairs);
             actualHours = AttendanceRules.Hours(pairs, request.WorkDate);
         } catch (AppException ex) {
-            throw new AppException(400, $"MSG04: Dữ liệu giờ vào/ra không hợp lệ — {ex.Message}");
+            throw new AppException(400, $"Dữ liệu giờ vào/ra không hợp lệ — {ex.Message}");
         }
 
         var checkIn = pairs.Min(x => x.In)!.Value;
         var checkOut = pairs.Max(x => x.Out)!.Value;
         if (checkOut > access.Now.ToOffset(TimeSpan.FromHours(7)).DateTime)
-            throw new AppException(400, "MSG04: Giờ chấm công thực tế chưa diễn ra.");
+            throw new AppException(400, "Giờ chấm công thực tế chưa diễn ra.");
 
         if (shiftType is "noon" or "evening") {
             var dutyWindow = ScheduleRules.Hours(request.WorkDate, shiftType);
             if (checkOut.TimeOfDay <= dutyWindow.Start.ToTimeSpan() || checkIn.TimeOfDay >= dutyWindow.End.ToTimeSpan())
-                throw new AppException(400, $"MSG04: Giờ vào/ra thực tế không thuộc khung giờ ca {(shiftType == "noon" ? "trực trưa" : "trực tối")}.");
+                throw new AppException(400, $"Giờ vào/ra thực tế không thuộc khung giờ ca {(shiftType == "noon" ? "trực trưa" : "trực tối")}.");
         }
 
         var sameDayRecords = await db.AttendanceRecords.AsNoTracking()
@@ -266,12 +266,12 @@ public sealed class AttendanceRecordService(
             .ToArrayAsync(ct);
 
         if (sameDayRecords.Any(x => x.ShiftType == shiftType))
-            throw new AppException(400, "MSG04: Nhân viên đã có bản ghi chấm công cho ngày và ca này. Vui lòng sử dụng luồng Đối chiếu (Reconcile).");
+            throw new AppException(400, "Nhân viên đã có bản ghi chấm công cho ngày và ca này. Vui lòng sử dụng luồng Đối chiếu (Reconcile).");
 
         foreach (var existing in sameDayRecords.Where(x => x.ValidationStatus == "confirmed")) {
             var existingPairs = ParsePairs(existing);
             if (existingPairs.Any(ep => ep.In.HasValue && ep.Out.HasValue && pairs.Any(np => np.In < ep.Out && np.Out > ep.In)))
-                throw new AppException(400, "MSG04: Khoảng thời gian nhập thủ công chồng lấn với một bản ghi đã được xác nhận trong ngày.");
+                throw new AppException(400, "Khoảng thời gian nhập thủ công chồng lấn với một bản ghi đã được xác nhận trong ngày.");
         }
 
         // A3: Approved leave or other schedule conflict -> flags the record for supervisor review (MSG04, GB-05, GB-07)
@@ -301,13 +301,13 @@ public sealed class AttendanceRecordService(
         if (shiftType == "evening") {
             var plannedEveningEnd = ScheduleRules.Hours(request.WorkDate, "evening").End.ToTimeSpan();
             if (checkOut.TimeOfDay < plannedEveningEnd && string.IsNullOrWhiteSpace(supervisorEvidence))
-                conflicts.Add("Ca tối kết thúc sớm chưa có xác nhận của quản lý trực (GB-13)");
+                conflicts.Add("Ca tối kết thúc sớm chưa có xác nhận của quản lý trực");
         }
 
         var validationStatus = conflicts.Count > 0 ? "flagged" : "pending";
         var noteParts = new List<string>();
         if (!string.IsNullOrWhiteSpace(sourceRef)) noteParts.Add($"Nguồn: {sourceRef}");
-        if (conflicts.Count > 0) noteParts.Add("MSG04: " + string.Join("; ", conflicts) + ". Cần đối chiếu và xác nhận của quản lý.");
+        if (conflicts.Count > 0) noteParts.Add("" + string.Join("; ", conflicts) + ". Cần đối chiếu và xác nhận của quản lý.");
         var reconcileText = reason
             + (!string.IsNullOrWhiteSpace(sourceRef) ? $" [Tham chiếu: {sourceRef}]" : "")
             + (!string.IsNullOrWhiteSpace(supervisorEvidence) ? $" [Xác nhận quản lý: {supervisorEvidence}]" : "");
@@ -354,8 +354,8 @@ public sealed class AttendanceRecordService(
             flagged = validationStatus == "flagged",
             conflicts,
             message = validationStatus == "flagged"
-                ? "MSG03 / MSG04: Đã lưu bản ghi thủ công nhưng gắn cờ Cần đối chiếu (Flagged) do có xung đột lịch/nghỉ phép."
-                : "MSG03: Đã lưu bản ghi chấm công thủ công chờ xác nhận."
+                ? "Đã lưu bản ghi thủ công nhưng gắn cờ Cần đối chiếu (Flagged) do có xung đột lịch/nghỉ phép."
+                : "Đã lưu bản ghi chấm công thủ công chờ xác nhận."
         };
     }
 
@@ -364,13 +364,13 @@ public sealed class AttendanceRecordService(
     {
         RequireHrStaffWithMsg38(user);
         if (string.IsNullOrWhiteSpace(request.Reason))
-            throw new AppException(400, "MSG02: Vui lòng nhập lý do và căn cứ đối chiếu chấm công.");
+            throw new AppException(400, "Vui lòng nhập lý do và căn cứ đối chiếu chấm công.");
 
         var action = request.Action?.Trim().ToLowerInvariant();
         if (action is not ("accept_machine" or "accept_manual" or "correct_time" or "mark_unresolved"))
-            throw new AppException(400, "MSG02: Chọn phương án đối chiếu hợp lệ (Accept Machine, Accept Manual, Correct Time hoặc Mark Unresolved).");
+            throw new AppException(400, "Chọn phương án đối chiếu hợp lệ (Accept Machine, Accept Manual, Correct Time hoặc Mark Unresolved).");
 
-        var reason = AttendanceRules.Text(request.Reason, "MSG02: Lý do đối chiếu", true);
+        var reason = AttendanceRules.Text(request.Reason, "Lý do đối chiếu", true);
         var supervisorText = AttendanceRules.Text(request.SupervisorEvidence, "Căn cứ xác nhận quản lý", false, 500);
 
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
@@ -380,7 +380,7 @@ public sealed class AttendanceRecordService(
         // A4: Period is already locked (MSG11)
         await access.RequireOpenMonth(record.WorkDate.ToString("yyyy-MM"), ct);
         if (record.ValidationStatus == "confirmed")
-            throw new AppException(400, "MSG11: Bản ghi chấm công đã được xác nhận khóa; cần trả về trước khi đối chiếu lại.");
+            throw new AppException(400, "Bản ghi chấm công đã được xác nhận khóa; cần trả về trước khi đối chiếu lại.");
 
         // A3: New conflicting evidence appears during editing -> requests a refreshed record (MSG44)
         var plans = (await imports.PublishedPlans(record.WorkDate, record.WorkDate, ct)).Where(x => x.StaffId == record.StaffId).ToArray();
@@ -395,7 +395,7 @@ public sealed class AttendanceRecordService(
 
         var currentVersion = ComputeRecordVersion(record, plans, liveAssignments.Values, leaves, onCalls.Select(x => (x.ShiftId, x.Status, x.SupervisorEvidence)));
         if (string.IsNullOrWhiteSpace(request.Version) || !string.Equals(currentVersion, request.Version, StringComparison.Ordinal))
-            throw new AppException(409, "MSG44: Phân công lịch hoặc bằng chứng liên quan đã thay đổi. Vui lòng tải lại bản ghi trước khi chỉnh sửa.");
+            throw new AppException(409, "Phân công lịch hoặc bằng chứng liên quan đã thay đổi. Vui lòng tải lại bản ghi trước khi chỉnh sửa.");
 
         var previousSnapshot = RecordSnapshot(record);
         var actor = AttendanceAccess.Actor(user);
@@ -403,7 +403,7 @@ public sealed class AttendanceRecordService(
 
         if (request.FacilityId.HasValue && request.FacilityId != record.FacilityId) {
             if (!await db.ScheduleFacilities.AsNoTracking().AnyAsync(x => x.Id == request.FacilityId && x.Status == "active", ct))
-                throw new AppException(400, "MSG25: Cơ sở được chọn không tồn tại hoặc đã ngừng hoạt động.");
+                throw new AppException(400, "Cơ sở được chọn không tồn tại hoặc đã ngừng hoạt động.");
             record.FacilityId = request.FacilityId;
         }
 
@@ -422,7 +422,7 @@ public sealed class AttendanceRecordService(
             return new {
                 id = record.AttendanceId,
                 status = record.ValidationStatus,
-                message = "MSG04 / MSG05: Dữ liệu chưa thể đối chiếu thống nhất. Bản ghi được giữ ở trạng thái Cần đối chiếu (Flagged) và loại khỏi tính lương."
+                message = "Dữ liệu chưa thể đối chiếu thống nhất. Bản ghi được giữ ở trạng thái Cần đối chiếu (Flagged) và loại khỏi tính lương."
             };
         }
 
@@ -439,20 +439,20 @@ public sealed class AttendanceRecordService(
                 : ParsePairs(record);
             var distinctMachinePairs = rawMachinePairs.Distinct().ToArray();
             if (distinctMachinePairs.Length == 0 || distinctMachinePairs.Any(x => x.In is null || x.Out is null))
-                throw new AppException(400, "MSG04: Dữ liệu máy chấm công đang thiếu giờ Vào/Ra; không thể chấp nhận nguyên trạng. Hãy chọn Chỉnh sửa giờ hoặc Chấp nhận thủ công kèm bằng chứng.");
+                throw new AppException(400, "Dữ liệu máy chấm công đang thiếu giờ Vào/Ra; không thể chấp nhận nguyên trạng. Hãy chọn Chỉnh sửa giờ hoặc Chấp nhận thủ công kèm bằng chứng.");
             try { AttendanceRules.Hours(distinctMachinePairs, record.WorkDate); }
-            catch (AppException ex) { throw new AppException(400, $"MSG04: Dữ liệu giờ máy không hợp lệ — {ex.Message}"); }
+            catch (AppException ex) { throw new AppException(400, $"Dữ liệu giờ máy không hợp lệ — {ex.Message}"); }
             resolvedPairs = distinctMachinePairs;
         } else {
             if (request.Pairs is { Length: > 0 }) {
                 try { resolvedPairs = AttendanceRules.Pairs(record.WorkDate, request.Pairs); }
-                catch (AppException ex) { throw new AppException(400, $"MSG04: Cặp giờ điều chỉnh không hợp lệ — {ex.Message}"); }
+                catch (AppException ex) { throw new AppException(400, $"Cặp giờ điều chỉnh không hợp lệ — {ex.Message}"); }
             } else {
                 resolvedPairs = ParsePairs(record).Distinct().ToArray();
                 if (resolvedPairs.Length == 0 || resolvedPairs.Any(x => x.In is null || x.Out is null))
-                    throw new AppException(400, "MSG02 / MSG04: Vui lòng nhập đầy đủ cặp giờ Vào/Ra hợp lệ để đối chiếu.");
+                    throw new AppException(400, "Vui lòng nhập đầy đủ cặp giờ Vào/Ra hợp lệ để đối chiếu.");
                 try { AttendanceRules.Hours(resolvedPairs, record.WorkDate); }
-                catch (AppException ex) { throw new AppException(400, $"MSG04: Cặp giờ hiện tại không hợp lệ — {ex.Message}"); }
+                catch (AppException ex) { throw new AppException(400, $"Cặp giờ hiện tại không hợp lệ — {ex.Message}"); }
             }
         }
 
@@ -460,7 +460,7 @@ public sealed class AttendanceRecordService(
         var checkIn = resolvedPairs.Min(x => x.In)!.Value;
         var checkOut = resolvedPairs.Max(x => x.Out)!.Value;
         if (checkOut > access.Now.ToOffset(TimeSpan.FromHours(7)).DateTime)
-            throw new AppException(400, "MSG04: Giờ kết thúc không được nằm ở tương lai.");
+            throw new AppException(400, "Giờ kết thúc không được nằm ở tương lai.");
 
         // Validate no overlap with another confirmed record on the same day
         var otherConfirmed = await db.AttendanceRecords.AsNoTracking()
@@ -468,10 +468,10 @@ public sealed class AttendanceRecordService(
             .ToArrayAsync(ct);
         foreach (var other in otherConfirmed) {
             if (other.ShiftType == record.ShiftType)
-                throw new AppException(400, "MSG04: Nhân viên đã có bản ghi được xác nhận cho cùng ca làm việc trong ngày này.");
+                throw new AppException(400, "Nhân viên đã có bản ghi được xác nhận cho cùng ca làm việc trong ngày này.");
             var otherPairs = ParsePairs(other);
             if (otherPairs.Any(op => op.In.HasValue && op.Out.HasValue && resolvedPairs.Any(rp => rp.In < op.Out && rp.Out > op.In)))
-                throw new AppException(400, "MSG04: Giờ đối chiếu chồng lấn với một bản ghi chấm công đã xác nhận khác trong ngày.");
+                throw new AppException(400, "Giờ đối chiếu chồng lấn với một bản ghi chấm công đã xác nhận khác trong ngày.");
         }
 
         // A2 (GB-13): Early-finished evening shift requires supervisor confirmation (MSG04)
@@ -485,7 +485,7 @@ public sealed class AttendanceRecordService(
                     || liveAssignments.Values.Any(x => x.Shift == "evening" && x.PatientConfirmed)
                     || onCalls.Any(x => !string.IsNullOrWhiteSpace(x.SupervisorEvidence));
                 if (!hasSupervisorConfirm)
-                    throw new AppException(400, "MSG04: Ca trực tối kết thúc sớm do vắng bệnh nhân bắt buộc phải có xác nhận của trưởng khoa/quản lý trực (GB-13).");
+                    throw new AppException(400, "Ca trực tối kết thúc sớm do vắng bệnh nhân bắt buộc phải có xác nhận của trưởng khoa/quản lý trực.");
             }
         }
 
@@ -517,7 +517,7 @@ public sealed class AttendanceRecordService(
             id = record.AttendanceId,
             status = record.ValidationStatus,
             actualHours = record.ActualHours,
-            message = "MSG03: Đã đối chiếu chấm công thành công và chuyển sang trạng thái Sẵn sàng xác nhận (Ready for Verification)."
+            message = "Đã đối chiếu chấm công thành công và chuyển sang trạng thái Sẵn sàng xác nhận (Ready for Verification)."
         };
     }
 
@@ -528,11 +528,11 @@ public sealed class AttendanceRecordService(
         RequireHrStaffWithMsg38(user);
         var decision = request.Decision?.Trim().ToLowerInvariant();
         if (decision is not ("confirm" or "return"))
-            throw new AppException(400, "MSG02: Chọn quyết định Xác nhận (confirm) hoặc Trả về đối chiếu (return).");
+            throw new AppException(400, "Chọn quyết định Xác nhận (confirm) hoặc Trả về đối chiếu (return).");
 
         if (decision == "return" && string.IsNullOrWhiteSpace(request.Reason))
-            throw new AppException(400, "MSG02: Vui lòng nhập lý do trả về để đối chiếu lại.");
-        var reason = AttendanceRules.Text(request.Reason, "MSG02: Lý do / ghi chú xác nhận", decision == "return");
+            throw new AppException(400, "Vui lòng nhập lý do trả về để đối chiếu lại.");
+        var reason = AttendanceRules.Text(request.Reason, "Lý do / ghi chú xác nhận", decision == "return");
         var supervisorText = AttendanceRules.Text(request.SupervisorEvidence, "Căn cứ xác nhận quản lý", false, 500);
 
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
@@ -554,7 +554,7 @@ public sealed class AttendanceRecordService(
 
         var currentVersion = ComputeRecordVersion(record, plans, liveAssignments.Values, leaves, onCalls.Select(x => (x.ShiftId, x.Status, x.SupervisorEvidence)));
         if (string.IsNullOrWhiteSpace(request.Version) || !string.Equals(currentVersion, request.Version, StringComparison.Ordinal))
-            throw new AppException(409, "MSG44: Dữ liệu bản ghi hoặc lịch liên quan đã thay đổi. Vui lòng tải lại trước khi xác nhận.");
+            throw new AppException(409, "Dữ liệu bản ghi hoặc lịch liên quan đã thay đổi. Vui lòng tải lại trước khi xác nhận.");
 
         var previousSnapshot = RecordSnapshot(record);
         var actor = AttendanceAccess.Actor(user);
@@ -574,7 +574,7 @@ public sealed class AttendanceRecordService(
             return new {
                 id = record.AttendanceId,
                 status = record.ValidationStatus,
-                message = "MSG03: Đã trả bản ghi về trạng thái Cần đối chiếu (Flagged) kèm lý do."
+                message = "Đã trả bản ghi về trạng thái Cần đối chiếu (Flagged) kèm lý do."
             };
         }
 
@@ -584,31 +584,31 @@ public sealed class AttendanceRecordService(
 
         // A1: Record still mismatched or incomplete -> refuses confirmation until reconciliation (MSG04, MSG05)
         if (record.ValidationStatus == "flagged")
-            throw new AppException(400, "MSG04 / MSG05: Bản ghi đang ở trạng thái Cần đối chiếu (Flagged). Vui lòng thực hiện Đối chiếu (Reconcile) giải quyết sai lệch trước khi xác nhận.");
+            throw new AppException(400, "Bản ghi đang ở trạng thái Cần đối chiếu (Flagged). Vui lòng thực hiện Đối chiếu (Reconcile) giải quyết sai lệch trước khi xác nhận.");
 
         if (!record.FacilityId.HasValue || string.IsNullOrWhiteSpace(record.ShiftType))
-            throw new AppException(400, "MSG04 / MSG05: Bản ghi thiếu thông tin cơ sở hoặc loại ca làm việc. Cần đối chiếu trước khi xác nhận.");
+            throw new AppException(400, "Bản ghi thiếu thông tin cơ sở hoặc loại ca làm việc. Cần đối chiếu trước khi xác nhận.");
 
         var pairs = ParsePairs(record);
         if (pairs.Length == 0 || pairs.Any(x => x.In is null || x.Out is null))
-            throw new AppException(400, "MSG04 / MSG05: Bản ghi thiếu giờ Vào/Ra đầy đủ. Vui lòng đối chiếu trước khi xác nhận.");
+            throw new AppException(400, "Bản ghi thiếu giờ Vào/Ra đầy đủ. Vui lòng đối chiếu trước khi xác nhận.");
 
         try { record.ActualHours = AttendanceRules.Hours(pairs, record.WorkDate); }
-        catch (AppException ex) { throw new AppException(400, $"MSG04: Cặp giờ Vào/Ra không hợp lệ — {ex.Message}"); }
+        catch (AppException ex) { throw new AppException(400, $"Cặp giờ Vào/Ra không hợp lệ — {ex.Message}"); }
 
         if (leaves.Length > 0 && record.ReconciledAt is null)
-            throw new AppException(400, "MSG04: Nhân viên có đơn nghỉ phép đã duyệt trong ngày này. Vui lòng thực hiện Đối chiếu (Reconcile) trước khi xác nhận.");
+            throw new AppException(400, "Nhân viên có đơn nghỉ phép đã duyệt trong ngày này. Vui lòng thực hiện Đối chiếu (Reconcile) trước khi xác nhận.");
 
         // A2: Confirming duplicates another staff / date / shift record (MSG04)
         var duplicateConfirmed = await db.AttendanceRecords.AsNoTracking()
             .Where(x => x.AttendanceId != record.AttendanceId && x.StaffId == record.StaffId && x.WorkDate == record.WorkDate && x.ValidationStatus == "confirmed")
             .ToArrayAsync(ct);
         if (duplicateConfirmed.Any(x => x.ShiftType == record.ShiftType))
-            throw new AppException(400, "MSG04: Đã có bản ghi chấm công được xác nhận cho cùng nhân viên, ngày và ca làm việc. Vui lòng đối chiếu bản ghi trùng.");
+            throw new AppException(400, "Đã có bản ghi chấm công được xác nhận cho cùng nhân viên, ngày và ca làm việc. Vui lòng đối chiếu bản ghi trùng.");
         foreach (var dup in duplicateConfirmed) {
             var dupPairs = ParsePairs(dup);
             if (dupPairs.Any(dp => dp.In.HasValue && dp.Out.HasValue && pairs.Any(p => p.In < dp.Out && p.Out > dp.In)))
-                throw new AppException(400, "MSG04: Giờ chấm công trùng lặp với một bản ghi đã xác nhận khác của nhân viên trong ngày.");
+                throw new AppException(400, "Giờ chấm công trùng lặp với một bản ghi đã xác nhận khác của nhân viên trong ngày.");
         }
 
         // A3: On-call / evening early-end approval is missing -> requires supervisor confirmation (MSG04, GB-13)
@@ -621,7 +621,7 @@ public sealed class AttendanceRecordService(
                     || liveAssignments.Values.Any(x => x.Shift == "evening" && x.PatientConfirmed)
                     || onCalls.Any(x => !string.IsNullOrWhiteSpace(x.SupervisorEvidence));
                 if (!hasSupervisorConfirm)
-                    throw new AppException(400, "MSG04: Ca trực tối kết thúc sớm thiếu xác nhận của quản lý trực (GB-13). Vui lòng bổ sung xác nhận quản lý trước khi xác nhận.");
+                    throw new AppException(400, "Ca trực tối kết thúc sớm thiếu xác nhận của quản lý trực. Vui lòng bổ sung xác nhận quản lý trước khi xác nhận.");
             }
         }
 
@@ -672,7 +672,7 @@ public sealed class AttendanceRecordService(
             id = record.AttendanceId,
             status = record.ValidationStatus,
             confirmedAt = record.ConfirmedAt,
-            message = "MSG03: Đã xác nhận bản ghi chấm công thành công. Dữ liệu đã khóa chỉnh sửa thông thường và đủ điều kiện tổng hợp công tháng."
+            message = "Đã xác nhận bản ghi chấm công thành công. Dữ liệu đã khóa chỉnh sửa thông thường và đủ điều kiện tổng hợp công tháng."
         };
     }
 
@@ -680,7 +680,7 @@ public sealed class AttendanceRecordService(
     public async Task<object> MonthlySummary(ClaimsPrincipal user, string? month, Guid? departmentId, Guid? facilityId, CancellationToken ct)
     {
         if (!new[] { "admin", "hr_manager", "hr_staff", "department_head", "accountant" }.Any(user.IsInRole))
-            throw new AppException(403, "MSG38: Bạn không có quyền truy cập chức năng tổng hợp chấm công tháng.");
+            throw new AppException(403, "Bạn không có quyền truy cập chức năng tổng hợp chấm công tháng.");
 
         var normalizedMonth = string.IsNullOrWhiteSpace(month) ? access.Today.ToString("yyyy-MM") : month.Trim();
         var (start, end) = AttendanceRules.Month(normalizedMonth);
@@ -688,7 +688,7 @@ public sealed class AttendanceRecordService(
         Guid? scopedDept = departmentId;
         if (user.IsInRole("department_head")) {
             scopedDept = await access.Department(user, ct);
-            if (!scopedDept.HasValue) throw new AppException(403, "MSG38: Tài khoản trưởng khoa chưa được gán khoa/phòng.");
+            if (!scopedDept.HasValue) throw new AppException(403, "Tài khoản trưởng khoa chưa được gán khoa/phòng.");
         }
 
         var snapshot = await BuildMonthlyConsolidation(normalizedMonth, start, end, scopedDept, facilityId, ct);
@@ -710,7 +710,7 @@ public sealed class AttendanceRecordService(
 
         var fullSummary = await BuildMonthlyConsolidation(normalizedMonth, start, end, null, null, ct);
         if (!string.IsNullOrWhiteSpace(request?.Version) && !string.Equals(fullSummary.Version, request.Version, StringComparison.Ordinal))
-            throw new AppException(409, "MSG44: Dữ liệu tổng hợp chấm công tháng đã thay đổi. Vui lòng tải lại bảng tổng hợp trước khi khóa.");
+            throw new AppException(409, "Dữ liệu tổng hợp chấm công tháng đã thay đổi. Vui lòng tải lại bảng tổng hợp trước khi khóa.");
 
         // A1: Unverified or mismatched attendance remains -> refuses lock (MSG04, MSG05)
         if (fullSummary.Totals.FlaggedRecords > 0 || fullSummary.Totals.UnconfirmedRecords > 0 || fullSummary.Totals.PendingOnCalls > 0) {
@@ -720,13 +720,13 @@ public sealed class AttendanceRecordService(
                 .Distinct()
                 .Take(8)
                 .ToArray();
-            throw new AppException(400, $"MSG04 / MSG05: Còn {fullSummary.Totals.FlaggedRecords} bản ghi sai lệch (Flagged), {fullSummary.Totals.UnconfirmedRecords} bản ghi chưa xác nhận và {fullSummary.Totals.PendingOnCalls} ca trực chờ duyệt. Nhân viên bị ảnh hưởng: {string.Join(", ", affectedNames)}.");
+            throw new AppException(400, $"Còn {fullSummary.Totals.FlaggedRecords} bản ghi sai lệch (Flagged), {fullSummary.Totals.UnconfirmedRecords} bản ghi chưa xác nhận và {fullSummary.Totals.PendingOnCalls} ca trực chờ duyệt. Nhân viên bị ảnh hưởng: {string.Join(", ", affectedNames)}.");
         }
 
         // A2: A required department / site has not completed validation -> shows missing scope and keeps month Draft (MSG05)
         if (fullSummary.Totals.UnaccountedScheduledShifts > 0 || fullSummary.IncompleteScopes.Length > 0) {
             var scopes = fullSummary.IncompleteScopes.Take(6).ToArray();
-            throw new AppException(400, $"MSG05: Chưa hoàn tất đối chiếu và xác nhận toàn bộ phạm. Các khoa/cơ sở còn thiếu: {string.Join(", ", scopes)}.");
+            throw new AppException(400, $"Chưa hoàn tất đối chiếu và xác nhận toàn bộ phạm. Các khoa/cơ sở còn thiếu: {string.Join(", ", scopes)}.");
         }
 
         var actor = AttendanceAccess.Actor(user);
@@ -791,7 +791,7 @@ public sealed class AttendanceRecordService(
             status = timesheet.Status,
             lockedBy = timesheet.LockedBy,
             lockedAt = timesheet.LockedAt,
-            message = "MSG03: Đã tổng hợp và khóa bảng chấm công tháng thành công. Bản chụp dữ liệu đã sẵn sàng cho phân hệ Tính lương."
+            message = "Đã tổng hợp và khóa bảng chấm công tháng thành công. Bản chụp dữ liệu đã sẵn sàng cho phân hệ Tính lương."
         };
     }
 
@@ -969,7 +969,7 @@ public sealed class AttendanceRecordService(
                 exceptions.Add(new MonthlyExceptionItem(
                     $"rec-{rec.AttendanceId}", "flagged_record", "error", person.StaffId, person.StaffCode, person.FullName,
                     person.DepartmentId, deptName, rec.FacilityId, facName, rec.WorkDate, rec.ShiftType ?? "main",
-                    rec.Note ?? "MSG04: Bản ghi đang gắn cờ Cần đối chiếu (Flagged).", $"/attendance/records/{rec.AttendanceId}"));
+                    rec.Note ?? "Bản ghi đang gắn cờ Cần đối chiếu (Flagged).", $"/attendance/records/{rec.AttendanceId}"));
             }
 
             foreach (var rec in unconfirmedRecords) {
@@ -977,7 +977,7 @@ public sealed class AttendanceRecordService(
                 exceptions.Add(new MonthlyExceptionItem(
                     $"rec-{rec.AttendanceId}", "unconfirmed_record", "warning", person.StaffId, person.StaffCode, person.FullName,
                     person.DepartmentId, deptName, rec.FacilityId, facName, rec.WorkDate, rec.ShiftType ?? "main",
-                    $"MSG05: Bản ghi ở trạng thái '{rec.ValidationStatus}' chưa được xác nhận (Verify).", $"/attendance/records/{rec.AttendanceId}"));
+                    $"Bản ghi ở trạng thái '{rec.ValidationStatus}' chưa được xác nhận (Verify).", $"/attendance/records/{rec.AttendanceId}"));
             }
 
             foreach (var duty in pendingDuties) {
@@ -985,7 +985,7 @@ public sealed class AttendanceRecordService(
                 exceptions.Add(new MonthlyExceptionItem(
                     $"duty-{duty.ShiftId}", "pending_on_call", "warning", person.StaffId, person.StaffCode, person.FullName,
                     person.DepartmentId, deptName, duty.FacilityId, facName, duty.ShiftDate, duty.ShiftCategory,
-                    duty.ReviewNote ?? "MSG05: Hồ sơ ca trực đang chờ xác nhận.", $"/attendance/on-call/{duty.ShiftId}"));
+                    duty.ReviewNote ?? "Hồ sơ ca trực đang chờ xác nhận.", $"/attendance/on-call/{duty.ShiftId}"));
             }
 
             var plannedMainDates = personPlans
@@ -1010,7 +1010,7 @@ public sealed class AttendanceRecordService(
                     exceptions.Add(new MonthlyExceptionItem(
                         $"plan-{firstPlan.Id}", "unaccounted_schedule", "error", person.StaffId, person.StaffCode, person.FullName,
                         person.DepartmentId, deptName, firstPlan.FacilityId, facName, planDate, shiftGroup,
-                        "MSG04 / MSG05: Ca làm việc đã công bố trên lịch nhưng chưa có chấm công hoặc đơn nghỉ phép đối ứng.",
+                        "Ca làm việc đã công bố trên lịch nhưng chưa có chấm công hoặc đơn nghỉ phép đối ứng.",
                         $"/attendance/records/new?staffId={person.StaffId}&facilityId={firstPlan.FacilityId}&date={planDate:yyyy-MM-dd}&shift={shiftGroup}"));
                 }
             }
@@ -1131,7 +1131,7 @@ public sealed class AttendanceRecordService(
     private static void RequireHrStaffWithMsg38(ClaimsPrincipal user)
     {
         if (!user.IsInRole("hr_staff"))
-            throw new AppException(403, "MSG38: Bạn không có quyền truy cập chức năng hoặc thực hiện nghiệp vụ chấm công này.");
+            throw new AppException(403, "Bạn không có quyền truy cập chức năng hoặc thực hiện nghiệp vụ chấm công này.");
     }
 
     private static decimal StandardMainHours(DateOnly date)
@@ -1236,7 +1236,7 @@ public sealed class AttendanceRecordService(
             var plannedEveningEnd = ScheduleRules.Hours(record.WorkDate, "evening").End.ToTimeSpan();
             if (checkOut.TimeOfDay < plannedEveningEnd) {
                 if (!supervisorConfirmed)
-                    list.Add(("early_evening_unconfirmed", "Ca tối kết thúc sớm trước 19:00 nhưng chưa có xác nhận của quản lý trực (GB-13).", "error"));
+                    list.Add(("early_evening_unconfirmed", "Ca tối kết thúc sớm trước 19:00 nhưng chưa có xác nhận của quản lý trực.", "error"));
                 else
                     list.Add(("late_early", "Ca tối kết thúc sớm (đã có xác nhận của quản lý trực).", "info"));
             }

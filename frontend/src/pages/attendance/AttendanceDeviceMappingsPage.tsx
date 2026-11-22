@@ -62,7 +62,7 @@ export default function AttendanceDeviceMappingsPage() {
     } finally { setBusy(false); }
   }
 
-  return <AttendanceShell title="Liên kết mã máy chấm công" description="Chọn đúng nhân viên và xác nhận mã đăng ký trên máy từ hồ sơ gốc trước khi nhập chấm công."
+  return <AttendanceShell layout="list" title="Liên kết mã máy chấm công" description="Chọn đúng nhân viên và xác nhận mã đăng ký trên máy từ hồ sơ gốc trước khi nhập chấm công."
     actions={<Link className="button" to="/attendance/imports">Lịch sử nhập</Link>}>
     {notice && <p className="alert success" role="status">{notice}</p>}
     {error && !review && <p className="alert error" role="alert">{error}</p>}
@@ -82,7 +82,7 @@ export default function AttendanceDeviceMappingsPage() {
       <label htmlFor="mapping-reason">Căn cứ xác nhận<textarea id="mapping-reason" required maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} placeholder="Ghi nguồn đối chiếu nhân viên với mã máy, biên bản hoặc xác nhận liên quan" /></label>
       <div className="form-actions"><button className="button" type="button" onClick={resource.reload}>Tải lại danh sách</button><button className="button primary" type="submit" disabled={!selected || !reason.trim() || !!conflict || unchanged}>{next ? 'Kiểm tra liên kết' : 'Kiểm tra xóa liên kết'}</button></div>
     </fieldset></form>}
-    {resource.data && <section className="operations-panel"><div className="operations-filters"><label htmlFor="mapping-search">Tìm mã hoặc nhân viên<input id="mapping-search" value={search} onChange={event => setSearch(event.target.value)} /></label></div>
+    {resource.data && <section className="operations-panel workspace-list-panel"><div className="operations-filters"><label htmlFor="mapping-search">Tìm mã hoặc nhân viên<input id="mapping-search" value={search} onChange={event => setSearch(event.target.value)} /></label></div>
       <DataTable rows={items.filter(item => `${item.staffCode} ${item.staffName} ${item.departmentName || ''} ${item.deviceEnrollId || ''}`.toLocaleLowerCase('vi').includes(search.trim().toLocaleLowerCase('vi')))} rowKey={item => item.staffId} emptyMessage="Không có nhân viên phù hợp." columns={[
         { key: 'staff', label: 'Nhân viên', render: item => <>{item.staffCode}<small className="table-secondary">{item.staffName}</small></> },
         { key: 'department', label: 'Khoa/phòng', render: item => item.departmentName || 'Chưa phân khoa' },

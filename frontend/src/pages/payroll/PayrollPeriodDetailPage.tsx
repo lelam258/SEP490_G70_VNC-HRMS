@@ -1171,7 +1171,7 @@ export default function PayrollPeriodDetailPage() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 workspace-content-page">
       {notice && <Alert variant="success">{notice}</Alert>}
       {error && <Alert variant="error">{error}</Alert>}
 
@@ -1316,6 +1316,7 @@ export default function PayrollPeriodDetailPage() {
           </div>
         )}
       </div>
+      <div className="workspace-section-body">
 
       {/* Unified Overview Card: Progress Stepper + Readiness & Financial KPI Strip */}
       {detail && (
@@ -2037,7 +2038,7 @@ export default function PayrollPeriodDetailPage() {
       {finalizeModalOpen && detail && (
         <Modal
           title={`Chốt & Khóa sổ kỳ lương ${formatMonthDisplay(detail.payMonth)}`}
-          subtitle="Xác nhận phát hành phiếu lương chính thức (MSG13)"
+          subtitle="Xác nhận phát hành phiếu lương chính thức"
           onClose={() => {
             if (!finalizing) {
               setFinalizeModalOpen(false);
@@ -2262,6 +2263,7 @@ export default function PayrollPeriodDetailPage() {
           </div>
         </Modal>
       )}
+      </div>
     </div>
   );
 }

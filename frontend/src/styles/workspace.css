@@ -1,0 +1,119 @@
+/* Lists reserve the available height for rows, keeping filters and pagination visible. */
+.vnc .page-content:has(.workspace-list-page),
+.vnc .page-content:has(.workspace-content-page),
+.vnc .page-content:has(.workspace-attendance-page) { overflow: hidden; }
+.vnc .workspace-list-page,
+.vnc .workspace-content-page,
+.vnc .workspace-attendance-page {
+  display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0;
+  gap: 12px; overflow: hidden; margin-block: 0;
+}
+.vnc :is(.workspace-list-page, .workspace-content-page, .workspace-attendance-page) > * {
+  flex-shrink: 0; margin-block: 0;
+}
+.vnc .workspace-list-panel,
+.vnc .workspace-list-body {
+  display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; min-width: 0;
+  overflow: hidden;
+}
+.vnc .workspace-list-panel > * { flex-shrink: 0; }
+.vnc .workspace-list-page .workspace-list-panel,
+.vnc .workspace-list-page .workspace-list-body { flex-shrink: 1; }
+.vnc .workspace-section-body {
+  flex: 1 1 0; min-height: 0; min-width: 0; overflow: auto;
+  overscroll-behavior: contain; scrollbar-gutter: stable; scrollbar-width: thin;
+}
+.vnc .workspace-section-body.workspace-list-body { overflow: hidden; }
+.vnc .workspace-list-panel :is(.table-scroll, .workspace-table-viewport),
+.vnc .workspace-table-viewport {
+  flex: 1 1 0; min-height: 0; max-height: none !important; overflow: auto !important;
+  overscroll-behavior: contain; scrollbar-width: thin; scrollbar-gutter: stable;
+}
+.vnc .workspace-list-panel :is(.directory-table, .workspace-list-body) {
+  display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow: hidden;
+}
+.vnc .workspace-list-panel :is(.table-scroll, .workspace-table-viewport) th {
+  position: sticky; top: 0; z-index: 2; background: #f7f9fb;
+  box-shadow: inset 0 -1px 0 #e2e8f0;
+}
+.vnc .workspace-list-panel :is(.empty-state, .directory-empty, .directory-loading) {
+  flex: 1 1 0; min-height: 0; overflow: auto;
+}
+.vnc .workspace-list-panel :is(.directory-pagination, .table-footer) {
+  flex-shrink: 0; background: white; margin-top: auto;
+}
+.vnc .workspace-section-body .form-actions {
+  position: sticky; bottom: 0; z-index: 3; background: white; border-top: 1px solid #e2e8f0;
+}
+.vnc .workspace-section-body:has(> .form-layout > .workspace-form-panel) {
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.vnc .workspace-section-body > .form-layout:has(> .workspace-form-panel) {
+  flex: 1 1 0; min-height: 0; align-items: stretch;
+}
+.vnc .workspace-form-panel { display: flex; flex-direction: column; min-height: 0; }
+.vnc .workspace-form-fields { flex: 1 1 0; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.vnc .workspace-form-panel > .form-actions { flex-shrink: 0; position: static; }
+.vnc .workspace-section-body:has(> .workspace-form-panel) { display: flex; flex-direction: column; gap: 8px; overflow: hidden; }
+.vnc .workspace-section-body > .workspace-form-panel { flex: 1 1 0; min-height: 0; margin-block: 0; }
+.vnc .workspace-form-stack { display: flex; flex-direction: column; gap: 12px; }
+.vnc .workspace-form-panel > .form-actions { flex-wrap: wrap; }
+.vnc .workspace-section-body > .form-layout > .form-guide { min-height: 0; overflow: auto; }
+.vnc .workspace-content-page .workspace-section-body :is(.table-scroll, .workspace-table-region) {
+  max-height: min(48dvh, 540px); overflow: auto;
+  overscroll-behavior: contain; scrollbar-width: thin;
+}
+.vnc .workspace-content-page .workspace-section-body :is(.table-scroll, .workspace-table-region) th {
+  position: sticky; top: 0; z-index: 2; background: #f7f9fb;
+}
+.vnc .workspace-list-page .cert-split-container {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px;
+}
+.vnc .workspace-list-page .cert-split-container.is-split {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+}
+.vnc .workspace-list-page :is(.cert-left-panel, .cert-right-panel) {
+  min-height: 0; height: auto !important; position: static;
+}
+.vnc .workspace-list-panel > :is(.operations-filters, .directory-filters, .filter-bar) {
+  max-height: 32dvh; overflow: auto; overscroll-behavior: contain;
+}
+@media (max-width: 1100px) {
+  .vnc .workspace-list-page .cert-split-container.is-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px), (max-height: 650px) {
+  .vnc :is(.workspace-list-page, .workspace-content-page, .workspace-attendance-page) { gap: 8px; }
+  .vnc .workspace-list-page > :is(.directory-heading, .page-heading) p { display: none; }
+  .vnc .workspace-attendance-page > .operations-tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+  .vnc .workspace-attendance-page > .operations-tabs a { flex-shrink: 0; }
+  .vnc .workspace-attendance-page > .directory-heading { flex-direction: column; align-items: stretch; }
+  .vnc .workspace-attendance-page > .directory-heading .operations-actions { flex-wrap: nowrap; overflow-x: auto; gap: 6px; }
+  .vnc .workspace-attendance-page > .directory-heading .button { flex-shrink: 0; min-height: 32px; padding: 6px 9px; font-size: 11px; }
+  .vnc .workspace-list-panel .operations-stats { flex-wrap: nowrap; overflow-x: auto; max-height: 42px; margin-block: 6px; }
+  .vnc .workspace-list-panel .operations-stats span { flex-shrink: 0; padding: 5px 8px; }
+  .vnc .workspace-list-panel.operations-panel { padding: 10px; }
+  .vnc .workspace-list-panel > .operations-note { max-height: 28px; overflow: auto; margin-block: 4px; font-size: 11px; }
+  .vnc .workspace-list-panel > :is(.operations-filters, .directory-filters, .filter-bar) { max-height: 12dvh; padding: 8px 12px; margin-block: 0; }
+  .vnc .workspace-list-panel > :is(.directory-panel-heading, .list-heading) { padding: 10px 12px; }
+  .vnc .workspace-list-panel > :is(.directory-panel-heading, .list-heading) p { display: none; }
+  .vnc .workspace-list-page > .stats-grid { display: flex; overflow-x: auto; max-height: 76px; gap: 8px; }
+  .vnc .workspace-list-page > .stats-grid .stat-card { flex: 0 0 135px; min-height: 70px; padding: 8px; }
+  .vnc .workspace-list-page > .stats-grid .stat-card > small { display: none; }
+  .vnc .workspace-list-page > .page-footnote { display: none; }
+  .vnc .workspace-list-page > :is(.page-heading, .directory-heading) .eyebrow { display: none; }
+  .vnc .workspace-list-page > .grid { max-height: 90px; overflow: auto; }
+  .vnc .workspace-list-page :is(.page-heading, .directory-heading) { gap: 8px; }
+  .vnc .workspace-list-page :is(.page-heading, .directory-heading) h1 { font-size: 20px; }
+  .vnc .workspace-list-page .directory-pagination { padding: 8px 12px; gap: 6px; }
+  .vnc .workspace-list-page .directory-page-info { width: 100%; flex-wrap: nowrap; justify-content: space-between; gap: 6px; }
+  .vnc .workspace-list-page .directory-page-info > span { min-width: 0; font-size: 10px; }
+  .vnc .workspace-list-page .directory-page-info label { flex-shrink: 0; }
+  .vnc .workspace-list-page .directory-table .table-scroll { max-height: none; overflow: auto; }
+}
+@media (max-width: 700px) {
+  .vnc .workspace-section-body > .form-layout:has(> .workspace-form-panel) { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .vnc .workspace-section-body > .form-layout > .form-guide { max-height: 80px; }
+}
+@media (max-width: 600px) {
+  .vnc.workspace > .sidebar { max-height: 22dvh; }
+}

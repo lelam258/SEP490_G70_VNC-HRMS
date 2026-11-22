@@ -1,9 +1,11 @@
+import { attendanceText } from '../../utils/attendance';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import AttendanceShell from '../../components/attendance/AttendanceShell';
 import ResourceState from '../../components/attendance/ResourceState';
 import useApiResource from '../../hooks/useApiResource';
 import { attendanceApi } from '../../services/attendanceApi';
+import { ApiError } from '../../services/axiosClient';
 import type { AttendanceDetail, ReconcileAttendanceInput } from '../../types/attendance';
 import { useAuthStore } from '../../store/useAuthStore';
 import { attendanceLabel, clockTime, instant } from '../../utils/attendance';
@@ -78,7 +80,7 @@ export default function AttendanceRecordDetailPage() {
     event.preventDefault();
     if (!data || !id || busy) return;
     if (!reconcileReason.trim()) {
-      setError('MSG02: Vui lòng nhập lý do và căn cứ đối chiếu chấm công.');
+      setError('Vui lòng nhập lý do và căn cứ đối chiếu chấm công.');
       document.getElementById('reconcile-reason')?.focus();
       return;
     }
@@ -100,7 +102,7 @@ export default function AttendanceRecordDetailPage() {
       resource.reload();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Không thể lưu kết quả đối chiếu.');
-      if (cause instanceof Error && cause.message.includes('MSG44')) {
+      if (cause instanceof ApiError && cause.status === 409) {
         resource.reload();
       }
     } finally {
@@ -112,7 +114,7 @@ export default function AttendanceRecordDetailPage() {
     event.preventDefault();
     if (!data || !id || busy) return;
     if (verifyDecision === 'return' && !verifyReason.trim()) {
-      setError('MSG02: Vui lòng nhập lý do trả về để đối chiếu lại.');
+      setError('Vui lòng nhập lý do trả về để đối chiếu lại.');
       document.getElementById('verify-reason')?.focus();
       return;
     }
@@ -131,7 +133,7 @@ export default function AttendanceRecordDetailPage() {
       resource.reload();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Không thể xác nhận bản ghi chấm công.');
-      if (cause instanceof Error && cause.message.includes('MSG44')) {
+      if (cause instanceof ApiError && cause.status === 409) {
         resource.reload();
       }
     } finally {
@@ -166,7 +168,7 @@ export default function AttendanceRecordDetailPage() {
       description="Đối chiếu dữ liệu máy vân tay, khai báo thủ công, lịch phân công và xác nhận ngày công tính lương."
       actions={
         <>
-          {isHrStaff && <Link className="button" to="/attendance/records/new">Nhập thủ công (4.12)</Link>}
+          {isHrStaff && <Link className="button" to="/attendance/records/new">Nhập thủ công</Link>}
           <Link className="button" to="/attendance/records">Danh sách chấm công</Link>
         </>
       }
@@ -196,7 +198,7 @@ export default function AttendanceRecordDetailPage() {
               </div>
             </div>
 
-            {data.lockedReason && <p className="alert warning" style={{ margin: '6px 0' }}>{data.lockedReason}</p>}
+            {data.lockedReason && <p className="alert warning" style={{ margin: '6px 0' }}>{attendanceText(data.lockedReason)}</p>}
 
             <div className="att-meta-bar">
               <span>Nguồn: <strong>{attendanceLabel(item.source)}</strong></span>
@@ -280,7 +282,7 @@ export default function AttendanceRecordDetailPage() {
                   <span>{data.supervisorConfirmed ? 'Đã XN quản lý' : 'Bằng chứng'}</span>
                 </div>
                 <p className="operations-note" style={{ margin: 0, color: '#1e293b' }}>
-                  {data.reconcileNote || data.note || 'Chưa có ghi chú khai báo thủ công.'}
+                  {attendanceText(data.reconcileNote || data.note) || 'Chưa có ghi chú khai báo thủ công.'}
                 </p>
                 {!!data.onCalls?.length && (
                   <small style={{ fontSize: 11, color: '#0369a1' }}>
@@ -324,7 +326,7 @@ export default function AttendanceRecordDetailPage() {
                 <p className="att-card-sub">
                   {item.status === 'confirmed'
                     ? 'Bản ghi đã xác nhận và đủ điều kiện tính lương.'
-                    : 'Đối chiếu sai lệch (4.11) trước khi Xác nhận tính lương (4.13).'}
+                    : 'Đối chiếu sai lệch trước khi Xác nhận tính lương.'}
                 </p>
               </div>
               <div className="att-segmented" role="tablist" aria-label="Chế độ xử lý chấm công">
@@ -336,7 +338,7 @@ export default function AttendanceRecordDetailPage() {
                   className={activeTab === 'reconcile' ? 'active' : ''}
                   onClick={() => { setError(''); setActiveTab('reconcile'); }}
                 >
-                  4.11 Đối chiếu
+                  Đối chiếu
                 </button>
                 <button
                   type="button"
@@ -346,7 +348,7 @@ export default function AttendanceRecordDetailPage() {
                   className={activeTab === 'verify' ? 'active' : ''}
                   onClick={() => { setError(''); setActiveTab('verify'); }}
                 >
-                  4.13 Xác nhận
+                  Xác nhận
                 </button>
               </div>
             </div>
@@ -356,7 +358,7 @@ export default function AttendanceRecordDetailPage() {
             {!isHrStaff ? (
               <div className="oncall-readiness">
                 <strong>Chế độ xem ({role})</strong>
-                <p>Chỉ nhân sự có vai trò <strong>HR Staff</strong> được thực hiện Đối chiếu (4.11) và Xác nhận chấm công (4.13) theo quy tắc GB-41.</p>
+                <p>Chỉ nhân sự có vai trò <strong>HR Staff</strong> được thực hiện Đối chiếu và Xác nhận chấm công.</p>
                 {item.status !== 'confirmed' && <p className="operations-note">Bản ghi chưa xác nhận chưa được đưa vào bảng lương.</p>}
               </div>
             ) : activeTab === 'reconcile' ? (
@@ -365,7 +367,7 @@ export default function AttendanceRecordDetailPage() {
                 <fieldset disabled={busy || !!data.lockedReason || item.status === 'confirmed'}>
                   {item.status === 'confirmed' && (
                     <p className="alert warning" style={{ margin: '0 0 8px' }}>
-                      Bản ghi đã xác nhận khóa. Nếu cần điều chỉnh, hãy chuyển sang tab <strong>4.13 Xác nhận</strong> và chọn <strong>Trả về đối chiếu</strong>.
+                      Bản ghi đã xác nhận khóa. Nếu cần điều chỉnh, hãy chuyển sang tab <strong>Xác nhận</strong> và chọn <strong>Trả về đối chiếu</strong>.
                     </p>
                   )}
 
@@ -374,7 +376,7 @@ export default function AttendanceRecordDetailPage() {
                       { id: 'accept_machine', title: 'Chấp nhận giờ máy', desc: 'Dùng cặp Vào/Ra từ máy vân tay (loại bỏ cặp lặp trùng)' },
                       { id: 'accept_manual', title: 'Chấp nhận khai báo tay', desc: 'Dùng giờ theo bảng chấm công giấy kèm bằng chứng' },
                       { id: 'correct_time', title: 'Chỉnh sửa giờ thực tế', desc: 'Điều chỉnh lại cặp giờ Vào/Ra đúng thực tế' },
-                      { id: 'mark_unresolved', title: 'Giữ Flagged (Chưa rõ)', desc: 'Chưa đủ căn cứ; loại khỏi bảng lương (MSG04/05)' },
+                      { id: 'mark_unresolved', title: 'Giữ Flagged (Chưa rõ)', desc: 'Chưa đủ căn cứ; loại khỏi bảng lương' },
                     ] as const).map(opt => (
                       <button
                         key={opt.id}
@@ -446,7 +448,7 @@ export default function AttendanceRecordDetailPage() {
                           onChange={e => setSupervisorConfirmed(e.target.checked)}
                         />
                         <span>
-                          <strong>Xác nhận của Trưởng khoa / Quản lý trực (GB-13)</strong>: Ca tối kết thúc sớm do vắng bệnh nhân đã được quản lý xác nhận.
+                          <strong>Xác nhận của Trưởng khoa / Quản lý trực</strong>: Ca tối kết thúc sớm do vắng bệnh nhân đã được quản lý xác nhận.
                         </span>
                       </label>
                       <input
@@ -462,7 +464,7 @@ export default function AttendanceRecordDetailPage() {
                   )}
 
                   <label htmlFor="reconcile-reason" style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, fontWeight: 500, marginTop: 6 }}>
-                    Lý do & Bằng chứng đối chiếu (MSG02) *
+                    Lý do & Bằng chứng đối chiếu *
                     <textarea
                       id="reconcile-reason"
                       required
@@ -496,21 +498,21 @@ export default function AttendanceRecordDetailPage() {
                 <fieldset disabled={busy || !!data.lockedReason}>
                   <div className="att-source-box" style={{ marginBottom: 8 }}>
                     <div className="att-source-head">
-                      <span>Tóm tắt kiểm tra trước xác nhận (GB-06, GB-08)</span>
+                      <span>Tóm tắt kiểm tra trước xác nhận</span>
                       <span>{item.actualHours?.toLocaleString('vi-VN') ?? '—'} giờ</span>
                     </div>
                     <div style={{ fontSize: 12.5, display: 'grid', gap: 3 }}>
                       <div>Phân loại ca tính công: <strong>{attendanceLabel(item.shiftType)}</strong> tại <strong>{item.facilityName || '—'}</strong></div>
                       <div>Người đối chiếu trước: <strong>{actor(data.reconciledBy)}</strong> · {instant(data.reconciledAt)}</div>
-                      <div>Căn cứ lưu trữ: <span>{data.reconcileNote || data.note || 'Dữ liệu khớp nguồn máy'}</span></div>
+                      <div>Căn cứ lưu trữ: <span>{attendanceText(data.reconcileNote || data.note) || 'Dữ liệu khớp nguồn máy'}</span></div>
                     </div>
                   </div>
 
                   {item.status === 'flagged' && verifyDecision === 'confirm' && (
                     <div className="alert warning" style={{ margin: '0 0 8px', fontSize: 12.5 }}>
-                      <strong>MSG04 / MSG05:</strong> Bản ghi đang gắn cờ <em>Cần đối chiếu (Flagged)</em>. Hãy thực hiện{' '}
+                      Bản ghi đang gắn cờ <em>Cần đối chiếu (Flagged)</em>. Hãy thực hiện{' '}
                       <button type="button" className="text-button" onClick={() => setActiveTab('reconcile')}>
-                        4.11 Đối chiếu chấm công
+                        Đối chiếu chấm công
                       </button>{' '}
                       trước khi xác nhận tính lương.
                     </div>
@@ -524,7 +526,7 @@ export default function AttendanceRecordDetailPage() {
                       onClick={() => { setError(''); setVerifyDecision('confirm'); }}
                     >
                       <strong>Xác nhận ngày công (Confirm)</strong>
-                      <small>Chốt bản ghi đủ điều kiện tổng hợp bảng công tháng & tính lương (GB-09)</small>
+                      <small>Chốt bản ghi đủ điều kiện tổng hợp bảng công tháng & tính lương</small>
                     </button>
                     <button
                       type="button"
@@ -539,7 +541,7 @@ export default function AttendanceRecordDetailPage() {
 
                   {isEveningEarly && verifyDecision === 'confirm' && !data.supervisorConfirmed && (
                     <label htmlFor="verify-supervisor" style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, fontWeight: 500, marginBottom: 6 }}>
-                      Xác nhận của Trưởng khoa / Quản lý cho ca tối kết thúc sớm (GB-13) *
+                      Xác nhận của Trưởng khoa / Quản lý cho ca tối kết thúc sớm *
                       <input
                         id="verify-supervisor"
                         type="text"
@@ -552,7 +554,7 @@ export default function AttendanceRecordDetailPage() {
                   )}
 
                   <label htmlFor="verify-reason" style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, fontWeight: 500 }}>
-                    {verifyDecision === 'return' ? 'Lý do trả về để đối chiếu lại (MSG02) *' : 'Ghi chú xác nhận (tùy chọn)'}
+                    {verifyDecision === 'return' ? 'Lý do trả về để đối chiếu lại *' : 'Ghi chú xác nhận (tùy chọn)'}
                     <textarea
                       id="verify-reason"
                       required={verifyDecision === 'return'}

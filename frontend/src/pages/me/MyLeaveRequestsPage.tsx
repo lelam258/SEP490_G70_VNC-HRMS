@@ -282,11 +282,11 @@ export default function MyLeaveRequestsPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 workspace-list-page">
       {notice && <Alert variant="success">{notice}</Alert>}
       {error && <Alert variant="error">{error}</Alert>}
 
-      <div className="panel" style={{ padding: '1.25rem' }}>
+      <div className="panel workspace-list-panel" style={{ padding: '1.25rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
           <h1 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>Đơn nghỉ phép của tôi</h1>
 

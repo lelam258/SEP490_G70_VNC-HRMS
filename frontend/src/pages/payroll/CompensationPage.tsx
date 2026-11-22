@@ -285,7 +285,7 @@ export default function CompensationPage() {
   }
 
   return (
-    <section>
+    <section className="workspace-list-page">
       <div className="page-heading">
         <div>
           <span className="eyebrow">QUẢN LÝ LƯƠNG & ĐÃI NGỘ</span>
@@ -306,7 +306,7 @@ export default function CompensationPage() {
         </div>
       )}
 
-      <section className="panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden">
+      <section className="panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden workspace-list-panel">
         {/* Card Header 1 hàng đồng bộ chuẩn SaaS */}
         <div className="p-3.5 sm:p-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap xl:flex-nowrap items-center justify-between gap-3">
           {/* Trái: Tiêu đề + Quick Filter Tabs 1 chạm */}

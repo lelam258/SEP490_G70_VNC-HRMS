@@ -246,7 +246,7 @@ export default function ProfilePage() {
   if (!profile) return null;
 
   return (
-    <div className="profile-page-container">
+    <div className="profile-page-container workspace-content-page">
       {notice && <Alert variant="success">{notice}</Alert>}
       {error && <Alert variant="error">{error}</Alert>}
 
@@ -336,6 +336,7 @@ export default function ProfilePage() {
           {uploadingAvatar && <small style={{ color: '#2563eb', display: 'block', marginTop: '4px' }}>Đang tải ảnh đại diện lên…</small>}
         </div>
       </div>
+      <div className="workspace-section-body">
 
       {/* Grid: 2 Cards */}
       <div className="profile-grid">
@@ -676,6 +677,7 @@ export default function ProfilePage() {
           </div>
         </Modal>
       )}
+      </div>
     </div>
   );
 }

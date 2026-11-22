@@ -14,7 +14,7 @@ public static class LeaveApprovalRules
     {
         if (!string.Equals(status, "pending", StringComparison.OrdinalIgnoreCase))
         {
-            throw new AppException(400, "Chỉ có thể phê duyệt hoặc từ chối đơn nghỉ phép đang ở trạng thái chờ duyệt (MSG31).");
+            throw new AppException(400, "Chỉ có thể phê duyệt hoặc từ chối đơn nghỉ phép đang ở trạng thái chờ duyệt.");
         }
     }
 
@@ -39,7 +39,7 @@ public static class LeaveApprovalRules
         {
             if (!userDepartmentId.HasValue || userDepartmentId.Value != staffDepartmentId)
             {
-                throw new AppException(403, "Bạn không có quyền thao tác với đơn nghỉ phép của khoa/phòng khác (MSG38).");
+                throw new AppException(403, "Bạn không có quyền thao tác với đơn nghỉ phép của khoa/phòng khác.");
             }
             return;
         }
@@ -62,7 +62,7 @@ public static class LeaveApprovalRules
         {
             if (!userDepartmentId.HasValue || userDepartmentId.Value != staffDepartmentId)
             {
-                throw new AppException(403, "Bạn không có quyền phê duyệt đơn nghỉ phép của nhân viên thuộc khoa/phòng khác (MSG38).");
+                throw new AppException(403, "Bạn không có quyền phê duyệt đơn nghỉ phép của nhân viên thuộc khoa/phòng khác.");
             }
             return;
         }
@@ -88,7 +88,7 @@ public static class LeaveApprovalRules
         var trimmed = reason?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(trimmed) || trimmed.Length < 5)
         {
-            throw new AppException(400, "Vui lòng nhập lý do từ chối cụ thể (tối thiểu 5 ký tự) (MSG02).");
+            throw new AppException(400, "Vui lòng nhập lý do từ chối cụ thể (tối thiểu 5 ký tự).");
         }
 
         if (trimmed.Length > 500)

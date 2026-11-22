@@ -1,3 +1,4 @@
+import { attendanceText } from '../../utils/attendance';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import AttendanceShell from '../../components/attendance/AttendanceShell';
@@ -29,17 +30,17 @@ export default function AttendanceRecordListPage() {
   const data = resource.data;
 
   return (
-    <AttendanceShell
+    <AttendanceShell layout="list"
       title="Bảng chấm công"
-      description="Tra cứu ngày công, đối chiếu nguồn chấm công (4.11), nhập thủ công (4.12) và xác nhận ngày công (4.13)."
+      description="Tra cứu ngày công, đối chiếu nguồn chấm công, nhập thủ công và xác nhận ngày công."
       actions={
         role === 'hr_staff' && (
           <>
             <Link className="button" to="/attendance/records/new">
-              Nhập thủ công (4.12)
+              Nhập thủ công
             </Link>
             <Link className="button" to={`/attendance/monthly?month=${filter.month}`}>
-              Chốt công tháng (4.14)
+              Chốt công tháng
             </Link>
             <Link className="button primary" to="/attendance/imports/new">
               Nhập tệp chấm công
@@ -48,7 +49,7 @@ export default function AttendanceRecordListPage() {
         )
       }
     >
-      <section className="operations-panel">
+      <section className="operations-panel workspace-list-panel">
         <AttendanceFilters
           value={filter}
           options={options.data}
@@ -79,12 +80,12 @@ export default function AttendanceRecordListPage() {
               </span>
               {typeof data.counts.reconciled === 'number' && (
                 <span>
-                  <strong>{data.counts.reconciled}</strong>Chờ xác nhận (4.13)
+                  <strong>{data.counts.reconciled}</strong>Chờ xác nhận
                 </span>
               )}
             </div>
             {data.lockedReason && (
-              <p className="alert warning">{data.lockedReason} Có thể tiếp tục xem dữ liệu và lịch sử.</p>
+              <p className="alert warning">{attendanceText(data.lockedReason)} Có thể tiếp tục xem dữ liệu và lịch sử.</p>
             )}
             <DataTable
               rows={data.items}

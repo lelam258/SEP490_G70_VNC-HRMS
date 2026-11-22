@@ -177,7 +177,7 @@ export default function LeaveRequestFormPage() {
   const selectedType = leaveTypes.find((t) => t.code === leaveType);
 
   return (
-    <div className="panel leave-request-form-container" style={{ maxWidth: '760px', margin: '0 auto', padding: '1rem 1.25rem' }}>
+    <div className="panel leave-request-form-container workspace-content-page" style={{ maxWidth: '760px', margin: '0 auto', padding: '1rem 1.25rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem', borderBottom: '1px solid var(--color-border, #e5e7eb)', paddingBottom: '0.65rem' }}>
         <h1 style={{ fontSize: '1.15rem', fontWeight: 600, margin: 0 }}>
           {isEdit ? 'Sửa đơn nghỉ phép' : 'Tạo đơn nghỉ phép mới'}
@@ -191,11 +191,13 @@ export default function LeaveRequestFormPage() {
           <Icon name="arrow" size={14} /> Quay lại
         </button>
       </div>
+      <div className="workspace-section-body">
 
       {error && <Alert variant="error">{error}</Alert>}
       {notEditable && <Alert variant="error">{notEditable}</Alert>}
 
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      <form className="workspace-form-panel" onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <div className="workspace-form-fields workspace-form-stack">
         <div className="field">
           <label htmlFor="leave-type-select" style={{ fontWeight: 600, fontSize: '12px', marginBottom: '4px', display: 'block' }}>
             Loại nghỉ phép <span style={{ color: '#dc2626' }}>*</span>
@@ -429,7 +431,8 @@ export default function LeaveRequestFormPage() {
           )}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.25rem' }}>
+        </div>
+        <div className="form-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem', marginTop: '0.25rem' }}>
           <button
             type="button"
             className="button secondary"
@@ -457,6 +460,7 @@ export default function LeaveRequestFormPage() {
           </button>
         </div>
       </form>
+      </div>
     </div>
   );
 }

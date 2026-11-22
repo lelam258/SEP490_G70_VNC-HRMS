@@ -163,7 +163,7 @@ export default function DepartmentPage() {
 
   return (
     <section
-      className="directory-page directory-departments"
+      className="directory-page directory-departments workspace-list-page"
       aria-labelledby="department-page-title"
     >
       <header className="directory-heading">
@@ -195,7 +195,7 @@ export default function DepartmentPage() {
         </Alert>
       )}
       <section
-        className="directory-panel"
+        className="directory-panel workspace-list-panel"
         aria-label="Danh sách khoa/phòng"
         aria-busy={loading}
       >
@@ -265,7 +265,7 @@ export default function DepartmentPage() {
             </button>
           </div>
         )}
-        <div className="directory-table">
+        <div className="directory-table workspace-list-body">
           {loading ? (
             <p className="directory-loading" role="status">
               Đang tải danh sách khoa/phòng…

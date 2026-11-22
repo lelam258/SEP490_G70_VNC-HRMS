@@ -44,10 +44,11 @@ export default function ContractDetailPage() {
 
   const c = contract;
   return (
-    <section className="account-form-page">
+    <section className="account-form-page workspace-content-page">
       <button className="text-button back-button" type="button" onClick={() => navigate('/contracts')}>
         <Icon name="arrow" size={18} /> Danh sách hợp đồng
       </button>
+
       <div className="page-heading">
         <div>
           <span className="eyebrow">HỢP ĐỒNG LAO ĐỘNG</span>
@@ -58,6 +59,7 @@ export default function ContractDetailPage() {
           <Icon name="edit" size={18} /> Chỉnh sửa
         </button>
       </div>
+      <div className="workspace-section-body">
       {notice && <Alert variant="success"><span>{notice}</span><button className="icon-button" aria-label="Đóng thông báo" onClick={() => setNotice('')}><Icon name="close" size={15} /></button></Alert>}
 
       <div className="panel account-form">
@@ -121,6 +123,7 @@ export default function ContractDetailPage() {
             <div><dt>Cập nhật lần cuối</dt><dd>{formatDate(c.updatedAt)}</dd></div>
           </dl>
         </div>
+      </div>
       </div>
     </section>
   );

@@ -99,10 +99,11 @@ export default function ContractForm(props: Props) {
 
   const busy = saving || uploading;
   return (
-    <section className="account-form-page">
+    <section className="account-form-page workspace-content-page">
       <button className="text-button back-button" type="button" onClick={handleBack}>
         <Icon name="arrow" size={18} /> {isCreate ? 'Danh sách hợp đồng' : 'Chi tiết hợp đồng'}
       </button>
+
       <div className="page-heading">
         <div>
           <span className="eyebrow">HỢP ĐỒNG LAO ĐỘNG</span>
@@ -110,9 +111,11 @@ export default function ContractForm(props: Props) {
           <p className="muted">{isCreate ? 'Nhập thông tin theo hợp đồng lao động đã ký.' : `${contract.staffName} · ${contract.staffCode}`}</p>
         </div>
       </div>
+      <div className="workspace-section-body">
 
       <div className="form-layout">
-        <form onSubmit={handleSubmit} className="panel account-form" aria-label={isCreate ? 'Tạo hợp đồng' : 'Chỉnh sửa hợp đồng'} noValidate>
+        <form onSubmit={handleSubmit} className="panel account-form workspace-form-panel" aria-label={isCreate ? 'Tạo hợp đồng' : 'Chỉnh sửa hợp đồng'} noValidate>
+          <div className="workspace-form-fields">
           <div className="panel-heading divided">
             <span className="section-number">01</span>
             <div><h2>Thông tin hợp đồng</h2><p>Người lao động, số hợp đồng, loại và thời hạn.</p></div>
@@ -219,6 +222,7 @@ export default function ContractForm(props: Props) {
             {error && <div style={{ marginTop: 20 }}><Alert variant="error">{error}</Alert></div>}
           </div>
 
+          </div>
           <div className="form-actions">
             <button type="button" className="button" disabled={busy} onClick={handleBack}>Hủy</button>
             <button type="submit" className="button primary" disabled={busy}>
@@ -238,6 +242,7 @@ export default function ContractForm(props: Props) {
           </ul>
           <div className="guide-note">Bảo hiểm, thuế, phụ cấp và điều chỉnh lương được Kế toán cấu hình ở màn Đãi ngộ hợp đồng.</div>
         </aside>
+      </div>
       </div>
     </section>
   );

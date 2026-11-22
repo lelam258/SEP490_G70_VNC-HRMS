@@ -22,6 +22,12 @@ export const attendanceLabels: Record<string, string> = {
   correct_time: 'Chỉnh sửa giờ thực tế', mark_unresolved: 'Giữ Flagged (Chưa giải quyết)',
 };
 export function attendanceLabel(value: string | null | undefined) { return value ? attendanceLabels[value] || value : '—'; }
+export function attendanceText(value: string | null | undefined) {
+  return (value || '')
+    .replace(/MSG\d+(?:\s*\/\s*MSG\d+)*:\s*/g, '')
+    .replace(/\s*\((?:GB-?\d+(?:\s*[,/&]\s*GB-?\d+)*|MSG\d+(?:\s*[/,]\s*(?:MSG)?\d+)*|(?:UC\s+)?4\.\d+)\)/g, '')
+    .replace(/\s+(?:theo quy tắc|theo quy trình|theo)\s+GB-?\d+/g, '');
+}
 export function clockTime(value: string | null | undefined) { return value ? value.includes('T') ? value.slice(11, 16) : value.slice(0, 5) : '—'; }
 export function instant(value: string | null | undefined) {
   if (!value) return '—';

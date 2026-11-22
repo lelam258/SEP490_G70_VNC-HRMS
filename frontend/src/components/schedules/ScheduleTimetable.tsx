@@ -33,7 +33,7 @@ export default function ScheduleTimetable({ date, rows, head, canEdit, now, busy
     grouped.set(key, [...(grouped.get(key) || []), row]);
   }
   const pending = busy || loading;
-  return <section className="schedule-timetable panel" aria-labelledby="schedule-timetable-title" aria-busy={loading}>
+  return <section className="schedule-timetable panel workspace-list-panel" aria-labelledby="schedule-timetable-title" aria-busy={loading}>
     <div className="schedule-timetable-heading">
       <div><h2 id="schedule-timetable-title">Lịch tuần <span>{weekRows.length} phân công</span></h2><p>{formatDate(monday, true)} – {formatDate(days[6].date, true)}{loading && <span className="schedule-calendar-loading" role="status">Đang tải…</span>}</p></div>
       <div className="schedule-week-navigation" role="group" aria-label="Chuyển tuần trong thời khóa biểu">
@@ -43,7 +43,7 @@ export default function ScheduleTimetable({ date, rows, head, canEdit, now, busy
       </div>
     </div>
     <div className="schedule-timetable-legend"><span><i className="draft" />Nháp</span><span><i className="published" />Đã chốt</span><span><i className="cancelled" />Đã hủy</span><small>{head && onCreateSlot ? 'Bấm + để phân công · Bấm tên để xem chi tiết' : onInspect ? 'Bấm tên để xem chi tiết' : 'Giờ hiển thị theo ngày làm việc'}</small></div>
-    <div className="schedule-timetable-scroll" role="region" aria-label="Thời khóa biểu làm việc từ thứ Hai đến Chủ nhật" tabIndex={0}>
+    <div className="schedule-timetable-scroll workspace-table-viewport" role="region" aria-label="Thời khóa biểu làm việc từ thứ Hai đến Chủ nhật" tabIndex={0}>
       <table className="schedule-week-table">
         <caption className="sr-only">Lịch tuần từ {formatDate(monday, true)} đến {formatDate(days[6].date, true)}. Cột là ngày, hàng là ca làm việc.</caption>
         <thead><tr><th scope="col">Ca làm việc</th>{days.map((day, index) => <th key={day.date} scope="col" className={`${day.date === today ? 'is-today' : ''} ${index === 6 ? 'is-sunday' : ''}`}><span>{day.name}</span><strong>{formatDate(day.date)}</strong>{day.date === today && <small>Hôm nay</small>}</th>)}</tr></thead>

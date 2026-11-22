@@ -6,9 +6,11 @@
 @import "./schedules.css";
 @import "./directories.css";
 @import "./operations.css";
+@import "./workspace.css";
 
 html, body, #root { margin: 0; min-height: 100%; max-width: 100vw; overflow-x: hidden; }
 body { background: #f5f7fa; }
+html:has(.workspace), body:has(.workspace), #root:has(.workspace) { height: 100%; overflow: hidden; }
 a { text-decoration: none; }
 .vnc .nav-item { text-decoration: none; }
 .vnc.workspace {
@@ -24,8 +26,8 @@ a { text-decoration: none; }
   min-width: 0;
   max-width: 100%;
   height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
+  min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -62,7 +64,11 @@ a { text-decoration: none; }
   z-index: 10;
   background: #fff;
 }
-.vnc .page-content { padding: 20px 28px; margin: 0 auto; min-width: 0; }
+.vnc .page-content {
+  padding: 20px 28px; margin: 0 auto; min-width: 0; min-height: 0;
+  width: 100%; flex: 1 1 0; overflow: auto; overscroll-behavior: contain;
+  scrollbar-gutter: stable; scrollbar-width: thin;
+}
 .vnc .workspace-footer { padding: 10px 28px 14px; }
 .vnc .page-content .admin-page { min-height: 0; padding: 0; }
 .vnc .page-content > main { min-height: 0; }
@@ -105,6 +111,7 @@ a { text-decoration: none; }
   background: rgba(255, 255, 255, 0.35);
 }
 .vnc .sidebar nav { min-width: 0; }
+.vnc .vnc-modal-content { min-height: 0; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .vnc .nav-item { white-space: normal; }
 .vnc .topbar-user { min-width: 0; overflow-wrap: anywhere; }
 .vnc .table-scroll { max-height: none; }
@@ -175,9 +182,9 @@ html:has(dialog[open]), body:has(dialog[open]) { overflow: hidden; }
   .vnc .workspace-footer { padding-inline: 20px; }
 }
 @media (max-width: 600px) {
-  .vnc.workspace { display: block; height: auto; min-height: 100dvh; overflow: visible; }
-  .vnc .workspace-main { min-height: 0; height: auto; overflow: visible; }
-  .vnc .sidebar { width: 100%; min-height: 0; height: auto; position: static; overflow: visible; padding: 15px; }
+  .vnc.workspace { flex-direction: column; height: 100dvh; min-height: 0; overflow: hidden; }
+  .vnc .workspace-main { min-height: 0; height: auto; overflow: hidden; }
+  .vnc .sidebar { width: 100%; min-height: 0; height: auto; max-height: 30dvh; position: static; overflow-y: auto; padding: 15px; }
   .vnc .sidebar nav { flex-wrap: wrap; }
   .vnc .page-content { padding: 18px 15px; }
   .vnc .workspace-footer { padding-inline: 15px; }

@@ -52,7 +52,7 @@ public sealed class AttendanceAccess(AppDbContext db, TimeProvider? timeProvider
         if (period?.Status is "locked" or "paid" or "exported"
             || timesheetLocked
             || await db.Payslips.AnyAsync(x => x.PayMonth == month && (x.Status == "paid" || x.IsLocked == true), ct))
-            throw new AppException(400, "MSG11: Tháng đã khóa hoặc đã thanh toán. Không thể thay đổi dữ liệu chấm công.");
+            throw new AppException(400, "Tháng đã khóa hoặc đã thanh toán. Không thể thay đổi dữ liệu chấm công.");
         var deadline = new DateTimeOffset(next.AddDays(5).ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(7));
         if (Now < deadline) return;
         var correctionEnd = new DateTimeOffset(next.AddDays(12).ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(7));
@@ -64,7 +64,7 @@ public sealed class AttendanceAccess(AppDbContext db, TimeProvider? timeProvider
                 && audit.Result == "success" && actor.Role == "accountant"
                 && audit.CreatedAt >= deadline.UtcDateTime && audit.CreatedAt < correctionEnd.UtcDateTime
             select audit.LogId).AnyAsync(ct)) return;
-        throw new AppException(400, "Đã hết ngày 5 của tháng kế tiếp. Cần kỳ điều chỉnh được Accountant mở lại theo GB-59.");
+        throw new AppException(400, "Đã hết ngày 5 của tháng kế tiếp. Cần kỳ điều chỉnh được Accountant mở lại.");
     }
     public async Task<string?> LockReason(string month, CancellationToken ct)
     {
@@ -96,7 +96,7 @@ public sealed class AttendanceAccess(AppDbContext db, TimeProvider? timeProvider
         var (start, _) = AttendanceRules.Month(month);
         var openDate = PayrollPeriodRules.GetConsolidationOpenDate(start.Year, start.Month);
         if (Today < openDate)
-            throw new AppException(400, $"Chưa đến thời điểm tổng hợp công tháng {month} (mở từ ngày {openDate:dd/MM/yyyy} theo GB-52).");
+            throw new AppException(400, $"Chưa đến thời điểm tổng hợp công tháng {month} (mở từ ngày {openDate:dd/MM/yyyy}).");
         await RequireOpenImportMonth(month, ct);
     }
 

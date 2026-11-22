@@ -357,7 +357,7 @@ export default function PayrollPeriodsPage() {
   ];
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 workspace-list-page">
       {/* Page Heading */}
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">Kỳ tính lương</h1>
@@ -425,7 +425,7 @@ export default function PayrollPeriodsPage() {
       </div>
 
       {/* Main Section */}
-      <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+      <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden workspace-list-panel">
         {/* Filter and Action Header */}
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           {/* Tabs Trạng thái */}

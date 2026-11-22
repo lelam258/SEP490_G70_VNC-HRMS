@@ -736,7 +736,7 @@ export default function CmeRecordListPage() {
   }
 
   return (
-    <section className="max-w-6xl mx-auto">
+    <section className="max-w-6xl mx-auto workspace-content-page">
       {/* Header & Breadcrumb */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
@@ -781,6 +781,7 @@ export default function CmeRecordListPage() {
           </select>
         </div>
       </div>
+      <div className="workspace-section-body">
 
       {error && <Alert variant="error">{error}</Alert>}
       {notice && (
@@ -1093,7 +1094,7 @@ export default function CmeRecordListPage() {
           )}
 
           {/* Current Active Progress CME Table */}
-          <div className="table-scroll border border-slate-200 rounded-lg overflow-hidden">
+          <div className="table-scroll border border-slate-200 rounded-lg overflow-hidden workspace-table-region">
             <table className="w-full">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
@@ -1467,7 +1468,7 @@ export default function CmeRecordListPage() {
                     </div>
                   </div>
 
-                  <div className="table-scroll border border-slate-200 rounded bg-white overflow-hidden">
+                  <div className="table-scroll border border-slate-200 rounded bg-white overflow-hidden workspace-table-region">
                     <table className="w-full">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-xs">
@@ -1645,6 +1646,7 @@ export default function CmeRecordListPage() {
           </form>
         </Modal>
       )}
+      </div>
     </section>
   );
 }

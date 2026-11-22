@@ -56,14 +56,14 @@ export default function ContractListPage() {
   function resetFilters() { setSearch(''); setDepartmentId(''); setContractType(''); setStatus(''); pagination.resetPage(); }
   function onFilter<T>(setter: (value: T) => void) { return (value: T) => { setter(value); pagination.resetPage(); }; }
 
-  return <section className="directory-page directory-contracts" aria-labelledby="contract-page-title">
+  return <section className="directory-page directory-contracts workspace-list-page" aria-labelledby="contract-page-title">
     <header className="directory-heading">
       <div><span className="eyebrow">QUẢN LÝ NHÂN SỰ</span><h1 id="contract-page-title">Hợp đồng lao động</h1><p>Tra cứu hợp đồng lao động của nhân viên phòng khám.</p></div>
       <button className="button primary" disabled={loading} onClick={() => navigate('/contracts/new')}><Icon name="plus" size={17} />Tạo hợp đồng</button>
     </header>
     {error && <Alert>{error}</Alert>}
     {storeNotice && <Alert variant="success"><span>{storeNotice}</span><button className="icon-button" aria-label="Đóng thông báo" onClick={() => clearStoreNotice('')}><Icon name="close" size={15} /></button></Alert>}
-    <section className="directory-panel" aria-label="Danh sách hợp đồng" aria-busy={loading}>
+    <section className="directory-panel workspace-list-panel" aria-label="Danh sách hợp đồng" aria-busy={loading}>
       <div className="directory-panel-heading">
         <div><h2>Danh sách hợp đồng <span>{loading ? '—' : contracts.length}</span></h2>
           <p>{loading ? 'Đang tải hợp đồng' : `${count('active')} đang hiệu lực · ${count('expiring')} sắp hết hạn · ${count('expired')} hết hạn`}</p></div>
@@ -76,7 +76,7 @@ export default function ContractListPage() {
         <label htmlFor="contract-filter-status">Trạng thái<select id="contract-filter-status" value={status} onChange={e => onFilter(setStatus)(e.target.value)}><option value="">Tất cả trạng thái</option>{STATUS_ORDER.map(s => <option key={s} value={s}>{contractStatusLabels[s]}</option>)}</select></label>
       </div>
       {hasFilters && <div className="directory-filter-summary"><span><strong>{filtered.length}</strong> hợp đồng phù hợp</span><button type="button" onClick={resetFilters}>Xóa bộ lọc<Icon name="close" size={13} /></button></div>}
-      <div className="directory-table">{loading ? <p className="directory-loading" role="status">Đang tải danh sách hợp đồng…</p> : <DataTable rows={pagination.visible} rowKey={c => c.contractId} caption="Danh sách hợp đồng lao động" emptyMessage="Không tìm thấy kết quả phù hợp."
+      <div className="directory-table workspace-list-body">{loading ? <p className="directory-loading" role="status">Đang tải danh sách hợp đồng…</p> : <DataTable rows={pagination.visible} rowKey={c => c.contractId} caption="Danh sách hợp đồng lao động" emptyMessage="Không tìm thấy kết quả phù hợp."
         emptyState={<div className="directory-empty"><span><Icon name="fileText" size={28} /></span><h3>{hasFilters ? 'Không tìm thấy hợp đồng' : 'Chưa có hợp đồng'}</h3><p>{hasFilters ? 'Thử từ khóa khác hoặc thay đổi bộ lọc.' : 'Tạo hợp đồng đầu tiên cho nhân viên.'}</p>{hasFilters && <button type="button" className="button" onClick={resetFilters}>Xóa bộ lọc</button>}</div>}
         columns={[
           { key: 'code', label: 'Số HĐ', className: 'directory-col-code', render: c => <button type="button" className="directory-person-link" onClick={() => navigate(`/contracts/${c.contractId}`)} aria-label={`Xem hợp đồng ${c.contractCode || c.staffName}`}>{c.contractCode || 'Chưa có số'}</button> },

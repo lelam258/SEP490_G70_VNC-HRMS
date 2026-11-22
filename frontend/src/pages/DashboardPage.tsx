@@ -74,7 +74,7 @@ export default function DashboardPage() {
   }).format(new Date());
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 workspace-content-page">
       {/* 1. Welcome Banner Card */}
       <section
         style={{
@@ -194,6 +194,7 @@ export default function DashboardPage() {
           )}
         </div>
       </section>
+      <div className="workspace-section-body">
 
       {/* 2. Bốn thẻ KPI Metrics Card (Chỉ số nghiệp vụ chính) */}
       {user.role === 'accountant' && (
@@ -653,6 +654,7 @@ export default function DashboardPage() {
             </div>
           </section>
         </div>
+      </div>
       </div>
     </div>
   );

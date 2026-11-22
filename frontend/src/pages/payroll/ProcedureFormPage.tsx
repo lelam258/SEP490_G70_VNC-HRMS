@@ -800,7 +800,7 @@ export default function ProcedureFormPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 workspace-content-page">
       <div className="page-heading">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -836,6 +836,7 @@ export default function ProcedureFormPage() {
           </p>
         </div>
       </div>
+      <div className="workspace-section-body">
 
       {error && <Alert variant="error">{error}</Alert>}
 
@@ -865,7 +866,8 @@ export default function ProcedureFormPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6 workspace-form-panel">
+        <div className="workspace-form-fields space-y-6">
         {/* Khối 1: Thông tin hành chính & Dịch vụ kỹ thuật (Đã chuyển Khoa/Phòng xuống Khối 2) */}
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
           <h2 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2.5">
@@ -1378,7 +1380,8 @@ export default function ProcedureFormPage() {
         </div>
 
         {/* Footer Submit Buttons */}
-        <div className="flex items-center justify-end gap-3">
+        </div>
+        <div className="flex items-center justify-end gap-3 form-actions">
           <button
             type="button"
             className="button"
@@ -1408,6 +1411,7 @@ export default function ProcedureFormPage() {
           </button>
         </div>
       </form>
+      </div>
     </div>
   );
 }

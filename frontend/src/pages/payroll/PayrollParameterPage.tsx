@@ -681,13 +681,14 @@ export default function PayrollParameterPage() {
   }, [rateConfigs]);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 workspace-content-page">
       {/* 1. Đầu trang */}
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
           Tham số lương
         </h1>
       </div>
+      <div className="workspace-section-body">
 
       {notice && <Alert variant="success">{notice}</Alert>}
 
@@ -1021,7 +1022,7 @@ export default function PayrollParameterPage() {
                   </button>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto workspace-table-region">
                   <table className="w-full text-left text-sm table-fixed">
                     <colgroup>
                       <col style={{ width: '25%' }} />
@@ -1150,7 +1151,7 @@ export default function PayrollParameterPage() {
                   </button>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto workspace-table-region">
                   <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
                       <tr>
@@ -1249,7 +1250,7 @@ export default function PayrollParameterPage() {
                     </button>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto border-b border-slate-200 dark:border-slate-800">
+                  <div className="overflow-x-auto border-b border-slate-200 dark:border-slate-800 workspace-table-region">
                     <table className="w-full text-left text-sm">
                       <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
                         <tr>
@@ -1459,7 +1460,7 @@ export default function PayrollParameterPage() {
                       </button>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto border border-slate-200 rounded-lg bg-white">
+                    <div className="overflow-x-auto border border-slate-200 rounded-lg bg-white workspace-table-region">
                       <table className="w-full text-left text-sm border-collapse">
                         <thead className="bg-slate-50/90 text-slate-500 text-[11px] font-semibold uppercase tracking-wider border-b border-slate-200">
                           <tr>
@@ -1577,7 +1578,7 @@ export default function PayrollParameterPage() {
                       </button>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto border border-slate-200 rounded-lg bg-white">
+                    <div className="overflow-x-auto border border-slate-200 rounded-lg bg-white workspace-table-region">
                       <table className="w-full text-left text-sm border-collapse">
                         <thead className="bg-slate-50/90 text-slate-500 text-[11px] font-semibold uppercase tracking-wider border-b border-slate-200">
                           <tr>
@@ -1674,7 +1675,7 @@ export default function PayrollParameterPage() {
                   </button>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto workspace-table-region">
                   <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
                       <tr>
@@ -1914,6 +1915,7 @@ export default function PayrollParameterPage() {
           error={deactivateError}
         />
       )}
+      </div>
     </div>
   );
 }

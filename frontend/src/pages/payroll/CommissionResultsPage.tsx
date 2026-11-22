@@ -285,7 +285,7 @@ export default function CommissionResultsPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 max-w-7xl mx-auto">
+    <div className="space-y-6 p-4 sm:p-6 max-w-7xl mx-auto workspace-list-page">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
@@ -496,7 +496,7 @@ export default function CommissionResultsPage() {
       )}
 
       {/* Main Table */}
-      <div className="card bg-white shadow-xs border border-slate-200 rounded-xl overflow-hidden">
+      <div className="card bg-white shadow-xs border border-slate-200 rounded-xl overflow-hidden workspace-list-panel">
         <DataTable
           columns={columns}
           rows={data?.items || []}
