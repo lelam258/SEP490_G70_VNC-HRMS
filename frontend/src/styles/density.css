@@ -1,4 +1,4 @@
-/* Shared workspace density. Keep dialogs and public/auth pages independent. */
+﻿/* Shared workspace density. Keep dialogs and public/auth pages independent. */
 .vnc.workspace .page-content { padding: 12px 18px; }
 .vnc.workspace .workspace-footer { padding: 5px 18px 7px; }
 .vnc.workspace .page-content :is(.workspace-list-page, .workspace-content-page, .workspace-attendance-page, .directory-page, .schedule-page) { gap: 8px; }
@@ -6,7 +6,7 @@
 .vnc.workspace .page-content :is(.page-heading, .directory-heading, .schedule-page-header) .eyebrow { display: none; }
 .vnc.workspace .page-content :is(.page-heading, .directory-heading, .schedule-page-header) h1 { font-size: 22px; line-height: 1.3; margin: 0; letter-spacing: -.4px; }
 .vnc.workspace .page-content :is(.page-heading, .directory-heading, .schedule-page-header) p { margin-top: 3px; font-size: 12px; line-height: 1.4; }
-.vnc.workspace .page-content :is(.button, .directory-refresh, .directory-action, .schedule-page button) { min-height: 32px; padding: 5px 10px; font-size: 12px; }
+.vnc.workspace .page-content :is(.button, .directory-refresh, .directory-action, .schedule-primary-actions button, .schedule-week-navigation button, .schedule-filters button) { min-height: 32px; padding: 5px 10px; font-size: 12px; }
 .vnc.workspace .page-content :is(.directory-panel, .operations-panel, .panel, .att-card, .schedule-filters) { border-radius: 8px; }
 .vnc.workspace .page-content :is(.directory-panel-heading, .list-heading) { padding: 10px 14px 8px; gap: 10px; }
 .vnc.workspace .page-content :is(.directory-panel-heading, .list-heading) h2 { font-size: 14px; }
@@ -62,8 +62,9 @@
 @media (max-width: 600px) {
   .vnc.workspace .page-content { padding: 10px; }
   .vnc.workspace .page-content :is(.page-heading, .directory-heading, .schedule-page-header) h1 { font-size: 20px; }
-  .vnc.workspace .page-content :is(.button, .directory-action, .schedule-page button) { min-height: 36px; }
+  .vnc.workspace .page-content :is(.button, .directory-action, .schedule-primary-actions button, .schedule-week-navigation button, .schedule-filters button) { min-height: 36px; }
   .vnc.workspace .page-content .schedule-workspace .schedule-filters label,
   .vnc.workspace .page-content .schedule-workspace .schedule-filters label:first-child { flex: 1 1 calc(50% - 10px); }
   .vnc.workspace .page-content .schedule-timetable .schedule-week-navigation { width: auto; }
 }
+
