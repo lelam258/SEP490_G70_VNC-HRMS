@@ -1,0 +1,69 @@
+/* Shared workspace density. Keep dialogs and public/auth pages independent. */
+.vnc.workspace .page-content { padding: 12px 18px; }
+.vnc.workspace .workspace-footer { padding: 5px 18px 7px; }
+.vnc.workspace .page-content :is(.workspace-list-page, .workspace-content-page, .workspace-attendance-page, .directory-page, .schedule-page) { gap: 8px; }
+.vnc.workspace .page-content :is(.page-heading, .directory-heading, .schedule-page-header) { margin-bottom: 0; padding-block: 0; gap: 12px; }
+.vnc.workspace .page-content :is(.page-heading, .directory-heading, .schedule-page-header) .eyebrow { display: none; }
+.vnc.workspace .page-content :is(.page-heading, .directory-heading, .schedule-page-header) h1 { font-size: 22px; line-height: 1.3; margin: 0; letter-spacing: -.4px; }
+.vnc.workspace .page-content :is(.page-heading, .directory-heading, .schedule-page-header) p { margin-top: 3px; font-size: 12px; line-height: 1.4; }
+.vnc.workspace .page-content :is(.button, .directory-refresh, .directory-action, .schedule-page button) { min-height: 32px; padding: 5px 10px; font-size: 12px; }
+.vnc.workspace .page-content :is(.directory-panel, .operations-panel, .panel, .att-card, .schedule-filters) { border-radius: 8px; }
+.vnc.workspace .page-content :is(.directory-panel-heading, .list-heading) { padding: 10px 14px 8px; gap: 10px; }
+.vnc.workspace .page-content :is(.directory-panel-heading, .list-heading) h2 { font-size: 14px; }
+.vnc.workspace .page-content :is(.directory-panel-heading, .list-heading) p { margin-top: 3px; }
+.vnc.workspace .page-content :is(.directory-filters, .filter-bar) { padding: 0 14px 10px; gap: 10px; }
+.vnc.workspace .page-content :is(.directory-filters, .filter-bar, .schedule-filters, .operations-filters) label { gap: 4px; }
+.vnc.workspace .page-content :is(.directory-filters, .filter-bar, .schedule-filters, .operations-filters) :is(input:not([type=checkbox]):not([type=radio]), select) { height: 34px; min-height: 34px; padding-block: 5px; font-size: 12px; }
+.vnc.workspace .page-content .directory-filter-summary { padding: 0 14px 8px; }
+.vnc.workspace .page-content :is(.directory-pagination, .table-footer) { padding: 8px 14px; gap: 8px; }
+.vnc.workspace .page-content :is(.directory-table, .operations-table) th { padding: 8px 12px; }
+.vnc.workspace .page-content :is(.directory-table, .operations-table) td { height: auto; padding: 8px 12px; }
+.vnc.workspace .page-content .directory-avatar { width: 30px; height: 30px; border-radius: 8px; }
+.vnc.workspace .page-content .directory-person { gap: 8px; }
+.vnc.workspace .page-content .stats-grid { gap: 8px; margin-bottom: 0; }
+.vnc.workspace .page-content .stat-card { min-height: 76px; padding: 10px 12px 22px; }
+.vnc.workspace .page-content .stat-card > small { left: 12px; bottom: 6px; }
+.vnc.workspace .page-content .operations-panel { padding: 12px 14px; }
+.vnc.workspace .page-content .operations-filters { gap: 8px; margin-block: 4px 8px; }
+.vnc.workspace .page-content .operations-stats { margin-block: 6px; gap: 6px; }
+.vnc.workspace .page-content .operations-stats span { padding: 4px 8px; }
+.vnc.workspace .page-content .operations-tabs { gap: 12px; }
+.vnc.workspace .page-content .operations-tabs a { padding-block: 7px; }
+.vnc.workspace .page-content .att-card { padding: 12px 14px; }
+.vnc.workspace .page-content .att-kpi-grid { gap: 8px; }
+.vnc.workspace .page-content .att-kpi { padding: 10px 12px; }
+.vnc.workspace .page-content .att-kpi > span { min-height: 0; }
+.vnc.workspace .page-content .att-kpi > strong { margin-block: 3px; font-size: 20px; }
+.vnc.workspace .page-content .panel-heading { padding: 12px 16px 0; }
+.vnc.workspace .page-content .form-section { padding: 12px 16px; }
+.vnc.workspace .page-content .form-grid { margin-top: 12px; gap: 12px; }
+.vnc.workspace .page-content .form-actions { padding: 10px 16px; }
+.vnc.workspace .page-content .form-layout { gap: 14px; }
+.vnc.workspace .page-content .form-guide { padding: 14px; }
+.vnc.workspace .page-content .page-footnote { margin-top: 6px; }
+
+/* Weekly scheduling must leave most of the viewport for actual shifts. */
+.vnc.workspace .page-content .schedule-workspace .schedule-filters { padding: 10px 12px; gap: 10px; }
+.vnc.workspace .page-content .schedule-overview { min-height: 24px; gap: 12px; }
+.vnc.workspace .page-content .schedule-week-status { padding: 3px 9px; font-size: 11px; }
+.vnc.workspace .page-content .schedule-timetable .schedule-timetable-heading { padding: 10px 14px 6px; gap: 8px; }
+.vnc.workspace .page-content .schedule-timetable .schedule-timetable-heading h2 { font-size: 14px; }
+.vnc.workspace .page-content .schedule-timetable .schedule-timetable-heading p { margin-top: 2px; font-size: 11px; }
+.vnc.workspace .page-content .schedule-timetable .schedule-timetable-legend { padding: 0 14px 7px; gap: 10px; }
+.vnc.workspace .page-content .schedule-timetable .schedule-week-table thead th { padding: 6px; }
+.vnc.workspace .page-content .schedule-timetable .schedule-week-table tbody th { padding: 8px; }
+.vnc.workspace .page-content .schedule-timetable .schedule-week-table td { height: 72px; padding: 5px; }
+.vnc.workspace .page-content .schedule-timetable .schedule-slot-row > th > strong { margin-top: 3px; }
+.vnc.workspace .page-content .schedule-timetable .schedule-slot-row > th > small { margin-top: 2px; }
+.vnc.workspace .page-content .schedule-timetable .schedule-empty-slot { padding: 10px 5px; }
+.vnc.workspace .page-content .schedule-timetable .schedule-empty-slot-create { min-height: 58px; }
+.vnc.workspace .page-content .schedule-timetable .schedule-timetable-empty { padding: 8px 14px; font-size: 11px; }
+
+@media (max-width: 600px) {
+  .vnc.workspace .page-content { padding: 10px; }
+  .vnc.workspace .page-content :is(.page-heading, .directory-heading, .schedule-page-header) h1 { font-size: 20px; }
+  .vnc.workspace .page-content :is(.button, .directory-action, .schedule-page button) { min-height: 36px; }
+  .vnc.workspace .page-content .schedule-workspace .schedule-filters label,
+  .vnc.workspace .page-content .schedule-workspace .schedule-filters label:first-child { flex: 1 1 calc(50% - 10px); }
+  .vnc.workspace .page-content .schedule-timetable .schedule-week-navigation { width: auto; }
+}
