@@ -13,14 +13,20 @@ import type {
 } from '../../types/procedureSlip';
 import { formatDateOnly, formatVnd, todayVn } from '../../utils/format';
 import {
-  computeFreeTimeRangesUntil17h,
+  buildDayTimelineSegments,
+  computeStaffFreeIntervals,
+  formatIntervalLabel,
   formatRuleFormula,
   formatSingleTimeVn,
   formatTimeRangeVn,
+  getStaffShiftIntervals,
+  intersectMinuteIntervalLists,
   parseProcedureTimeRange,
   parseTimePointToMinutes,
   PROCEDURE_ROLES,
   RULE_SOURCE_LABELS,
+  type TimeMinuteInterval,
+  type TimelineSegment,
 } from '../../utils/procedureHelpers';
 
 interface DraftAssignmentRow {
@@ -32,9 +38,12 @@ interface DraftAssignmentRow {
 export interface EvaluatedDepartmentStaff extends ProcedureStaffAvailability {
   status: 'available' | 'busy' | 'off';
   canSelect: boolean;
+  isOutsideShift: boolean;
   statusText: string;
   busyTimeRangeText: string | null;
   freeUntil17hText: string | null;
+  freeIntervals: TimeMinuteInterval[];
+  timelineSegments: TimelineSegment[];
 }
 
 function buildFallbackTimeRange(durationHours?: number | null): string {
@@ -250,7 +259,7 @@ export default function ProcedureFormPage() {
   const [chargedAmount, setChargedAmount] = useState<number>(0);
   const [directCost, setDirectCost] = useState<number>(0);
   const [isAfterHours, setIsAfterHours] = useState<boolean>(false);
-  const [timeRangeInput, setTimeRangeInput] = useState<string>('13h-13h30');
+  const [timeRangeInput, setTimeRangeInput] = useState<string>('');
   const [indicatingStaffId, setIndicatingStaffId] = useState<string>('');
 
   const [assignments, setAssignments] = useState<DraftAssignmentRow[]>([
@@ -264,6 +273,8 @@ export default function ProcedureFormPage() {
   const [staffAvailabilityList, setStaffAvailabilityList] = useState<ProcedureStaffAvailability[]>([]);
   const [availabilityLoading, setAvailabilityLoading] = useState<boolean>(false);
   const [showStaffTable, setShowStaffTable] = useState<boolean>(true);
+  const [staffFilterStatus, setStaffFilterStatus] = useState<'all' | 'available' | 'busy' | 'off'>('all');
+  const [staffSearchQuery, setStaffSearchQuery] = useState<string>('');
 
   const [previews, setPreviews] = useState<PreviewAssignmentCommissionItem[]>([]);
   const [previewLoading, setPreviewLoading] = useState<boolean>(false);
@@ -445,7 +456,6 @@ export default function ProcedureFormPage() {
     );
 
     return rawDeptStaff.map((merged) => {
-
       // Check overlapping bookings against parsedTimeRange
       const overlappingBookings =
         parsedTimeRange && merged.bookingsToday.length > 0
@@ -462,63 +472,116 @@ export default function ProcedureFormPage() {
         new Set(overlappingBookings.map((b) => b.timeRangeLabel))
       ).join(', ');
 
+      const timelineSegments = merged.isWorkingToday
+        ? buildDayTimelineSegments(merged.shiftsToday, merged.bookingsToday)
+        : [];
+
       if (!merged.isWorkingToday) {
         const offLabel = merged.offReason || 'Nghỉ hôm nay';
         if (isAfterHours && !isBusy) {
+          const freeIntervals = computeStaffFreeIntervals(
+            merged.shiftsToday,
+            merged.bookingsToday,
+            parsedTimeRange ? parsedTimeRange.startMinutes : null,
+            true
+          );
           return {
             ...merged,
             status: 'available' as const,
             canSelect: true,
+            isOutsideShift: false,
             busyTimeRangeText: null,
             freeUntil17hText: 'Ngoài giờ HC / Trực',
             statusText: `Ngoài giờ HC • (Huy động ngoài ca)`,
+            freeIntervals,
+            timelineSegments,
           };
         }
         return {
           ...merged,
           status: 'off' as const,
           canSelect: false,
+          isOutsideShift: false,
           busyTimeRangeText: isBusy ? busyRanges : null,
           freeUntil17hText: null,
           statusText: isBusy ? `${offLabel} • Bận (${busyRanges})` : offLabel,
+          freeIntervals: [],
+          timelineSegments: [],
         };
       }
 
-      // Tính các khoảng thời gian còn rảnh từ giờ bắt đầu dự kiến đến 17h (5h nghỉ)
-      const windowStartMin = parsedTimeRange ? parsedTimeRange.startMinutes : 8 * 60;
-      const freeSlotsUntil17h = computeFreeTimeRangesUntil17h(
-        windowStartMin,
+      // Tính khoảng giờ rảnh thực tế dựa trên ca làm việc (Sáng 8h-12h, Chiều 13h-17h, tách nghỉ trưa)
+      const shiftIntervals = getStaffShiftIntervals(merged.shiftsToday, isAfterHours);
+      const freeIntervals = computeStaffFreeIntervals(
+        merged.shiftsToday,
         merged.bookingsToday,
-        17 * 60
+        null,
+        isAfterHours
       );
-      const freeUntil17hText =
-        windowStartMin >= 17 * 60
-          ? 'Sau 17h (Ngoài giờ HC)'
-          : freeSlotsUntil17h.length > 0
-          ? `Rảnh đến 17h: ${freeSlotsUntil17h.join(', ')}`
-          : 'Kín lịch đến 17h';
+
+      const freeLabels = freeIntervals.map(formatIntervalLabel);
+      const freeUntil17hText = isAfterHours
+        ? freeLabels.length > 0
+          ? `Rảnh (Ngoài giờ HC): ${freeLabels.join(', ')}`
+          : 'Kín lịch hôm nay'
+        : freeLabels.length > 0
+        ? `Rảnh theo ca: ${freeLabels.join(', ')}`
+        : 'Kín lịch trong ca';
 
       if (isBusy) {
         return {
           ...merged,
           status: 'busy' as const,
           canSelect: false,
+          isOutsideShift: false,
           busyTimeRangeText: busyRanges,
           freeUntil17hText,
           statusText: `Bận (${busyRanges}) • ${freeUntil17hText}`,
+          freeIntervals,
+          timelineSegments,
         };
       }
 
+      // Kiểm tra nếu đã nhập khung giờ thực hiện thì khung giờ đó có nằm trong ca làm việc của nhân sự hay không
+      const isCoveredByShift =
+        !parsedTimeRange ||
+        isAfterHours ||
+        shiftIntervals.some(
+          (seg) =>
+            parsedTimeRange.startMinutes >= seg.start &&
+            parsedTimeRange.endMinutes <= seg.end
+        );
+
       const shiftSuffix =
         merged.shiftsToday.length > 0 ? ` (Ca ${merged.shiftsToday.join(', ')})` : '';
+
+      if (!isCoveredByShift && parsedTimeRange) {
+        const shiftRangeLabels = shiftIntervals.map(formatIntervalLabel).join(', ');
+        return {
+          ...merged,
+          status: 'busy' as const,
+          canSelect: false,
+          isOutsideShift: true,
+          busyTimeRangeText: `Ngoài ca ${shiftRangeLabels || ''}`.trim(),
+          freeUntil17hText,
+          statusText: `Ngoài ca làm việc${shiftSuffix} • ${freeUntil17hText}`,
+          freeIntervals,
+          timelineSegments,
+        };
+      }
 
       return {
         ...merged,
         status: 'available' as const,
         canSelect: true,
+        isOutsideShift: false,
         busyTimeRangeText: null,
         freeUntil17hText,
-        statusText: `Đang rảnh${shiftSuffix} • ${freeUntil17hText}`,
+        statusText: parsedTimeRange
+          ? `Đang rảnh${shiftSuffix} • ${freeUntil17hText}`
+          : `Có lịch làm${shiftSuffix} • ${freeUntil17hText}`,
+        freeIntervals,
+        timelineSegments,
       };
     })
     .sort((a, b) => {
@@ -535,6 +598,56 @@ export default function ProcedureFormPage() {
     }
     return map;
   }, [departmentStaffList]);
+
+  const staffStatusCounts = useMemo(() => {
+    let available = 0;
+    let busy = 0;
+    let off = 0;
+    for (const st of departmentStaffList) {
+      if (st.status === 'available') available++;
+      else if (st.status === 'busy') busy++;
+      else off++;
+    }
+    return {
+      all: departmentStaffList.length,
+      available,
+      busy,
+      off,
+    };
+  }, [departmentStaffList]);
+
+  const filteredDepartmentStaffList = useMemo(() => {
+    const q = staffSearchQuery.trim().toLowerCase();
+    return departmentStaffList.filter((st) => {
+      if (staffFilterStatus !== 'all' && st.status !== staffFilterStatus) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        st.staffCode.toLowerCase().includes(q) ||
+        st.fullName.toLowerCase().includes(q) ||
+        (st.positionName && st.positionName.toLowerCase().includes(q))
+      );
+    });
+  }, [departmentStaffList, staffFilterStatus, staffSearchQuery]);
+
+  // Tính các khung giờ rảnh chung cho tất cả nhân sự đã được chọn vào kíp
+  const teamCommonFreeRanges = useMemo<string[]>(() => {
+    const selectedStaffs = Array.from(
+      new Set(assignments.map((a) => a.staffId).filter(Boolean))
+    )
+      .map((sid) => departmentStaffMap.get(sid))
+      .filter((st): st is EvaluatedDepartmentStaff => Boolean(st));
+
+    if (selectedStaffs.length === 0) return [];
+    if (selectedStaffs.some((st) => st.status === 'off')) return [];
+
+    let common = selectedStaffs[0].freeIntervals;
+    for (let i = 1; i < selectedStaffs.length; i++) {
+      common = intersectMinuteIntervalLists(common, selectedStaffs[i].freeIntervals);
+    }
+    return common.map(formatIntervalLabel);
+  }, [assignments, departmentStaffMap]);
 
   // Run live commission preview when service, date, amounts, time range, or assignments change
   useEffect(() => {
@@ -596,20 +709,41 @@ export default function ProcedureFormPage() {
     });
   }, [assignments, departmentStaffMap]);
 
-  const handleSetQuickDuration = useCallback((mins: number) => {
-    let startMin = 13 * 60; // 13:00 default
-    if (parsedTimeRange) {
-      startMin = parsedTimeRange.startMinutes;
-    }
-    const endMin = Math.min(23 * 60 + 59, startMin + mins);
-    const sH = Math.floor(startMin / 60);
-    const sM = startMin % 60;
-    const eH = Math.floor(endMin / 60);
-    const eM = endMin % 60;
-    const sStr = sM === 0 ? `${sH}h` : `${sH}h${String(sM).padStart(2, '0')}`;
-    const eStr = eM === 0 ? `${eH}h` : `${eH}h${String(eM).padStart(2, '0')}`;
-    setTimeRangeInput(`${sStr}-${eStr}`);
-  }, [parsedTimeRange]);
+  const handleQuickAssignFromTable = useCallback((st: EvaluatedDepartmentStaff) => {
+    if (!st.canSelect) return;
+
+    setAssignments((prev) => {
+      if (prev.length === 0) {
+        return [
+          {
+            rowKey: 'row-1',
+            staffId: st.staffId,
+            role: 'performing',
+          },
+        ];
+      }
+
+      // Khi có >= 2 dòng nhân sự được phân công, ưu tiên gán vào dòng nhân viên cuối cùng.
+      // Nếu chỉ có 1 dòng thì gán vào dòng đầu tiên (hoặc dòng đang trống đầu tiên nếu có nhiều dòng chưa chọn hết).
+      let targetIndex = prev.length - 1;
+      if (prev.length < 2) {
+        targetIndex = 0;
+      } else {
+        const firstEmptyIndex = prev.findIndex((r) => !r.staffId);
+        // Nếu có từ 2 nhân viên trở lên đã được chọn, hoặc dòng cuối đang trống -> ưu tiên dòng cuối
+        const assignedCount = prev.filter((r) => Boolean(r.staffId)).length;
+        if (assignedCount >= 2 || firstEmptyIndex === -1) {
+          targetIndex = prev.length - 1;
+        } else {
+          targetIndex = firstEmptyIndex;
+        }
+      }
+
+      return prev.map((row, idx) =>
+        idx === targetIndex ? { ...row, staffId: st.staffId } : row
+      );
+    });
+  }, []);
 
   const handleServiceChange = (newServiceId: string) => {
     setServiceId(newServiceId);
@@ -999,6 +1133,8 @@ export default function ProcedureFormPage() {
                 className={`w-full rounded-lg border px-3 py-2 text-sm font-medium ${
                   parsedTimeRange
                     ? 'border-slate-300 text-slate-900'
+                    : timeRangeInput.trim() === ''
+                    ? 'border-slate-300 text-slate-900'
                     : 'border-rose-400 bg-rose-50/40 text-rose-900'
                 }`}
               />
@@ -1007,29 +1143,15 @@ export default function ProcedureFormPage() {
                   <span className="text-emerald-700 font-medium">
                     Dự kiến: {parsedTimeRange.displayLabel} ({parsedTimeRange.durationHours} giờ)
                   </span>
+                ) : timeRangeInput.trim() === '' ? (
+                  <span className="text-slate-500">
+                    Bác sĩ tự chỉ định thời gian (VD: 13h-13h30 hoặc 13:00-13:30)
+                  </span>
                 ) : (
                   <span className="text-rose-600">
                     Nhập dạng: 13h-13h30 hoặc 13:00-13:30 (giờ kết thúc &gt; giờ bắt đầu)
                   </span>
                 )}
-              </div>
-              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                <span className="text-[11px] text-slate-500 font-medium">Thời lượng nhanh:</span>
-                {[
-                  { label: '30p', mins: 30 },
-                  { label: '45p', mins: 45 },
-                  { label: '60p', mins: 60 },
-                  { label: '90p', mins: 90 },
-                ].map((btn) => (
-                  <button
-                    key={btn.mins}
-                    type="button"
-                    onClick={() => handleSetQuickDuration(btn.mins)}
-                    className="text-[11px] px-2 py-0.5 rounded border border-slate-200 bg-slate-50 hover:bg-sky-50 hover:border-sky-300 text-slate-700 hover:text-sky-700 font-medium transition-colors cursor-pointer"
-                  >
-                    +{btn.label}
-                  </button>
-                ))}
               </div>
             </div>
 
@@ -1199,7 +1321,110 @@ export default function ProcedureFormPage() {
                 </div>
 
                 {showStaffTable && (
-                  <>
+                  <div className="space-y-2.5">
+                    {departmentStaffList.length > 0 && (
+                      <div className="flex flex-wrap items-center justify-between gap-2 bg-white/80 rounded-lg border border-sky-200/70 px-2.5 py-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {(
+                            [
+                              {
+                                key: 'all',
+                                label: `Tất cả (${staffStatusCounts.all})`,
+                                activeCls: 'bg-sky-600 text-white border-sky-600',
+                              },
+                              {
+                                key: 'available',
+                                label: `${parsedTimeRange ? 'Đang rảnh' : 'Có lịch làm'} (${
+                                  staffStatusCounts.available
+                                })`,
+                                activeCls: 'bg-emerald-600 text-white border-emerald-600',
+                              },
+                              {
+                                key: 'busy',
+                                label: `Bận / Ngoài ca (${staffStatusCounts.busy})`,
+                                activeCls: 'bg-amber-600 text-white border-amber-600',
+                              },
+                              {
+                                key: 'off',
+                                label: `Nghỉ (${staffStatusCounts.off})`,
+                                activeCls: 'bg-slate-600 text-white border-slate-600',
+                              },
+                            ] as const
+                          ).map((chip) => {
+                            const isActive = staffFilterStatus === chip.key;
+                            return (
+                              <button
+                                key={chip.key}
+                                type="button"
+                                onClick={() => setStaffFilterStatus(chip.key)}
+                                className={`text-[11px] px-2 py-0.5 rounded-full border font-medium transition-colors cursor-pointer ${
+                                  isActive
+                                    ? chip.activeCls
+                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                                }`}
+                              >
+                                {chip.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <div className="hidden sm:flex items-center gap-2 text-[10px] text-slate-500 mr-1">
+                            <span className="inline-flex items-center gap-1">
+                              <span className="h-2 w-2 rounded-xs bg-emerald-500 inline-block" />
+                              Rảnh
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <span className="h-2 w-2 rounded-xs bg-amber-500 inline-block" />
+                              Đã có ca
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <span className="h-2 w-2 rounded-xs bg-slate-300 inline-block" />
+                              Nghỉ trưa / Ngoài ca
+                            </span>
+                          </div>
+                          <input
+                            type="text"
+                            value={staffSearchQuery}
+                            onChange={(e) => setStaffSearchQuery(e.target.value)}
+                            placeholder="Tìm mã, tên, chức danh..."
+                            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs w-44 outline-none focus:border-sky-500"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {teamCommonFreeRanges.length > 0 && (
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-1.5 text-xs text-emerald-950">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-semibold text-emerald-800">
+                            ⏱ Khung giờ cả kíp đã chọn cùng rảnh:
+                          </span>
+                          {teamCommonFreeRanges.map((range) => (
+                            <button
+                              key={range}
+                              type="button"
+                              onClick={() => {
+                                if (!timeRangeInput.trim()) {
+                                  setTimeRangeInput(range);
+                                }
+                              }}
+                              title="Bấm để điền khung giờ này vào ô Thời gian thực hiện (nếu đang trống)"
+                              className="px-2 py-0.5 rounded bg-white border border-emerald-300 text-emerald-800 font-semibold text-[11px] hover:bg-emerald-100 cursor-pointer transition-colors"
+                            >
+                              {range}
+                            </button>
+                          ))}
+                        </div>
+                        {!parsedTimeRange && (
+                          <span className="text-[11px] text-emerald-700 italic">
+                            (Bấm vào khung giờ hoặc tự nhập giờ thực hiện ở mục 1)
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     {departmentStaffList.length === 0 ? (
                       <div className="text-xs text-slate-500 bg-white rounded-lg border border-slate-200 px-3 py-2">
                         {availabilityLoading
@@ -1208,67 +1433,156 @@ export default function ProcedureFormPage() {
                               selectedFacilityName || 'cơ sở đã chọn'
                             } trong lịch làm việc tuần (đã chốt).`}
                       </div>
+                    ) : filteredDepartmentStaffList.length === 0 ? (
+                      <div className="text-xs text-slate-500 bg-white rounded-lg border border-slate-200 px-3 py-2">
+                        Không có nhân sự nào khớp với bộ lọc hiện tại.
+                      </div>
                     ) : (
-                      <div className="max-h-[208px] overflow-y-auto pr-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                        {departmentStaffList.map((st) => {
+                      <div className="max-h-[260px] overflow-y-auto pr-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {filteredDepartmentStaffList.map((st) => {
+                          const isAlreadyAssigned = assignments.some(
+                            (a) => a.staffId === st.staffId
+                          );
+
                           const badgeStyle =
                             st.status === 'available'
-                              ? 'border-emerald-200 bg-emerald-50/70 text-emerald-900'
+                              ? isAlreadyAssigned
+                                ? 'border-sky-500 bg-sky-100/80 text-sky-950 ring-1 ring-sky-400 cursor-pointer hover:bg-sky-100'
+                                : 'border-emerald-200 bg-emerald-50/70 text-emerald-900 cursor-pointer hover:border-emerald-400 hover:bg-emerald-100/70'
                               : st.status === 'busy'
-                              ? 'border-amber-300 bg-amber-50/80 text-amber-900'
-                              : 'border-slate-200 bg-slate-100/80 text-slate-500';
+                              ? 'border-amber-300 bg-amber-50/80 text-amber-900 cursor-not-allowed'
+                              : 'border-slate-200 bg-slate-100/80 text-slate-500 cursor-not-allowed';
 
                           const pillStyle =
                             st.status === 'available'
-                              ? 'bg-emerald-600 text-white'
+                              ? isAlreadyAssigned
+                                ? 'bg-sky-600 text-white'
+                                : parsedTimeRange
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-teal-600 text-white'
                               : st.status === 'busy'
                               ? 'bg-amber-600 text-white'
                               : 'bg-slate-400 text-white';
 
                           const pillLabel =
                             st.status === 'available'
-                              ? 'Rảnh'
+                              ? isAlreadyAssigned
+                                ? 'Đã chọn'
+                                : parsedTimeRange
+                                ? 'Rảnh'
+                                : st.bookingsToday.length > 0
+                                ? `Đã có ${st.bookingsToday.length} ca`
+                                : 'Trống lịch'
                               : st.status === 'busy'
-                              ? `Bận (${st.busyTimeRangeText})`
+                              ? st.isOutsideShift
+                                ? 'Ngoài ca'
+                                : `Bận (${st.busyTimeRangeText})`
                               : 'Nghỉ hôm nay';
 
+                          const bookingSummaryText =
+                            st.bookingsToday.length > 0
+                              ? st.bookingsToday
+                                  .map(
+                                    (b) =>
+                                      `${b.timeRangeLabel}${
+                                        b.serviceName ? ` (${b.serviceName})` : ''
+                                      }`
+                                  )
+                                  .join(' • ')
+                              : null;
+
                           return (
-                            <div
+                            <button
                               key={st.staffId}
-                              className={`h-[64px] rounded-lg border px-3 py-1.5 text-xs flex items-center justify-between gap-2 ${badgeStyle}`}
+                              type="button"
+                              disabled={!st.canSelect}
+                              onClick={() => handleQuickAssignFromTable(st)}
+                              title={
+                                st.canSelect
+                                  ? `Bấm để chọn ${st.staffCode} - ${st.fullName} xuống phần phân công${
+                                      bookingSummaryText
+                                        ? `\nCác ca đã đặt hôm nay: ${bookingSummaryText}`
+                                        : '\nChưa có ca thủ thuật nào trong ngày'
+                                    }`
+                                  : `Không thể chọn (${st.statusText})`
+                              }
+                              className={`min-h-[82px] w-full text-left rounded-lg border px-3 py-2 text-xs flex flex-col justify-between gap-1.5 transition-colors ${badgeStyle}`}
                             >
-                              <div className="min-w-0">
-                                <div className="font-semibold truncate">
-                                  {st.staffCode} - {st.fullName}
-                                </div>
-                                <div className="text-[11px] opacity-80 truncate">
-                                  {st.positionName || 'Nhân viên y tế'}
-                                  {st.isWorkingToday && st.shiftsToday.length > 0
-                                    ? ` • Ca ${st.shiftsToday.join(', ')}`
-                                    : !st.isWorkingToday && st.offReason
-                                    ? ` • ${st.offReason}`
-                                    : ''}
-                                </div>
-                                {st.isWorkingToday && st.freeUntil17hText && (
-                                  <div
-                                    className="text-[11px] font-medium text-sky-800 truncate"
-                                    title={st.freeUntil17hText}
-                                  >
-                                    {st.freeUntil17hText}
+                              <div className="flex items-start justify-between gap-2 w-full">
+                                <div className="min-w-0">
+                                  <div className="font-semibold truncate">
+                                    {st.staffCode} - {st.fullName}
                                   </div>
-                                )}
+                                  <div className="text-[11px] opacity-80 truncate">
+                                    {st.positionName || 'Nhân viên y tế'}
+                                    {st.isWorkingToday && st.shiftsToday.length > 0
+                                      ? ` • Ca ${st.shiftsToday.join(', ')}`
+                                      : !st.isWorkingToday && st.offReason
+                                      ? ` • ${st.offReason}`
+                                      : ''}
+                                  </div>
+                                </div>
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${pillStyle}`}
+                                >
+                                  {pillLabel}
+                                </span>
                               </div>
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0 ${pillStyle}`}
-                              >
-                                {pillLabel}
-                              </span>
-                            </div>
+
+                              {st.isWorkingToday && (
+                                <div className="w-full space-y-1">
+                                  {st.freeUntil17hText && (
+                                    <div
+                                      className="text-[11px] font-medium text-sky-800 truncate"
+                                      title={st.freeUntil17hText}
+                                    >
+                                      {st.freeUntil17hText}
+                                    </div>
+                                  )}
+
+                                  {bookingSummaryText && (
+                                    <div
+                                      className="text-[10px] text-amber-800 font-medium truncate"
+                                      title={`Đã đặt: ${bookingSummaryText}`}
+                                    >
+                                      Đã đặt: {bookingSummaryText}
+                                    </div>
+                                  )}
+
+                                  {st.timelineSegments.length > 0 && (
+                                    <div className="pt-0.5">
+                                      <div className="h-1.5 w-full rounded-full bg-slate-200 overflow-hidden flex">
+                                        {st.timelineSegments.map((seg, segIdx) => (
+                                          <div
+                                            key={`${seg.start}-${seg.end}-${segIdx}`}
+                                            style={{ width: `${seg.widthPercent}%` }}
+                                            title={seg.label}
+                                            className={`h-full border-r border-white/50 last:border-r-0 ${
+                                              seg.type === 'free'
+                                                ? 'bg-emerald-500'
+                                                : seg.type === 'busy'
+                                                ? 'bg-amber-500'
+                                                : 'bg-slate-300'
+                                            }`}
+                                          />
+                                        ))}
+                                      </div>
+                                      <div className="flex justify-between text-[9px] text-slate-400 leading-none mt-0.5">
+                                        <span>8h</span>
+                                        <span>12h</span>
+                                        <span>13h</span>
+                                        <span>17h</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </button>
                           );
                         })}
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
               </div>
             )}

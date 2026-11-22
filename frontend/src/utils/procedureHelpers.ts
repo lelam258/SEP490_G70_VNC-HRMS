@@ -238,3 +238,259 @@ export function computeFreeTimeRangesUntil17h(
 
   return freeRanges;
 }
+
+export interface TimeMinuteInterval {
+  start: number;
+  end: number;
+}
+
+export function mergeMinuteIntervals(intervals: TimeMinuteInterval[]): TimeMinuteInterval[] {
+  if (intervals.length === 0) return [];
+  const sorted = [...intervals]
+    .filter((i) => i.end > i.start)
+    .sort((a, b) => (a.start !== b.start ? a.start - b.start : a.end - b.end));
+  if (sorted.length === 0) return [];
+
+  const merged: TimeMinuteInterval[] = [{ ...sorted[0] }];
+  for (let i = 1; i < sorted.length; i++) {
+    const cur = sorted[i];
+    const last = merged[merged.length - 1];
+    if (cur.start <= last.end) {
+      if (cur.end > last.end) last.end = cur.end;
+    } else {
+      merged.push({ ...cur });
+    }
+  }
+  return merged;
+}
+
+export function subtractMinuteIntervals(
+  baseIntervals: TimeMinuteInterval[],
+  busyIntervals: TimeMinuteInterval[]
+): TimeMinuteInterval[] {
+  let current = mergeMinuteIntervals(baseIntervals);
+  const mergedBusy = mergeMinuteIntervals(busyIntervals);
+
+  for (const busy of mergedBusy) {
+    const next: TimeMinuteInterval[] = [];
+    for (const seg of current) {
+      if (busy.end <= seg.start || busy.start >= seg.end) {
+        next.push(seg);
+      } else {
+        if (busy.start > seg.start) {
+          next.push({ start: seg.start, end: busy.start });
+        }
+        if (busy.end < seg.end) {
+          next.push({ start: busy.end, end: seg.end });
+        }
+      }
+    }
+    current = next;
+  }
+  return current;
+}
+
+export function intersectMinuteIntervalLists(
+  listA: TimeMinuteInterval[],
+  listB: TimeMinuteInterval[]
+): TimeMinuteInterval[] {
+  const result: TimeMinuteInterval[] = [];
+  for (const a of listA) {
+    for (const b of listB) {
+      const start = Math.max(a.start, b.start);
+      const end = Math.min(a.end, b.end);
+      if (end > start) {
+        result.push({ start, end });
+      }
+    }
+  }
+  return mergeMinuteIntervals(result);
+}
+
+/**
+ * Xác định các khung giờ làm việc trong ngày của nhân sự dựa theo danh sách ca (shiftsToday).
+ * Ca Sáng: 08:00 - 12:00, Trực trưa: 12:00 - 13:30, Ca Chiều: 13:00 - 17:00, Trực tối: 17:00 - 19:00.
+ * Tự động tách khung nghỉ trưa 12:00 - 13:00 nếu nhân sự không có ca Trực trưa.
+ */
+export function getStaffShiftIntervals(
+  shiftsToday: string[],
+  isAfterHours: boolean = false
+): TimeMinuteInterval[] {
+  if (isAfterHours) {
+    return [{ start: 7 * 60, end: 22 * 60 }];
+  }
+
+  const normalized = shiftsToday.map((s) => s.toLowerCase());
+  const intervals: TimeMinuteInterval[] = [];
+
+  const hasMorning = normalized.some((s) => s.includes('sáng'));
+  const hasNoon = normalized.some((s) => s.includes('trưa'));
+  const hasAfternoon = normalized.some((s) => s.includes('chiều'));
+  const hasEvening = normalized.some((s) => s.includes('tối'));
+  const hasOnCallOrFull = normalized.some(
+    (s) => s.includes('ca trực') || s.includes('có lịch làm')
+  );
+
+  if (hasMorning) {
+    intervals.push({ start: 8 * 60, end: 12 * 60 });
+  }
+  if (hasNoon) {
+    intervals.push({ start: 12 * 60, end: 13 * 60 + 30 });
+  }
+  if (hasAfternoon) {
+    intervals.push({ start: 13 * 60, end: 17 * 60 });
+  }
+  if (hasEvening) {
+    intervals.push({ start: 17 * 60, end: 19 * 60 });
+  }
+
+  if (intervals.length === 0 && (hasOnCallOrFull || shiftsToday.length > 0)) {
+    intervals.push({ start: 8 * 60, end: 12 * 60 }, { start: 13 * 60, end: 17 * 60 });
+  }
+
+  return mergeMinuteIntervals(intervals);
+}
+
+export function computeStaffFreeIntervals(
+  shiftsToday: string[],
+  bookings: { startTime: string; endTime: string }[],
+  minWindowStartMinutes?: number | null,
+  isAfterHours: boolean = false
+): TimeMinuteInterval[] {
+  let base = getStaffShiftIntervals(shiftsToday, isAfterHours);
+  if (minWindowStartMinutes != null && minWindowStartMinutes > 0) {
+    base = base
+      .map((seg) => ({
+        start: Math.max(seg.start, minWindowStartMinutes),
+        end: seg.end,
+      }))
+      .filter((seg) => seg.end > seg.start);
+  }
+
+  const busy: TimeMinuteInterval[] = [];
+  for (const b of bookings) {
+    const bStart = parseTimePointToMinutes(b.startTime);
+    const bEnd = parseTimePointToMinutes(b.endTime);
+    if (bStart !== null && bEnd !== null && bEnd > bStart) {
+      busy.push({ start: bStart, end: bEnd });
+    }
+  }
+
+  return subtractMinuteIntervals(base, busy);
+}
+
+export function formatIntervalLabel(interval: TimeMinuteInterval): string {
+  return `${formatMinutesVn(interval.start)}-${formatMinutesVn(interval.end)}`;
+}
+
+export interface TimelineSegment {
+  start: number;
+  end: number;
+  widthPercent: number;
+  type: 'free' | 'busy' | 'off_shift';
+  label: string;
+}
+
+/**
+ * Tạo dữ liệu thanh timeline mini (08:00 -> 17:00) cho thẻ nhân sự để bác sĩ nhìn trực quan
+ * đoạn nào đang rảnh (xanh), đã có ca thủ thuật (cam), hay nghỉ trưa / ngoài ca (xám).
+ */
+export function buildDayTimelineSegments(
+  shiftsToday: string[],
+  bookings: { startTime: string; endTime: string; serviceName?: string; slipNumber?: string }[],
+  dayStart: number = 8 * 60,
+  dayEnd: number = 17 * 60
+): TimelineSegment[] {
+  const totalMinutes = dayEnd - dayStart;
+  if (totalMinutes <= 0) return [];
+
+  const shiftIntervals = getStaffShiftIntervals(shiftsToday, false);
+  const busyIntervals: { start: number; end: number; title: string }[] = [];
+
+  for (const b of bookings) {
+    const bStart = parseTimePointToMinutes(b.startTime);
+    const bEnd = parseTimePointToMinutes(b.endTime);
+    if (bStart === null || bEnd === null || bEnd <= bStart) continue;
+    const clampedStart = Math.max(dayStart, bStart);
+    const clampedEnd = Math.min(dayEnd, bEnd);
+    if (clampedEnd > clampedStart) {
+      const rangeStr = `${formatMinutesVn(bStart)}-${formatMinutesVn(bEnd)}`;
+      const detail = b.serviceName
+        ? `${rangeStr}: ${b.serviceName}${b.slipNumber ? ` (${b.slipNumber})` : ''}`
+        : `Bận ${rangeStr}`;
+      busyIntervals.push({ start: clampedStart, end: clampedEnd, title: detail });
+    }
+  }
+
+  // Tập hợp các mốc thời gian chia đoạn trong khoảng [dayStart, dayEnd]
+  const pointsSet = new Set<number>([dayStart, dayEnd]);
+  for (const s of shiftIntervals) {
+    if (s.start > dayStart && s.start < dayEnd) pointsSet.add(s.start);
+    if (s.end > dayStart && s.end < dayEnd) pointsSet.add(s.end);
+  }
+  for (const b of busyIntervals) {
+    if (b.start > dayStart && b.start < dayEnd) pointsSet.add(b.start);
+    if (b.end > dayStart && b.end < dayEnd) pointsSet.add(b.end);
+  }
+
+  const points = Array.from(pointsSet).sort((a, b) => a - b);
+  const rawSegments: { start: number; end: number; type: 'free' | 'busy' | 'off_shift'; label: string }[] = [];
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const segStart = points[i];
+    const segEnd = points[i + 1];
+    if (segEnd <= segStart) continue;
+    const mid = (segStart + segEnd) / 2;
+
+    const matchingBusy = busyIntervals.find((b) => mid >= b.start && mid <= b.end);
+    if (matchingBusy) {
+      rawSegments.push({
+        start: segStart,
+        end: segEnd,
+        type: 'busy',
+        label: matchingBusy.title,
+      });
+      continue;
+    }
+
+    const inShift = shiftIntervals.some((s) => mid >= s.start && mid <= s.end);
+    if (inShift) {
+      rawSegments.push({
+        start: segStart,
+        end: segEnd,
+        type: 'free',
+        label: `Rảnh ${formatMinutesVn(segStart)}-${formatMinutesVn(segEnd)}`,
+      });
+    } else {
+      const isLunch = segStart >= 12 * 60 && segEnd <= 13 * 60 + 30;
+      rawSegments.push({
+        start: segStart,
+        end: segEnd,
+        type: 'off_shift',
+        label: isLunch
+          ? `Nghỉ trưa (${formatMinutesVn(segStart)}-${formatMinutesVn(segEnd)})`
+          : `Ngoài ca (${formatMinutesVn(segStart)}-${formatMinutesVn(segEnd)})`,
+      });
+    }
+  }
+
+  // Gộp các đoạn liền kề cùng loại
+  const merged: typeof rawSegments = [];
+  for (const seg of rawSegments) {
+    const last = merged[merged.length - 1];
+    if (last && last.type === seg.type && (seg.type !== 'busy' || last.label === seg.label)) {
+      last.end = seg.end;
+      if (last.type === 'free') {
+        last.label = `Rảnh ${formatMinutesVn(last.start)}-${formatMinutesVn(last.end)}`;
+      }
+    } else {
+      merged.push({ ...seg });
+    }
+  }
+
+  return merged.map((seg) => ({
+    ...seg,
+    widthPercent: Math.max(2, Math.round(((seg.end - seg.start) / totalMinutes) * 1000) / 10),
+  }));
+}
+
