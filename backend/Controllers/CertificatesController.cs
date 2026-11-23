@@ -7,7 +7,7 @@ using Vnc.HRMS.Services.Interfaces;
 
 namespace Vnc.HRMS.Controllers;
 
-[ApiController, Authorize(Roles = $"{AccountRoles.HrManager},{AccountRoles.Administrator}"), Route("api/certificates")]
+[ApiController, Authorize(Roles = AccountRoles.HrManager), Route("api/certificates")]
 public sealed class CertificatesController(ICertificateService certificates) : ControllerBase
 {
     [HttpGet("employees")]

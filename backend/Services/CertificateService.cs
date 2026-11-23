@@ -459,6 +459,30 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
 
         db.Certificates.Add(entity);
         await unitOfWork.SaveChangesAsync(ct);
+
+        if (!isDegree &&
+            string.Equals(status, "active", StringComparison.OrdinalIgnoreCase) &&
+            ((entity.CmeRequiredCredits ?? 0) > 0 || (entity.CmeCycleMonths ?? 0) > 0))
+        {
+            var start = entity.IssueDate ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+            var months = entity.CmeCycleMonths is > 0 ? entity.CmeCycleMonths.Value : 24;
+            var end = start.AddMonths(months);
+            var reqCredits = entity.CmeRequiredCredits is > 0 ? entity.CmeRequiredCredits.Value : 24m;
+
+            db.CmeCycles.Add(new CmeCycle
+            {
+                CycleId = Guid.NewGuid(),
+                CertificateId = entity.CertificateId,
+                CycleNumber = 1,
+                CycleStart = start,
+                CycleEnd = end,
+                RequiredCredits = reqCredits,
+                EarnedCredits = 0,
+                Status = "active"
+            });
+            await unitOfWork.SaveChangesAsync(ct);
+        }
+
         await tx.CommitAsync(ct);
 
         return await GetAsync(entity.CertificateId, ct);
@@ -490,6 +514,16 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
                 throw new AppException(400, $"Số hiệu '{certNumber}' đã được sử dụng.");
         }
 
+        var status = isDegree
+            ? (string.IsNullOrWhiteSpace(request.VerificationStatus) ? (request.Status ?? entity.Status ?? "unverified") : request.VerificationStatus.Trim().ToLowerInvariant())
+            : (string.IsNullOrWhiteSpace(request.Status) ? entity.Status ?? "active" : request.Status.Trim().ToLowerInvariant());
+
+        var (_, _, _, _, _, _, _, existingRejectionReason) =
+            ExtractMetadata(cat, entity.ScopeOfPractice, entity.Status);
+        var preservedRejectionReason = string.Equals(status, "rejected", StringComparison.OrdinalIgnoreCase)
+            ? existingRejectionReason
+            : null;
+
         var formattedType = CertificateCategoryHelper.Format(cat, request.CertificateType);
         var scopeOfPractice = BuildScopeOfPractice(
             cat,
@@ -498,12 +532,9 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
             request.Notes,
             request.ProfessionalDegree,
             request.IssuanceMethod,
-            request.ScopeOfPractice
+            request.ScopeOfPractice,
+            preservedRejectionReason
         );
-
-        var status = isDegree
-            ? (string.IsNullOrWhiteSpace(request.VerificationStatus) ? (request.Status ?? entity.Status ?? "unverified") : request.VerificationStatus.Trim().ToLowerInvariant())
-            : (string.IsNullOrWhiteSpace(request.Status) ? entity.Status ?? "active" : request.Status.Trim().ToLowerInvariant());
 
         ValidateFields(cat, status, request.IssueDate, request.CmeCycleMonths, request.CmeRequiredCredits,
             request.IssuingAuthority, request.FileUrl, scopeOfPractice);
@@ -529,6 +560,18 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
         if (request.DepartmentId.HasValue)
             entity.DepartmentId = request.DepartmentId;
         entity.UpdatedAt = DateTime.UtcNow;
+
+        if (!isDegree)
+        {
+            var activeCycles = await db.CmeCycles
+                .Where(c => c.CertificateId == id && c.Status != "locked")
+                .ToListAsync(ct);
+            var syncedRequired = entity.CmeRequiredCredits is > 0 ? entity.CmeRequiredCredits.Value : 1m;
+            foreach (var cy in activeCycles)
+            {
+                cy.RequiredCredits = syncedRequired;
+            }
+        }
 
         await unitOfWork.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);

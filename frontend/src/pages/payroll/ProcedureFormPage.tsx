@@ -302,12 +302,7 @@ export default function ProcedureFormPage() {
     setLoading(true);
     setError('');
     try {
-      const rawLookupData = await procedureSlipApi.getLookups();
-      const sampleServices = rawLookupData.services.slice(0, 3);
-      const lookupData: ProcedureLookups = {
-        ...rawLookupData,
-        services: sampleServices,
-      };
+      const lookupData = await procedureSlipApi.getLookups();
       setLookups(lookupData);
 
       const matchedCreatorStaff =
@@ -358,8 +353,8 @@ export default function ProcedureFormPage() {
           setFacilityId(defaultFacilityId);
         }
 
-        if (sampleServices.length > 0) {
-          const firstService = sampleServices[0];
+        if (lookupData.services.length > 0) {
+          const firstService = lookupData.services[0];
           setServiceId(firstService.id);
           setChargedAmount(firstService.basePrice ?? 0);
         }

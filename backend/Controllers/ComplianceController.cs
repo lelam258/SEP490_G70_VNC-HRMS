@@ -8,7 +8,7 @@ using Vnc.HRMS.Services;
 namespace Vnc.HRMS.Controllers;
 
 [ApiController]
-[Authorize(Roles = $"{AccountRoles.HrManager},{AccountRoles.HrStaff},{AccountRoles.DepartmentManager},{AccountRoles.Administrator}")]
+[Authorize(Roles = $"{AccountRoles.HrManager},{AccountRoles.DepartmentManager},{AccountRoles.Administrator}")]
 [Route("api/compliance")]
 public sealed class ComplianceController(ComplianceService service) : ControllerBase
 {
@@ -31,6 +31,7 @@ public sealed class ComplianceController(ComplianceService service) : Controller
     }
 
     [HttpPost("remind")]
+    [Authorize(Roles = AccountRoles.HrManager)]
     public Task<SendComplianceReminderResponseDto> SendReminder(
         [FromBody] SendComplianceReminderRequest request,
         CancellationToken ct = default)
@@ -41,18 +42,34 @@ public sealed class ComplianceController(ComplianceService service) : Controller
     }
 
     [HttpGet("certificates")]
-    public Task<object> Certificates([FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
-        service.CertificatesAsync(page, pageSize, ct);
+    public Task<object> Certificates([FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
+    {
+        Guid? userId = Guid.TryParse(User.FindFirstValue("sub"), out var uid) ? uid : null;
+        string? role = User.FindFirstValue("role") ?? User.FindFirstValue(ClaimTypes.Role);
+        return service.CertificatesAsync(page, pageSize, userId, role, ct);
+    }
 
     [HttpGet("cme-cycles")]
-    public Task<object> CmeCycles([FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
-        service.CmeCyclesAsync(page, pageSize, ct);
+    public Task<object> CmeCycles([FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
+    {
+        Guid? userId = Guid.TryParse(User.FindFirstValue("sub"), out var uid) ? uid : null;
+        string? role = User.FindFirstValue("role") ?? User.FindFirstValue(ClaimTypes.Role);
+        return service.CmeCyclesAsync(page, pageSize, userId, role, ct);
+    }
 
     [HttpGet("cme-records")]
-    public Task<object> CmeRecords([FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
-        service.CmeRecordsAsync(page, pageSize, ct);
+    public Task<object> CmeRecords([FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
+    {
+        Guid? userId = Guid.TryParse(User.FindFirstValue("sub"), out var uid) ? uid : null;
+        string? role = User.FindFirstValue("role") ?? User.FindFirstValue(ClaimTypes.Role);
+        return service.CmeRecordsAsync(page, pageSize, userId, role, ct);
+    }
 
     [HttpGet("scans")]
-    public Task<object> ComplianceScans([FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default) =>
-        service.ComplianceScansAsync(page, pageSize, ct);
+    public Task<object> ComplianceScans([FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
+    {
+        Guid? userId = Guid.TryParse(User.FindFirstValue("sub"), out var uid) ? uid : null;
+        string? role = User.FindFirstValue("role") ?? User.FindFirstValue(ClaimTypes.Role);
+        return service.ComplianceScansAsync(page, pageSize, userId, role, ct);
+    }
 }

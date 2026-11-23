@@ -1,5 +1,6 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 import Modal from '../ui/Modal';
+import { todayVn } from '../../utils/format';
 import Icon from '../ui/Icon';
 import Alert from '../ui/Alert';
 import { fileApi } from '../../services/fileApi';
@@ -94,7 +95,7 @@ export default function MyCmeCreateModal({
       return;
     }
 
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = todayVn();
     if (completedDate > todayStr) {
       setError('Ngày hoàn thành không được lớn hơn ngày hiện tại.');
       return;

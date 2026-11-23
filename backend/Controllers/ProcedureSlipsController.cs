@@ -101,15 +101,6 @@ public sealed class ProcedureSlipsController(IProcedureSlipService procedureSlip
         return procedureSlipService.UpdateSlipAsync(userId, role, id, request, ct);
     }
 
-    [HttpPost("{id:guid}/hr-check")]
-    [Authorize(Roles = "hr_staff")]
-    public Task<ProcedureSlipDetailDto> HrCheckSlip(
-        Guid id, [FromBody] ReviewProcedureSlipRequest request, CancellationToken ct)
-    {
-        var (userId, role) = GetCurrentIdentity();
-        return procedureSlipService.HrCheckSlipAsync(userId, role, id, request, ct);
-    }
-
     [HttpPost("{id:guid}/verify")]
     [Authorize(Roles = "accountant")]
     public Task<ProcedureSlipDetailDto> VerifySlip(
@@ -157,6 +148,19 @@ public sealed class ProcedureSlipsController(IProcedureSlipService procedureSlip
         var (userId, role) = GetCurrentIdentity();
         var filter = new GetCommissionResultsFilter(payMonth, departmentId, search, page, pageSize);
         return procedureSlipService.GetCommissionResultsAsync(userId, role, filter, ct);
+    }
+
+    [HttpGet("commission-results/export-details")]
+    [Authorize(Roles = "accountant,department_head")]
+    public Task<IReadOnlyList<CommissionExportDetailRowDto>> GetCommissionExportDetails(
+        [FromQuery] string payMonth,
+        [FromQuery] Guid? departmentId = null,
+        [FromQuery] string? search = null,
+        CancellationToken ct = default)
+    {
+        var (userId, role) = GetCurrentIdentity();
+        var filter = new GetCommissionResultsFilter(payMonth, departmentId, search, 1, 5000);
+        return procedureSlipService.GetCommissionExportDetailsAsync(userId, role, filter, ct);
     }
 
     [HttpGet("commission-results/staff/{staffId:guid}")]

@@ -18,17 +18,29 @@ public sealed class ComplianceService(
     private const int DefaultCertExpiringThresholdDays = 90;
     private const int DefaultCmeAlertThresholdDays = 180;
 
-    public Task<object> CertificatesAsync(int page, int pageSize, CancellationToken ct) =>
-        repository.CertificatesAsync(Math.Clamp(page, 1, 100000), Math.Clamp(pageSize, 1, 100), ct);
+    public async Task<object> CertificatesAsync(int page, int pageSize, Guid? currentUserId, string? currentUserRole, CancellationToken ct)
+    {
+        var lockedDepartmentId = await ResolveLockedDepartmentIdAsync(currentUserId, currentUserRole, ct);
+        return await repository.CertificatesAsync(Math.Clamp(page, 1, 100000), Math.Clamp(pageSize, 1, 100), lockedDepartmentId, ct);
+    }
 
-    public Task<object> CmeCyclesAsync(int page, int pageSize, CancellationToken ct) =>
-        repository.CmeCyclesAsync(Math.Clamp(page, 1, 100000), Math.Clamp(pageSize, 1, 100), ct);
+    public async Task<object> CmeCyclesAsync(int page, int pageSize, Guid? currentUserId, string? currentUserRole, CancellationToken ct)
+    {
+        var lockedDepartmentId = await ResolveLockedDepartmentIdAsync(currentUserId, currentUserRole, ct);
+        return await repository.CmeCyclesAsync(Math.Clamp(page, 1, 100000), Math.Clamp(pageSize, 1, 100), lockedDepartmentId, ct);
+    }
 
-    public Task<object> CmeRecordsAsync(int page, int pageSize, CancellationToken ct) =>
-        repository.CmeRecordsAsync(Math.Clamp(page, 1, 100000), Math.Clamp(pageSize, 1, 100), ct);
+    public async Task<object> CmeRecordsAsync(int page, int pageSize, Guid? currentUserId, string? currentUserRole, CancellationToken ct)
+    {
+        var lockedDepartmentId = await ResolveLockedDepartmentIdAsync(currentUserId, currentUserRole, ct);
+        return await repository.CmeRecordsAsync(Math.Clamp(page, 1, 100000), Math.Clamp(pageSize, 1, 100), lockedDepartmentId, ct);
+    }
 
-    public Task<object> ComplianceScansAsync(int page, int pageSize, CancellationToken ct) =>
-        repository.ComplianceScansAsync(Math.Clamp(page, 1, 100000), Math.Clamp(pageSize, 1, 100), ct);
+    public async Task<object> ComplianceScansAsync(int page, int pageSize, Guid? currentUserId, string? currentUserRole, CancellationToken ct)
+    {
+        var lockedDepartmentId = await ResolveLockedDepartmentIdAsync(currentUserId, currentUserRole, ct);
+        return await repository.ComplianceScansAsync(Math.Clamp(page, 1, 100000), Math.Clamp(pageSize, 1, 100), lockedDepartmentId, ct);
+    }
 
     public async Task<ReportFilterOptionsDto> GetFilterOptionsAsync(
         Guid? currentUserId,
@@ -254,8 +266,11 @@ public sealed class ComplianceService(
         {
             var staffCerts = certsByStaff[s.StaffId]
                 .Where(c => CertificateCategoryHelper.Parse(c.CertificateType).Category == "certificate")
-                .Where(c => !string.Equals(c.Status, "revoked", StringComparison.OrdinalIgnoreCase) &&
-                            !string.Equals(c.Status, "suspended", StringComparison.OrdinalIgnoreCase))
+                .Where(c =>
+                {
+                    var st = c.Status?.Trim().ToLowerInvariant();
+                    return st is not ("revoked" or "suspended" or "pending" or "unverified" or "rejected");
+                })
                 .ToArray();
 
             var (certRows, cmeRows, staffWorstCertStatus, staffIsCmeAtRisk) = EvaluateAllStaffCertificatesAndCme(
@@ -437,6 +452,9 @@ public sealed class ComplianceService(
             var statusVi = FormatStatusLabelVi(item.Status);
             if (staffUsers.TryGetValue(item.StaffId, out var recipientUserId))
             {
+                var recipientActionUrl = string.Equals(item.ItemType, "cme_cycle", StringComparison.OrdinalIgnoreCase)
+                    ? "/me/cme-records"
+                    : "/me/certificates";
                 var notification = new Notification
                 {
                     NotificationId = Guid.NewGuid(),
@@ -447,7 +465,7 @@ public sealed class ComplianceService(
                     Body = $"Xin chào {item.StaffName}, mục '{item.Item}' của bạn đang ở trạng thái '{statusVi}'" +
                            (item.DeadlineDisplay != "-" ? $" (Thời hạn: {item.DeadlineDisplay})" : "") +
                            ". Vui lòng kiểm tra và cập nhật hồ sơ chứng chỉ / CME.",
-                    ActionUrl = item.ActionUrl,
+                    ActionUrl = recipientActionUrl,
                     EntityType = item.ItemType,
                     EntityId = item.CertificateId ?? item.StaffId,
                     Channel = "in_app",
@@ -491,22 +509,24 @@ public sealed class ComplianceService(
         string? currentUserRole,
         CancellationToken ct)
     {
-        if (!string.Equals(currentUserRole, AccountRoles.DepartmentManager, StringComparison.OrdinalIgnoreCase) ||
-            !currentUserId.HasValue)
+        if (!string.Equals(currentUserRole, AccountRoles.DepartmentManager, StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
+
+        if (!currentUserId.HasValue)
+            return Guid.Empty;
 
         var managerStaff = await db.Staff.AsNoTracking()
             .FirstOrDefaultAsync(s => s.UserId == currentUserId.Value, ct);
 
         if (managerStaff == null)
-            return null;
+            return Guid.Empty;
 
         var managedDept = await db.Departments.AsNoTracking()
             .FirstOrDefaultAsync(d => d.ManagerId == managerStaff.StaffId && d.Status == "active", ct);
 
-        return managedDept?.DepartmentId ?? managerStaff.DepartmentId;
+        return managedDept?.DepartmentId ?? managerStaff.DepartmentId ?? Guid.Empty;
     }
 
     private static List<ComplianceAttentionRowDto> FilterRows(
@@ -672,8 +692,6 @@ public sealed class ComplianceService(
         int pendingLeaveCount = leaveList.Count(l =>
             string.Equals(l.Status, "pending", StringComparison.OrdinalIgnoreCase) ||
             string.IsNullOrWhiteSpace(l.Status));
-        if (pendingLeaveCount == 0 && leaveList.Length > 0)
-            pendingLeaveCount = leaveList.Length;
 
         // 3. On-Call Shifts in period
         var onCallQuery = db.OnCallShifts.AsNoTracking()
@@ -926,6 +944,10 @@ public sealed class ComplianceService(
             decimal required = hasCmeCreditsReq ? cert.CmeRequiredCredits!.Value : 1m;
             decimal earned;
 
+            var verifiedCertRecords = certRecords
+                .Where(r => r.Verified ?? true)
+                .ToArray();
+
             if (certCycles.Length > 0)
             {
                 var currentCycle = certCycles[0];
@@ -936,7 +958,7 @@ public sealed class ComplianceService(
                 if (hasCmeCreditsReq && currentCycle.RequiredCredits > 0)
                     required = currentCycle.RequiredCredits;
 
-                var cycleRecs = certRecords
+                var cycleRecs = verifiedCertRecords
                     .Where(r => r.CmeCycleId == currentCycle.CycleId ||
                                 (r.CmeCycleId == null && currentCycle.CycleId == oldestCycleId))
                     .ToArray();
@@ -948,16 +970,18 @@ public sealed class ComplianceService(
             else
             {
                 earned = hasCmeCreditsReq
-                    ? certRecords.Sum(r => r.Credits)
-                    : (certRecords.Length > 0 ? 1m : 0m);
+                    ? verifiedCertRecords.Sum(r => r.Credits)
+                    : (verifiedCertRecords.Length > 0 ? 1m : 0m);
             }
 
             var remaining = Math.Max(0m, required - earned);
             int? cycleDaysLeft = cycleEnd.HasValue ? (cycleEnd.Value.DayNumber - today.DayNumber) : null;
+            var isCycleClosed = string.Equals(cycleStatus, "locked", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(cycleStatus, "completed", StringComparison.OrdinalIgnoreCase);
 
             // Rule: Staff with remaining credit hours and days left in the cycle <= 180 (configurable).
             // Cycles without an end date are not counted.
-            var isCmeAtRisk = !string.Equals(cycleStatus, "completed", StringComparison.OrdinalIgnoreCase) &&
+            var isCmeAtRisk = !isCycleClosed &&
                               cycleEnd.HasValue &&
                               cycleDaysLeft.HasValue &&
                               remaining > 0m &&
@@ -983,7 +1007,6 @@ public sealed class ComplianceService(
             .ToList();
 
         bool hasAnyActiveDatedCert = activeDatedCerts.Count > 0;
-        bool isStaffCmeAtRisk = certEvaluations.Any(e => e.IsCmeAtRisk);
 
         // Determine each certificate's individual status based on its expiry date
         var individualCertStatuses = new List<(CertCmeEvaluation Eval, string CertStatus, bool Replaced)>(certEvaluations.Count);
@@ -1005,6 +1028,8 @@ public sealed class ComplianceService(
                 individualCertStatuses.Add((eval, "Legacy", false));
             }
         }
+
+        bool isStaffCmeAtRisk = individualCertStatuses.Any(x => !x.Replaced && x.Eval.IsCmeAtRisk);
 
         // Determine staff member's worst certificate status (for the top KPI cards: 1 count per staff)
         string staffWorstCertStatus;
@@ -1081,7 +1106,8 @@ public sealed class ComplianceService(
             // 2. CME Row (evaluated by CME CycleEnd & progress)
             string cmeStatus = eval.IsCmeAtRisk
                 ? "At risk"
-                : string.Equals(eval.CycleStatus, "completed", StringComparison.OrdinalIgnoreCase) ||
+                : string.Equals(eval.CycleStatus, "locked", StringComparison.OrdinalIgnoreCase) ||
+                  string.Equals(eval.CycleStatus, "completed", StringComparison.OrdinalIgnoreCase) ||
                   eval.EarnedCredits >= eval.RequiredCredits
                 ? "Completed"
                 : "On track";

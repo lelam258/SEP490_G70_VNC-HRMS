@@ -341,13 +341,41 @@ public sealed record CommissionResultsSummaryDto(
     int LinkedPayslipCount,
     bool IsPayrollLocked);
 
+public sealed record DepartmentCommissionBreakdownDto(
+    Guid? DepartmentId,
+    string DepartmentCode,
+    string DepartmentName,
+    int CompletedSlipCount,
+    int StaffCount,
+    decimal TotalChargedAmount,
+    decimal TotalDirectCost,
+    decimal TotalNetRevenue,
+    decimal TotalCommissionAmount,
+    decimal CommissionRatePercent);
+
 public sealed record CommissionResultsResponseDto(
     string PayMonth,
     CommissionResultsSummaryDto Summary,
     int Total,
     int Page,
     int PageSize,
-    IReadOnlyList<StaffMonthlyCommissionItemDto> Items);
+    IReadOnlyList<StaffMonthlyCommissionItemDto> Items,
+    IReadOnlyList<DepartmentCommissionBreakdownDto>? DepartmentBreakdown = null);
+
+public sealed record CommissionExportDetailRowDto(
+    string SlipNumber,
+    DateOnly ProcedureDate,
+    string DepartmentName,
+    string? PatientCode,
+    string ServiceCode,
+    string ServiceName,
+    string StaffCode,
+    string StaffName,
+    string Role,
+    bool IsAfterHours,
+    decimal ChargedAmount,
+    decimal DirectCost,
+    decimal CommissionAmount);
 
 public sealed record StaffProcedureCommissionDetailItemDto(
     Guid SlipId,

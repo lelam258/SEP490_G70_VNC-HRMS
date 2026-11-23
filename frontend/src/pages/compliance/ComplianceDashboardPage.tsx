@@ -127,6 +127,7 @@ function isStatusMatch(
 export default function ComplianceDashboardPage() {
   const user = useAuthStore(state => state.session?.user);
   const isDepartmentManager = user?.role === 'department_head';
+  const isHrManager = user?.role === 'hr_manager';
 
   // Bộ lọc đang chỉnh sửa trên thanh Filter Bar (chờ bấm "Áp dụng")
   const [draftFilters, setDraftFilters] =
@@ -272,6 +273,7 @@ export default function ComplianceDashboardPage() {
     setActiveCard(prev => {
       const next = prev === card ? 'attention' : card;
       if (next === 'cme_at_risk') {
+        setShowAllCme(false);
         setTimeout(() => {
           cmeSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 60);
@@ -312,7 +314,7 @@ export default function ComplianceDashboardPage() {
   );
 
   const complianceRatePct = useMemo(() => {
-    if (kpis.totalStaff <= 0) return 100;
+    if (kpis.totalStaff <= 0) return 0;
     return Math.round((kpis.validCount / kpis.totalStaff) * 100);
   }, [kpis.totalStaff, kpis.validCount]);
 
@@ -347,8 +349,8 @@ export default function ComplianceDashboardPage() {
     if (!showCmeSection) return [];
 
     const filtered = cmeItems.filter(row => {
-      if (activeCard === 'total' || showAllCme) return true;
       if (activeCard === 'valid') return !row.isCmeAtRisk;
+      if (activeCard === 'total' || showAllCme) return true;
       return row.isCmeAtRisk;
     });
     return sortByDaysLeftAsc(filtered);
@@ -469,7 +471,7 @@ export default function ComplianceDashboardPage() {
   async function handleSendReminder() {
     const attentionRows = [
       ...displayedCertificateRows.filter(
-        r => r.requiresAttention || !isStatusMatch(r.status, 'Valid')
+        r => isStatusMatch(r.status, 'Expired') || isStatusMatch(r.status, 'Expiring')
       ),
       ...displayedCmeRows.filter(r => r.isCmeAtRisk),
     ];
@@ -548,14 +550,16 @@ export default function ComplianceDashboardPage() {
           >
             Xuất báo cáo (CSV)
           </button>
-          <button
-            type="button"
-            onClick={() => void handleSendReminder()}
-            disabled={loading || sendingReminder}
-            className="px-3.5 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition cursor-pointer disabled:opacity-50"
-          >
-            {sendingReminder ? 'Đang gửi…' : 'Gửi nhắc nhở'}
-          </button>
+          {isHrManager && (
+            <button
+              type="button"
+              onClick={() => void handleSendReminder()}
+              disabled={loading || sendingReminder}
+              className="px-3.5 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition cursor-pointer disabled:opacity-50"
+            >
+              {sendingReminder ? 'Đang gửi…' : 'Gửi nhắc nhở'}
+            </button>
+          )}
         </div>
       </div>
       <div className="workspace-section-body">
@@ -781,7 +785,9 @@ export default function ComplianceDashboardPage() {
                     <th className="border border-slate-200 px-3.5 py-2.5">Ngày hết hạn</th>
                     <th className="border border-slate-200 px-3.5 py-2.5">Số ngày còn lại</th>
                     <th className="border border-slate-200 px-3.5 py-2.5">Trạng thái</th>
-                    <th className="border border-slate-200 px-3.5 py-2.5">Thao tác</th>
+                    {isHrManager && (
+                      <th className="border border-slate-200 px-3.5 py-2.5">Thao tác</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -826,14 +832,16 @@ export default function ComplianceDashboardPage() {
                           {formatStatusLabelVi(row.status)}
                         </span>
                       </td>
-                      <td className="border border-slate-200 px-3.5 py-2.5">
-                        <Link
-                          to={row.actionUrl}
-                          className="text-slate-900 font-medium underline hover:text-teal-700"
-                        >
-                          Mở
-                        </Link>
-                      </td>
+                      {isHrManager && (
+                        <td className="border border-slate-200 px-3.5 py-2.5">
+                          <Link
+                            to={row.actionUrl}
+                            className="text-slate-900 font-medium underline hover:text-teal-700"
+                          >
+                            Mở
+                          </Link>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -900,7 +908,9 @@ export default function ComplianceDashboardPage() {
                     <th className="border border-slate-200 px-3.5 py-2.5">Số ngày còn lại</th>
                     <th className="border border-slate-200 px-3.5 py-2.5">Tiến độ CME</th>
                     <th className="border border-slate-200 px-3.5 py-2.5">Trạng thái</th>
-                    <th className="border border-slate-200 px-3.5 py-2.5">Thao tác</th>
+                    {isHrManager && (
+                      <th className="border border-slate-200 px-3.5 py-2.5">Thao tác</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -948,14 +958,16 @@ export default function ComplianceDashboardPage() {
                           {formatStatusLabelVi(row.status)}
                         </span>
                       </td>
-                      <td className="border border-slate-200 px-3.5 py-2.5">
-                        <Link
-                          to={row.actionUrl}
-                          className="text-slate-900 font-medium underline hover:text-teal-700"
-                        >
-                          Mở
-                        </Link>
-                      </td>
+                      {isHrManager && (
+                        <td className="border border-slate-200 px-3.5 py-2.5">
+                          <Link
+                            to={row.actionUrl}
+                            className="text-slate-900 font-medium underline hover:text-teal-700"
+                          >
+                            Mở
+                          </Link>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

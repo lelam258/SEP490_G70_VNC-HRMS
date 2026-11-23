@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Modal from '../ui/Modal';
 import Alert from '../ui/Alert';
 import { procedureSlipApi } from '../../services/procedureSlipApi';
@@ -24,6 +24,14 @@ export default function ProcedureCompleteModal({
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open && slip) {
+      setNote('');
+      setError('');
+      setActualMinutes(slip.durationHours ? Math.round(slip.durationHours * 60) : 30);
+    }
+  }, [open, slip?.slipId, slip?.durationHours]);
 
   if (!open || !slip) return null;
 

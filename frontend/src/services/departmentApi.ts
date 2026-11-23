@@ -1,6 +1,14 @@
 import { axiosClient } from './axiosClient';
 
 export type FacilityOption = { id: string; name: string; status: string };
+export type DepartmentManagerOption = {
+  staffId: string;
+  staffCode: string;
+  fullName: string;
+  departmentId?: string | null;
+  departmentName?: string | null;
+  accountRole?: string | null;
+};
 export type Department = {
   id: string;
   code: string;
@@ -8,6 +16,9 @@ export type Department = {
   status: string;
   facilityIds?: string[];
   facilityLabel?: string;
+  managerId?: string | null;
+  managerName?: string | null;
+  managerCode?: string | null;
 };
 
 const LOCAL_DEPT_FACILITIES_KEY = 'vnc_dept_facilities_map_v1';
@@ -157,6 +168,20 @@ export const departmentApi = {
 
   async listFacilities() {
     return fetchActiveFacilities();
+  },
+
+  async listManagerOptions(): Promise<DepartmentManagerOption[]> {
+    const res = await axiosClient.get<DepartmentManagerOption[]>('/departments/manager-options');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  async assignManager(id: string, managerId: string | null) {
+    const res = await axiosClient.put<Department>(`/departments/${id}/manager`, { managerId });
+    const [facilities, sharedMap] = await Promise.all([
+      fetchActiveFacilities(),
+      readSharedDeptFacilitiesMap(),
+    ]);
+    return enrichDepartmentWithFacilities(res.data, facilities, sharedMap);
   },
 
   async assignFacilities(id: string, facilityIds: string[]) {

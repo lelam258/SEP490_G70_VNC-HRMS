@@ -234,6 +234,11 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         }
         else
         {
+            if (string.Equals(cycle.Status, "locked", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new AppException(409, "Bảng tiến độ này đã được xác nhận khóa trước đó.");
+            }
+
             var existingRecs = await db.CmeRecords.AsNoTracking()
                 .Where(r => r.CmeCycleId == cycle.CycleId)
                 .ToListAsync(ct);
@@ -342,6 +347,11 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         }
         else
         {
+            if (string.Equals(cycle.Status, "locked", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new AppException(409, "Bảng tiến độ này đã được xác nhận khóa trước đó.");
+            }
+
             var existingRecs = await db.CmeRecords.AsNoTracking()
                 .Where(r => r.CmeCycleId == cycle.CycleId)
                 .ToListAsync(ct);
@@ -792,6 +802,8 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         if (cat == "degree")
             throw new AppException(400, "Không thể gắn bản ghi CME vào Bằng cấp. Vui lòng chọn Chứng chỉ chuyên môn.");
 
+        EnsureCertificateEligibleForCme(cert);
+
         var hasCmeCredits = cert.CmeRequiredCredits is > 0;
         var effectiveCredits = hasCmeCredits ? request.Credits : 1m;
 
@@ -851,6 +863,8 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         if (cat == "degree")
             throw new AppException(400, "Không thể gắn bản ghi CME vào Bằng cấp. Vui lòng chọn Chứng chỉ chuyên môn.");
 
+        EnsureCertificateEligibleForCme(cert);
+
         var hasCmeCredits = cert.CmeRequiredCredits is > 0;
         var effectiveCredits = hasCmeCredits ? request.Credits : 1m;
 
@@ -908,6 +922,17 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         var entity = await db.CmeRecords.SingleOrDefaultAsync(r => r.CmeId == id, ct)
             ?? throw new AppException(404, "Không tìm thấy bản ghi CME.");
         await EnsureCycleEditableAsync(entity.CmeCycleId, ct);
+
+        if (verified)
+        {
+            var cert = await db.Certificates.AsNoTracking()
+                .SingleOrDefaultAsync(c => c.CertificateId == entity.CertificateId, ct)
+                ?? throw new AppException(400, "Chứng chỉ không tồn tại trong hệ thống.");
+            CmeCycle? cycle = entity.CmeCycleId.HasValue
+                ? await db.CmeCycles.AsNoTracking().SingleOrDefaultAsync(c => c.CycleId == entity.CmeCycleId.Value, ct)
+                : null;
+            await EnsureCreditsNotExceedRequiredAsync(cert, cycle, entity.Credits, entity.CmeId, ct);
+        }
 
         entity.Verified = verified;
         if (verified)
@@ -990,6 +1015,15 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         return null;
     }
 
+    private static void EnsureCertificateEligibleForCme(Certificate cert)
+    {
+        var st = cert.Status?.Trim().ToLowerInvariant();
+        if (st is "pending" or "unverified" or "rejected" or "revoked" or "suspended")
+        {
+            throw new AppException(400, "Chỉ có thể ghi nhận CME cho chứng chỉ đã được phê duyệt và đang hiệu lực.");
+        }
+    }
+
     private async Task EnsureCreditsNotExceedRequiredAsync(
         Certificate cert,
         CmeCycle? cycle,
@@ -1002,7 +1036,8 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
             ? cert.CmeRequiredCredits!.Value
             : DefaultRequiredCredits;
 
-        var query = db.CmeRecords.AsNoTracking().Where(r => r.CertificateId == cert.CertificateId);
+        var query = db.CmeRecords.AsNoTracking()
+            .Where(r => r.CertificateId == cert.CertificateId && (r.Verified == true || r.Verified == null));
         if (cycle != null)
         {
             query = query.Where(r => r.CmeCycleId == cycle.CycleId);

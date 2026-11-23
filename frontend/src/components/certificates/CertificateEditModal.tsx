@@ -36,9 +36,10 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
   const [major, setMajor] = useState<string>(
     certificate.major || DEGREE_MAJORS[0]
   );
-  const [verificationStatus, setVerificationStatus] = useState<string>(
-    certificate.verificationStatus || certificate.status || VERIFICATION_STATUSES[0].value
-  );
+  const [verificationStatus, setVerificationStatus] = useState<string>(() => {
+    const candidate = certificate.verificationStatus || certificate.status || VERIFICATION_STATUSES[0].value;
+    return VERIFICATION_STATUSES.some(v => v.value === candidate) ? candidate : VERIFICATION_STATUSES[0].value;
+  });
   const [notes, setNotes] = useState(certificate.notes || '');
 
   // Certificate fields
@@ -55,7 +56,10 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
   const [cmeRequiredCredits, setCmeRequiredCredits] = useState<string>(
     certificate.cmeRequiredCredits != null ? String(certificate.cmeRequiredCredits) : ''
   );
-  const [status, setStatus] = useState(certificate.status || 'active');
+  const [status, setStatus] = useState<string>(() => {
+    const allowed = ['active', 'expired', 'suspended', 'revoked'];
+    return certificate.status && allowed.includes(certificate.status) ? certificate.status : 'active';
+  });
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -75,7 +79,7 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
       const payload: UpdateCertificateInput = {
         category,
         certificateType: certificateType.trim(),
-        certificateNumber: null, // Bỏ số hiệu chứng chỉ theo yêu cầu
+        certificateNumber: category === 'degree' ? null : certificate.certificateNumber || null,
         issuingAuthority: issuingAuthority.trim() || null,
         issueDate: issueDate || null,
         fileUrl: fileUrl.trim() || null,

@@ -3,9 +3,12 @@ using Microsoft.EntityFrameworkCore;
 using Vnc.HRMS.Common.Exceptions;
 using Vnc.HRMS.DTOs.Organization;
 using Vnc.HRMS.Models;
+using Vnc.HRMS.Models.Employees;
 using Vnc.HRMS.Models.Organization;
+using Vnc.HRMS.Models.Users;
 using Vnc.HRMS.Persistence;
 using Vnc.HRMS.Repositories.Interfaces;
+using Vnc.HRMS.Security;
 
 namespace Vnc.HRMS.Repositories;
 
@@ -57,6 +60,18 @@ public sealed class DepartmentRepository(AppDbContext db) : IDepartmentRepositor
         var allFacilityIds = facilities.Select(f => f.Id).ToList();
         var facilityNameMap = facilities.ToDictionary(f => f.Id, f => f.Name);
 
+        var managerIds = depts
+            .Where(d => d.ManagerId.HasValue)
+            .Select(d => d.ManagerId!.Value)
+            .Distinct()
+            .ToList();
+
+        var managerMap = managerIds.Count > 0
+            ? await db.Staff.AsNoTracking()
+                .Where(s => managerIds.Contains(s.StaffId))
+                .ToDictionaryAsync(s => s.StaffId, s => (s.FullName, s.StaffCode), ct)
+            : new Dictionary<Guid, (string FullName, string StaffCode)>();
+
         return depts.Select(d =>
         {
             IReadOnlyList<Guid> assignedIds;
@@ -76,7 +91,23 @@ public sealed class DepartmentRepository(AppDbContext db) : IDepartmentRepositor
             }
 
             var label = BuildFacilityLabel(assignedIds, facilities);
-            return new DepartmentDto(d.DepartmentId, d.DeptCode, d.Name, d.Status, assignedIds, label);
+            string? managerName = null;
+            string? managerCode = null;
+            if (d.ManagerId.HasValue && managerMap.TryGetValue(d.ManagerId.Value, out var mgr))
+            {
+                managerName = mgr.FullName;
+                managerCode = mgr.StaffCode;
+            }
+            return new DepartmentDto(
+                d.DepartmentId,
+                d.DeptCode,
+                d.Name,
+                d.Status,
+                assignedIds,
+                label,
+                d.ManagerId,
+                managerName,
+                managerCode);
         }).ToArray();
     }
 
@@ -92,6 +123,70 @@ public sealed class DepartmentRepository(AppDbContext db) : IDepartmentRepositor
             .OrderBy(x => x.Name)
             .Select(x => new FacilityOptionDto(x.Id, x.Name, x.Status))
             .ToArrayAsync(ct);
+
+    public async Task<DepartmentManagerOptionDto[]> ListManagerOptionsAsync(CancellationToken ct)
+    {
+        var raw = await (
+            from s in db.Staff.AsNoTracking()
+            where s.Status == "active" && s.DepartmentId != null
+            join d in db.Departments.AsNoTracking() on s.DepartmentId equals d.DepartmentId
+            join u in db.Users.AsNoTracking() on s.UserId equals u.UserId
+            orderby s.FullName, s.StaffCode
+            select new
+            {
+                s.StaffId,
+                s.StaffCode,
+                s.FullName,
+                s.DepartmentId,
+                DepartmentName = d.Name,
+                u.Role,
+                u.IsProvisioned,
+                u.AccountStatus,
+                IsCurrentDeptManager = d.ManagerId == s.StaffId
+            }).ToArrayAsync(ct);
+
+        return raw
+            .Select(x => new
+            {
+                x.StaffId,
+                x.StaffCode,
+                x.FullName,
+                x.DepartmentId,
+                x.DepartmentName,
+                NormalizedRole = AccountRoles.Normalize(x.Role),
+                IsEligibleAccount = x.IsProvisioned &&
+                    string.Equals(x.AccountStatus, "active", StringComparison.OrdinalIgnoreCase),
+                x.IsCurrentDeptManager
+            })
+            .Where(x =>
+                (x.IsEligibleAccount &&
+                 string.Equals(x.NormalizedRole, AccountRoles.MedicalStaff, StringComparison.OrdinalIgnoreCase)) ||
+                x.IsCurrentDeptManager)
+            .Select(x => new DepartmentManagerOptionDto(
+                x.StaffId,
+                x.StaffCode,
+                x.FullName,
+                x.DepartmentId,
+                x.DepartmentName,
+                x.NormalizedRole))
+            .ToArray();
+    }
+
+    public Task<Staff?> FindStaffAsync(Guid staffId, CancellationToken ct)
+        => db.Staff.AsNoTracking().SingleOrDefaultAsync(s => s.StaffId == staffId, ct);
+
+    public async Task<User?> FindUserByStaffIdAsync(Guid staffId, CancellationToken ct)
+    {
+        var staff = await db.Staff.AsNoTracking().SingleOrDefaultAsync(s => s.StaffId == staffId, ct);
+        if (staff is null) return null;
+        return await db.Users.SingleOrDefaultAsync(u => u.UserId == staff.UserId, ct);
+    }
+
+    public Task<string?> FindOtherManagedDepartmentNameAsync(Guid managerId, Guid excludeDepartmentId, CancellationToken ct)
+        => db.Departments.AsNoTracking()
+            .Where(d => d.DepartmentId != excludeDepartmentId && d.Status == "active" && d.ManagerId == managerId)
+            .Select(d => d.Name)
+            .FirstOrDefaultAsync(ct);
 
     public async Task AssignFacilitiesAsync(
         Guid departmentId,

@@ -22,12 +22,16 @@ export function loginDestination(role: string, from: unknown): string {
     || /^\/attendance\/on-call\/[a-f0-9-]{36}\/edit$/i.test(path));
   const historyRead = role !== 'employee' && (path === '/attendance/history' || path === '/attendance/monthly');
   const deviceMappingsRead = ['admin', 'hr_manager', 'hr_staff'].includes(role) && path === '/attendance/device-mappings';
+  const procedurePermitted =
+    (role !== 'admin' && (path === '/procedures' || /^\/procedures\/[a-f0-9-]{36}$/i.test(path)))
+    || (['hr_manager', 'department_head', 'employee'].includes(role) && path === '/procedures/new')
+    || (['hr_manager', 'department_head', 'employee', 'accountant'].includes(role) && /^\/procedures\/[a-f0-9-]{36}\/edit$/i.test(path));
   const permitted = path === '/' || path === '/change-password' || path === '/schedules'
-    || (role !== 'admin' && (path === '/procedures' || path.startsWith('/procedures/')))
+    || procedurePermitted
     || (role === 'admin' && (path === '/accounts' || path.startsWith('/accounts/') || ['/compliance', '/roles', '/audit-logs'].includes(path)))
-    || (role === 'department_head' && path === '/compliance')
+    || (role === 'department_head' && (path === '/compliance' || path === '/payroll/commission-results'))
     || (role === 'hr_manager' && (path === '/employees' || path.startsWith('/employees/') || ['/departments', '/organization', '/compliance', '/certificates', '/cme-records'].includes(path) || path.startsWith('/certificates/') || path.startsWith('/cme-records/')))
-    || (role === 'accountant' && (path === '/payroll/parameters' || path === '/payroll/compensation' || path === '/payroll/periods' || path.startsWith('/payroll/periods/') || path === '/payroll/procedures'))
+    || (role === 'accountant' && (path === '/payroll/parameters' || path === '/payroll/compensation' || path === '/payroll/periods' || path.startsWith('/payroll/periods/') || path === '/payroll/procedures' || path === '/payroll/commission-results' || path === '/payroll/procedure-services' || path.startsWith('/payroll/procedure-services/')))
     || isSelfService || attendanceRead || importRead || attendanceWrite || historyRead || deviceMappingsRead;
   return permitted ? url.pathname + url.search + url.hash : roleHome(role);
 }

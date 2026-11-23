@@ -491,7 +491,7 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
                 && !string.Equals(x.Status, "rejected", StringComparison.OrdinalIgnoreCase))
             .ToLookup(
                 x => x.StaffId,
-                x => (x.CommissionAmount ?? 0m, IsVerifiedSlipStatus(x.SlipStatus)));
+                x => (x.CommissionAmount ?? 0m, string.Equals(x.SlipStatus, "completed", StringComparison.OrdinalIgnoreCase)));
 
         var taxPolicy = await LoadTaxAndInsuranceParametersAsync(monthStart, monthEnd, ct);
 

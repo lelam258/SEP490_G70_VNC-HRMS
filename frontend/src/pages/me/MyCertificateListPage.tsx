@@ -26,7 +26,7 @@ function normalizeCertificate(raw: Partial<Certificate>): Certificate {
     cat = 'certificate';
     catLabel = 'Chứng chỉ';
     cleanType = cleanType.slice(11).trim();
-  } else {
+  } else if (raw.category !== 'degree' && raw.category !== 'certificate') {
     const lower = cleanType.toLowerCase();
     if (
       lower.includes('bằng') ||
@@ -107,7 +107,7 @@ function getExpiryInfo(expiryDateStr: string | null | undefined): ExpiryInfo {
     };
   }
 
-  if (diffDays <= 60) {
+  if (diffDays <= 90) {
     return {
       state: 'expiring_soon',
       label: `Sắp hết hạn (còn ${diffDays} ngày)`,
@@ -142,6 +142,20 @@ export default function MyCertificateListPage() {
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'degree' | 'certificate'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'valid' | 'expiring_soon' | 'expired'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+
+  // Dynamic table pagination: shrink-to-fit rows, auto-paginate before viewport scroll
+  const computeTablePageSize = () => {
+    if (typeof window === 'undefined') return 6;
+    return Math.max(4, Math.min(10, Math.floor((window.innerHeight - 430) / 56)));
+  };
+  const [tablePageSize, setTablePageSize] = useState<number>(computeTablePageSize);
+  const [tablePage, setTablePage] = useState(1);
+
+  useEffect(() => {
+    const handleResize = () => setTablePageSize(computeTablePageSize());
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -202,8 +216,19 @@ export default function MyCertificateListPage() {
         certs++;
       }
 
+      const isNonActive =
+        c.status === 'rejected' ||
+        c.verificationStatus === 'rejected' ||
+        c.status === 'pending' ||
+        c.status === 'unverified' ||
+        c.verificationStatus === 'unverified' ||
+        c.status === 'revoked' ||
+        c.status === 'suspended';
+
+      if (isNonActive) continue;
+
       const info = getExpiryInfo(c.expiryDate);
-      if (info.state === 'expired') expired++;
+      if (c.status === 'expired' || info.state === 'expired') expired++;
       else if (info.state === 'expiring_soon') expiringSoon++;
       else valid++;
     }
@@ -230,10 +255,20 @@ export default function MyCertificateListPage() {
 
       // Status filter
       if (statusFilter !== 'all') {
+        const isNonActive =
+          c.status === 'rejected' ||
+          c.verificationStatus === 'rejected' ||
+          c.status === 'pending' ||
+          c.status === 'unverified' ||
+          c.verificationStatus === 'unverified' ||
+          c.status === 'revoked' ||
+          c.status === 'suspended';
+        if (isNonActive) return false;
         const info = getExpiryInfo(c.expiryDate);
-        if (statusFilter === 'valid' && info.state !== 'valid' && info.state !== 'no_expiry') return false;
-        if (statusFilter === 'expiring_soon' && info.state !== 'expiring_soon') return false;
-        if (statusFilter === 'expired' && info.state !== 'expired') return false;
+        const isExpiredCert = c.status === 'expired' || info.state === 'expired';
+        if (statusFilter === 'valid' && (isExpiredCert || info.state === 'expiring_soon')) return false;
+        if (statusFilter === 'expiring_soon' && (isExpiredCert || info.state !== 'expiring_soon')) return false;
+        if (statusFilter === 'expired' && !isExpiredCert) return false;
       }
 
       // Search keyword
@@ -253,8 +288,23 @@ export default function MyCertificateListPage() {
     });
   }, [certificates, searchTerm, categoryFilter, statusFilter]);
 
+  useEffect(() => {
+    setTablePage(1);
+  }, [searchTerm, categoryFilter, statusFilter]);
+
+  const totalTablePages = Math.max(1, Math.ceil(filteredList.length / tablePageSize));
+  useEffect(() => {
+    if (tablePage > totalTablePages) setTablePage(totalTablePages);
+  }, [tablePage, totalTablePages]);
+
+  const paginatedTableList = useMemo(() => {
+    const safePage = Math.min(tablePage, totalTablePages);
+    const start = (safePage - 1) * tablePageSize;
+    return filteredList.slice(start, start + tablePageSize);
+  }, [filteredList, tablePage, totalTablePages, tablePageSize]);
+
   return (
-    <div className="space-y-6 workspace-list-page">
+    <div className="space-y-6 workspace-content-page">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-slate-200">
         <div>
@@ -576,6 +626,18 @@ export default function MyCertificateListPage() {
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                         Chờ HR duyệt
                       </span>
+                    ) : cert.status === 'suspended' ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                        Tạm đình chỉ
+                      </span>
+                    ) : cert.status === 'revoked' ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-red-50 text-red-700 border border-red-200">
+                        Bị thu hồi
+                      </span>
+                    ) : cert.status === 'expired' ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-red-50 text-red-700 border border-red-200">
+                        Đã hết hạn
+                      </span>
                     ) : (
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] border ${expiryInfo.badgeClass}`}
@@ -698,9 +760,9 @@ export default function MyCertificateListPage() {
           })}
         </div>
       ) : (
-        /* Table View */
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs workspace-list-panel">
-          <div className="overflow-x-auto workspace-table-viewport">
+        /* Table View (shrink-to-fit rows, auto-paginates before viewport scroll) */
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+          <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-700">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[10px] font-semibold tracking-wider">
                 <tr>
@@ -715,7 +777,7 @@ export default function MyCertificateListPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredList.map((cert) => {
+                {paginatedTableList.map((cert) => {
                   const isDegree = cert.category === 'degree';
                   const expiryInfo = getExpiryInfo(cert.expiryDate);
 
@@ -750,7 +812,7 @@ export default function MyCertificateListPage() {
                       </td>
 
                       <td className="py-3 px-4 whitespace-nowrap text-slate-600">
-                        {formatDate(cert.issueDate) || '—'}
+                        {cert.issueDate ? formatDate(cert.issueDate) : '—'}
                       </td>
 
                       <td className="py-3 px-4 whitespace-nowrap">
@@ -773,6 +835,18 @@ export default function MyCertificateListPage() {
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                             Chờ HR duyệt
+                          </span>
+                        ) : cert.status === 'suspended' ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                            Tạm đình chỉ
+                          </span>
+                        ) : cert.status === 'revoked' ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-red-50 text-red-700 border border-red-200">
+                            Bị thu hồi
+                          </span>
+                        ) : cert.status === 'expired' ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-red-50 text-red-700 border border-red-200">
+                            Đã hết hạn
                           </span>
                         ) : (
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] border ${expiryInfo.badgeClass}`}>
@@ -825,6 +899,48 @@ export default function MyCertificateListPage() {
               </tbody>
             </table>
           </div>
+
+          {filteredList.length > tablePageSize && (
+            <div className="border-t border-slate-100 px-4 py-2 flex items-center justify-between text-xs text-slate-500 bg-slate-50/50">
+              <span>
+                Hiển thị {(tablePage - 1) * tablePageSize + 1} -{' '}
+                {Math.min(tablePage * tablePageSize, filteredList.length)} trên tổng số{' '}
+                {filteredList.length} hồ sơ
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  className="button secondary text-xs py-0.5 px-2 disabled:opacity-40"
+                  disabled={tablePage === 1}
+                  onClick={() => setTablePage((p) => Math.max(1, p - 1))}
+                >
+                  ‹ Trước
+                </button>
+                {Array.from({ length: totalTablePages }, (_, i) => i + 1).map((pg) => (
+                  <button
+                    key={pg}
+                    type="button"
+                    className={`w-6 h-6 rounded text-xs font-semibold flex items-center justify-center transition-colors ${
+                      pg === tablePage
+                        ? 'bg-teal-700 text-white'
+                        : 'border border-slate-200 text-slate-700 hover:bg-white'
+                    }`}
+                    onClick={() => setTablePage(pg)}
+                  >
+                    {pg}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="button secondary text-xs py-0.5 px-2 disabled:opacity-40"
+                  disabled={tablePage >= totalTablePages}
+                  onClick={() => setTablePage((p) => Math.min(totalTablePages, p + 1))}
+                >
+                  Sau ›
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -33,7 +33,12 @@ public static class AuthenticationConfiguration
             options.AddPolicy("Admin", policy => policy.RequireAuthenticatedUser().RequireRole(Vnc.HRMS.Security.AccountRoles.Administrator));
             options.AddPolicy("HRManager", policy => policy.RequireAuthenticatedUser().RequireRole(Vnc.HRMS.Security.AccountRoles.HrManager));
             options.AddPolicy("Accountant", policy => policy.RequireAuthenticatedUser().RequireRole(Vnc.HRMS.Security.AccountRoles.Accountant));
-            options.AddPolicy("SelfService", policy => policy.RequireAuthenticatedUser());
+            options.AddPolicy("SelfService", policy => policy.RequireAuthenticatedUser().RequireRole(
+                Vnc.HRMS.Security.AccountRoles.HrManager,
+                Vnc.HRMS.Security.AccountRoles.HrStaff,
+                Vnc.HRMS.Security.AccountRoles.Accountant,
+                Vnc.HRMS.Security.AccountRoles.DepartmentManager,
+                Vnc.HRMS.Security.AccountRoles.MedicalStaff));
         });
         return services;
     }

@@ -1,5 +1,6 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 import Modal from '../ui/Modal';
+import { todayVn } from '../../utils/format';
 import Icon from '../ui/Icon';
 import Alert from '../ui/Alert';
 import { fileApi } from '../../services/fileApi';
@@ -73,7 +74,7 @@ export default function MyCertificateCreateModal({ onClose, onSave, busy = false
       return;
     }
 
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = todayVn();
     if (issueDate && issueDate > todayStr) {
       setError('Ngày cấp không được lớn hơn ngày hiện tại.');
       return;

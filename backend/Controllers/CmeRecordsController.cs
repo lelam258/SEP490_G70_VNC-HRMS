@@ -7,7 +7,7 @@ using Vnc.HRMS.Services.Interfaces;
 
 namespace Vnc.HRMS.Controllers;
 
-[ApiController, Authorize(Roles = $"{AccountRoles.HrManager},{AccountRoles.Administrator}"), Route("api/cme-records")]
+[ApiController, Authorize(Roles = AccountRoles.HrManager), Route("api/cme-records")]
 public sealed class CmeRecordsController(ICmeRecordService cmeRecords) : ControllerBase
 {
     [HttpGet("pending")]

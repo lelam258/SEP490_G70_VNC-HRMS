@@ -10,6 +10,7 @@ import Alert from '../../components/ui/Alert';
 import Icon from '../../components/ui/Icon';
 import Modal from '../../components/ui/Modal';
 import CmeRecordDetailModal from '../../components/cme/CmeRecordDetailModal';
+import { todayVn } from '../../utils/format';
 
 const DEFAULT_ALERT_THRESHOLD = 180;
 function formatDateDdMmYyyy(val: string | null | undefined): string {
@@ -329,8 +330,16 @@ export default function CmeRecordListPage() {
   }, [latestCycleByCertificate, selectedCertificateId, pendingCountByCert]);
 
   const isCurrentCycleLocked = selectedCycle?.cycleStatus === 'locked';
-  const isRecordLocked = (record: CmeRecord) => cycles.some(c =>
-    c.certificateId === record.certificateId && c.cycleId === record.cmeCycleId && c.cycleStatus === 'locked');
+  const isRecordLocked = (record: CmeRecord) => {
+    if (record.cmeCycleId) {
+      return cycles.some(
+        c => c.certificateId === record.certificateId && c.cycleId === record.cmeCycleId && c.cycleStatus === 'locked'
+      );
+    }
+    const certCycles = cycles.filter(c => c.certificateId === record.certificateId);
+    const oldest = certCycles[certCycles.length - 1];
+    return oldest?.cycleStatus === 'locked';
+  };
 
   // Dynamic cycle statistics calculated from displayed records & cycle dates
   const cycleStats = useMemo(() => {
@@ -486,7 +495,7 @@ export default function CmeRecordListPage() {
       return;
     }
 
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = todayVn();
     if (completedDate > todayStr) {
       setFormError('Lưu ý: Ngày hoàn thành không được lớn hơn ngày hiện tại.');
       return;
@@ -508,14 +517,14 @@ export default function CmeRecordListPage() {
       const requiredCredits =
         selectedCycle.requiredCredits > 0 ? selectedCycle.requiredCredits : 1;
       const otherCompletedCredits = displayedRecords
-        .filter(r => !editingRecord || r.cmeId !== editingRecord.cmeId)
+        .filter(r => r.verified && (!editingRecord || r.cmeId !== editingRecord.cmeId))
         .reduce((sum, r) => sum + Number(r.credits || 0), 0);
       const maxAllowedCredits = Math.max(0, requiredCredits - otherCompletedCredits);
 
       if (otherCompletedCredits + creditNum > requiredCredits) {
         if (maxAllowedCredits <= 0) {
           setFormError(
-            `Bảng tiến độ hiện tại đã đạt đủ ${otherCompletedCredits}/${requiredCredits} tín chỉ yêu cầu. Hãy bấm "Xác nhận khóa" để khóa bảng này hoặc "+ New record" để tạo bảng mới.`
+            `Bảng tiến độ hiện tại đã đạt đủ ${otherCompletedCredits}/${requiredCredits} tín chỉ yêu cầu. Hãy bấm "Xác nhận khóa" để khóa bảng này hoặc "+ Tạo chu kỳ mới" để tạo bảng mới.`
           );
         } else {
           setFormError(
@@ -527,11 +536,11 @@ export default function CmeRecordListPage() {
     } else {
       // Certificate without CME credits requirement: no Credits field, target is 1 record (0 / 1 -> 1 / 1)
       const otherCount = displayedRecords.filter(
-        r => !editingRecord || r.cmeId !== editingRecord.cmeId
+        r => r.verified && (!editingRecord || r.cmeId !== editingRecord.cmeId)
       ).length;
       if (otherCount >= 1) {
         setFormError(
-          'Bảng tiến độ hiện tại đã đạt đủ chỉ tiêu (1/1). Hãy bấm "Xác nhận khóa" để khóa bảng này hoặc "+ New record" để tạo bảng mới.'
+          'Bảng tiến độ hiện tại đã đạt đủ chỉ tiêu (1/1). Hãy bấm "Xác nhận khóa" để khóa bảng này hoặc "+ Tạo chu kỳ mới" để tạo bảng mới.'
         );
         return;
       }
@@ -842,9 +851,7 @@ export default function CmeRecordListPage() {
                   const nextCertId = e.target.value;
                   setSelectedCertificateId(nextCertId);
                   const hasPending = (pendingCountByCert.get(nextCertId) || 0) > 0;
-                  if (hasPending) {
-                    setCmeStatusFilter('pending');
-                  }
+                  setCmeStatusFilter(hasPending ? 'pending' : 'all');
                   resetForm();
                 }}
                 className={`w-full border rounded px-3 py-2 text-sm font-medium text-slate-800 bg-white transition-all ${

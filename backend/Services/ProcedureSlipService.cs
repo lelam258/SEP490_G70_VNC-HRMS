@@ -415,7 +415,7 @@ public sealed partial class ProcedureSlipService(
                 .Where(l => l.EntityType == "ProcedureSlip" &&
                             l.EntityId.HasValue &&
                             activeSlipIds.Contains(l.EntityId.Value) &&
-                            (l.Action == "create" || l.Action == "update" || l.Action == "resubmit"))
+                            (l.Action == "create" || l.Action == "update" || l.Action == "resubmit" || l.Action == "accountant_adjust_slip"))
                 .OrderByDescending(l => l.CreatedAt)
                 .Select(l => new { SlipId = l.EntityId!.Value, l.NewValue })
                 .ToListAsync(ct);
@@ -704,8 +704,11 @@ public sealed partial class ProcedureSlipService(
 
             if (string.Equals(filter.Scope, "assigned", StringComparison.OrdinalIgnoreCase))
             {
-                // Chỉ xem các ca thủ thuật mà nhân viên được phân công tham gia (kíp thực hiện)
-                query = query.Where(x => currentStaffId.HasValue && mySlipIds.Contains(x.Slip.SlipId));
+                // Chỉ xem các ca thủ thuật mà nhân viên được phân công tham gia ở trạng thái Chờ thực hiện (verified) hoặc Đã hoàn thành (completed)
+                query = query.Where(x =>
+                    currentStaffId.HasValue &&
+                    mySlipIds.Contains(x.Slip.SlipId) &&
+                    (x.Slip.Status == "verified" || x.Slip.Status == "approved" || x.Slip.Status == "completed"));
             }
             else if (string.Equals(filter.Scope, "mine", StringComparison.OrdinalIgnoreCase))
             {
@@ -857,7 +860,7 @@ public sealed partial class ProcedureSlipService(
                 .Where(l => l.EntityType == "ProcedureSlip" &&
                             l.EntityId.HasValue &&
                             slipIds.Contains(l.EntityId.Value) &&
-                            (l.Action == "create" || l.Action == "update" || l.Action == "resubmit"))
+                            (l.Action == "create" || l.Action == "update" || l.Action == "resubmit" || l.Action == "accountant_adjust_slip"))
                 .OrderByDescending(l => l.CreatedAt)
                 .Select(l => new { SlipId = l.EntityId!.Value, l.NewValue })
                 .ToListAsync(ct))
@@ -952,26 +955,30 @@ public sealed partial class ProcedureSlipService(
         var allCount = allMapped.Count;
         var pendingCount = allMapped.Count(x => x.Status == "pending");
         var hrCheckedCount = allMapped.Count(x => x.Status == "hr_checked");
-        var verifiedCount = allMapped.Count(x => x.Status == "verified");
+        var verifiedCount = allMapped.Count(x => x.Status == "verified" || x.Status == "completed");
         var rejectedCount = allMapped.Count(x => x.Status == "rejected");
 
-        // Department aggregation
+        // Department aggregation (exclude cancelled/rejected from financial totals)
         var byDepartment = allMapped
             .GroupBy(x => new { x.DepartmentId, Code = x.DepartmentCode ?? "UNASSIGNED", Name = x.DepartmentName ?? "Chưa phân khoa" })
-            .Select(g => new ProcedureDepartmentSummaryDto(
-                g.Key.DepartmentId,
-                g.Key.Code,
-                g.Key.Name,
-                g.Count(),
-                g.Count(x => x.Status == "pending"),
-                g.Count(x => x.Status == "hr_checked"),
-                g.Count(x => x.Status == "verified"),
-                g.Count(x => x.Status == "rejected"),
-                g.Sum(x => x.ChargedAmount),
-                g.Sum(x => x.DirectCost),
-                g.Sum(x => x.NetRevenue),
-                g.Sum(x => x.TotalCommissionAmount),
-                g.Where(x => x.Status == "verified").Sum(x => x.TotalCommissionAmount)))
+            .Select(g =>
+            {
+                var activeForTotals = g.Where(x => x.Status != "cancelled" && x.Status != "rejected").ToList();
+                return new ProcedureDepartmentSummaryDto(
+                    g.Key.DepartmentId,
+                    g.Key.Code,
+                    g.Key.Name,
+                    g.Count(),
+                    g.Count(x => x.Status == "pending"),
+                    g.Count(x => x.Status == "hr_checked"),
+                    g.Count(x => x.Status == "verified" || x.Status == "completed"),
+                    g.Count(x => x.Status == "rejected"),
+                    activeForTotals.Sum(x => x.ChargedAmount),
+                    activeForTotals.Sum(x => x.DirectCost),
+                    activeForTotals.Sum(x => x.NetRevenue),
+                    activeForTotals.Sum(x => x.TotalCommissionAmount),
+                    g.Where(x => x.Status == "verified" || x.Status == "completed").Sum(x => x.TotalCommissionAmount));
+            })
             .OrderByDescending(x => x.TotalChargedAmount)
             .ThenBy(x => x.DepartmentName)
             .ToList();
@@ -989,18 +996,22 @@ public sealed partial class ProcedureSlipService(
                 var key = x.ProcedureDate.ToString("yyyy-MM");
                 return (Key: key, Label: $"Tháng {x.ProcedureDate.Month:00}/{x.ProcedureDate.Year}");
             })
-            .Select(g => new ProcedurePeriodBreakdownDto(
-                g.Key.Key,
-                g.Key.Label,
-                g.Count(),
-                g.Count(x => x.Status == "pending"),
-                g.Count(x => x.Status == "hr_checked"),
-                g.Count(x => x.Status == "verified"),
-                g.Count(x => x.Status == "rejected"),
-                g.Sum(x => x.ChargedAmount),
-                g.Sum(x => x.DirectCost),
-                g.Sum(x => x.TotalCommissionAmount),
-                g.Where(x => x.Status == "verified").Sum(x => x.TotalCommissionAmount)))
+            .Select(g =>
+            {
+                var activeForTotals = g.Where(x => x.Status != "cancelled" && x.Status != "rejected").ToList();
+                return new ProcedurePeriodBreakdownDto(
+                    g.Key.Key,
+                    g.Key.Label,
+                    g.Count(),
+                    g.Count(x => x.Status == "pending"),
+                    g.Count(x => x.Status == "hr_checked"),
+                    g.Count(x => x.Status == "verified" || x.Status == "completed"),
+                    g.Count(x => x.Status == "rejected"),
+                    activeForTotals.Sum(x => x.ChargedAmount),
+                    activeForTotals.Sum(x => x.DirectCost),
+                    activeForTotals.Sum(x => x.TotalCommissionAmount),
+                    g.Where(x => x.Status == "verified" || x.Status == "completed").Sum(x => x.TotalCommissionAmount));
+            })
             .OrderByDescending(x => x.PeriodKey)
             .ToList();
 
@@ -1010,11 +1021,17 @@ public sealed partial class ProcedureSlipService(
             ? allMapped.Where(x => x.Status == statusFilter).ToList()
             : allMapped;
 
-        var totalCharged = filteredItems.Sum(x => x.ChargedAmount);
-        var totalDirectCost = filteredItems.Sum(x => x.DirectCost);
-        var totalNetRevenue = filteredItems.Sum(x => x.NetRevenue);
-        var totalCommission = filteredItems.Sum(x => x.TotalCommissionAmount);
-        var verifiedCommission = filteredItems.Where(x => x.Status == "verified").Sum(x => x.TotalCommissionAmount);
+        var financialItems = (statusFilter == "cancelled" || statusFilter == "rejected")
+            ? filteredItems
+            : filteredItems.Where(x => x.Status != "cancelled" && x.Status != "rejected").ToList();
+
+        var totalCharged = financialItems.Sum(x => x.ChargedAmount);
+        var totalDirectCost = financialItems.Sum(x => x.DirectCost);
+        var totalNetRevenue = financialItems.Sum(x => x.NetRevenue);
+        var totalCommission = financialItems.Sum(x => x.TotalCommissionAmount);
+        var verifiedCommission = filteredItems
+            .Where(x => x.Status == "verified" || x.Status == "completed")
+            .Sum(x => x.TotalCommissionAmount);
 
         var page = Math.Clamp(filter.Page, 1, 10000);
         var pageSize = Math.Clamp(filter.PageSize, 1, 200);
@@ -1177,7 +1194,7 @@ public sealed partial class ProcedureSlipService(
         }
 
         var latestSaveLog = rawLogs.FirstOrDefault(x =>
-            x.Log.Action == "create" || x.Log.Action == "update" || x.Log.Action == "resubmit");
+            x.Log.Action == "create" || x.Log.Action == "update" || x.Log.Action == "resubmit" || x.Log.Action == "accountant_adjust_slip");
         var (startTime, endTime, facilityId, facilityName) = ExtractSaveMetaFromJson(latestSaveLog?.Log.NewValue);
         if (facilityId.HasValue && string.IsNullOrWhiteSpace(facilityName))
         {
@@ -1227,9 +1244,9 @@ public sealed partial class ProcedureSlipService(
 
         bool isAccountant = currentUserRole == AccountRoles.Accountant;
         bool canEdit = !isLocked &&
-                       (normStatus == "pending" || normStatus == "rejected") &&
-                       ((currentUserRole != AccountRoles.HrStaff && !isAccountant && row.Slip.RecordedBy == currentUserId) ||
-                        (isAccountant && normStatus == "pending"));
+                       (((normStatus == "pending" || normStatus == "rejected") &&
+                         currentUserRole != AccountRoles.HrStaff && !isAccountant && row.Slip.RecordedBy == currentUserId) ||
+                        (isAccountant && (normStatus == "pending" || normStatus == "hr_checked")));
         bool canHrCheck = false; // Quy trình mới bỏ bước duyệt của HR Staff, chuyển thẳng Kế toán
         bool canAccountantVerify = !isLocked &&
                                    (normStatus == "pending" || normStatus == "hr_checked") &&
@@ -1246,13 +1263,16 @@ public sealed partial class ProcedureSlipService(
                            normStatus == "verified" &&
                            isUserInAssignments;
 
+        bool isDeptHeadOfSlip = currentUserRole == AccountRoles.DepartmentManager &&
+                                currentStaffForDetail?.DepartmentId != null &&
+                                row.Slip.DepartmentId == currentStaffForDetail.DepartmentId;
+
         bool canCancel = !isLocked &&
                          (normStatus == "pending" || normStatus == "verified") &&
                          (row.Slip.RecordedBy == currentUserId ||
                           isUserInAssignments ||
                           currentUserRole == AccountRoles.Accountant ||
-                          currentUserRole == AccountRoles.Administrator ||
-                          currentUserRole == AccountRoles.DepartmentManager);
+                          isDeptHeadOfSlip);
 
         var latestCompleteLog = rawLogs.FirstOrDefault(l => l.Log.Action == "complete_procedure");
         Guid? completedBy = latestCompleteLog?.Log.UserId;
@@ -1678,9 +1698,9 @@ public sealed partial class ProcedureSlipService(
             ? null
             : PayrollParameterRules.RequireText(request.PatientCode, "Mã bệnh nhân", 50).ToUpperInvariant();
 
-        var sanitizedAssignments = (normalizedStart != null || normalizedEnd != null)
-            ? request.Assignments.Select(a => a with { CustomCommissionAmount = null }).ToList()
-            : request.Assignments;
+        var sanitizedAssignments = request.Assignments
+            .Select(a => a with { CustomCommissionAmount = null })
+            .ToList();
 
         var calculatedAssignments = await CalculateAssignmentsCommissionAsync(
             service,
@@ -1794,9 +1814,9 @@ public sealed partial class ProcedureSlipService(
             ?? throw new AppException(404, "Không tìm thấy phiếu thủ thuật y tế.");
 
         var currentStatus = NormalizeSlipStatus(slip.Status);
-        if (currentStatus == "verified" || currentStatus == "completed")
+        if (currentStatus == "verified" || currentStatus == "completed" || currentStatus == "cancelled")
         {
-            throw new AppException(409, "Phiếu thủ thuật đã hoàn thành hoặc đã qua kiểm duyệt nên không thể chỉnh sửa.");
+            throw new AppException(409, "Phiếu thủ thuật đã hoàn thành, đã hủy hoặc đã qua kiểm duyệt nên không thể chỉnh sửa.");
         }
 
         if (isAccountant)
@@ -1808,6 +1828,10 @@ public sealed partial class ProcedureSlipService(
         }
         else
         {
+            if (currentStatus != "pending" && currentStatus != "rejected")
+            {
+                throw new AppException(409, "Chỉ có thể chỉnh sửa phiếu thủ thuật khi đang chờ xác minh hoặc bị từ chối.");
+            }
             if (slip.RecordedBy != currentUserId)
             {
                 throw new AppException(403, "Chỉ người tạo phiếu mới có quyền chỉnh sửa phiếu thủ thuật.");
@@ -1851,9 +1875,13 @@ public sealed partial class ProcedureSlipService(
         var (normalizedStart, normalizedEnd, resolvedDurationHours, facilityName) =
             await ValidateTimeAndAvailabilityAsync(validatedRequest, slipId, ct);
 
-        var service = await db.ProcedureServices.AsNoTracking()
-            .FirstOrDefaultAsync(s => s.ServiceId == effectiveServiceId && (s.Status == "active" || s.Status == null), ct)
-            ?? throw new AppException(404, "Dịch vụ thủ thuật không tồn tại hoặc đã ngừng hoạt động.");
+        var service = isAccountant
+            ? await db.ProcedureServices.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.ServiceId == effectiveServiceId, ct)
+                ?? throw new AppException(404, "Dịch vụ thủ thuật không tồn tại.")
+            : await db.ProcedureServices.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.ServiceId == effectiveServiceId && (s.Status == "active" || s.Status == null), ct)
+                ?? throw new AppException(404, "Dịch vụ thủ thuật không tồn tại hoặc đã ngừng hoạt động.");
 
         if (effectiveDepartmentId.HasValue)
         {
@@ -1865,9 +1893,9 @@ public sealed partial class ProcedureSlipService(
             }
         }
 
-        var sanitizedAssignments = (normalizedStart != null || normalizedEnd != null)
-            ? request.Assignments.Select(a => a with { CustomCommissionAmount = null }).ToList()
-            : request.Assignments;
+        var sanitizedAssignments = request.Assignments
+            .Select(a => a with { CustomCommissionAmount = null })
+            .ToList();
 
         var calculatedAssignments = await CalculateAssignmentsCommissionAsync(
             service,
@@ -2118,6 +2146,12 @@ public sealed partial class ProcedureSlipService(
         }
 
         var assignments = await db.ProcedureAssignments.Where(a => a.SlipId == slipId).ToListAsync(ct);
+        var currentStaffForVerify = await db.Staff.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.UserId == currentUserId, ct);
+        if (currentStaffForVerify != null && assignments.Any(a => a.StaffId == currentStaffForVerify.StaffId))
+        {
+            throw new AppException(403, "Bạn không thể tự xác minh phiếu thủ thuật có tên mình trong danh sách phân công.");
+        }
         var oldStatus = slip.Status;
 
         if (decision == "approve")
@@ -2211,6 +2245,12 @@ public sealed partial class ProcedureSlipService(
         }
 
         var assignments = await db.ProcedureAssignments.Where(a => a.SlipId == slipId).ToListAsync(ct);
+        var currentStaffForVerify = await db.Staff.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.UserId == currentUserId, ct);
+        if (currentStaffForVerify != null && assignments.Any(a => a.StaffId == currentStaffForVerify.StaffId))
+        {
+            throw new AppException(403, "Bạn không thể tự xác minh phiếu thủ thuật có tên mình trong danh sách phân công.");
+        }
         var oldStatus = slip.Status;
 
         if (decision == "approve")
@@ -2353,8 +2393,12 @@ public sealed partial class ProcedureSlipService(
             ? "Bác sĩ / Kíp thực hiện đã hoàn thành ca thủ thuật y tế."
             : request.Note.Trim();
 
-        if (request.ActualDurationHours.HasValue && request.ActualDurationHours.Value > 0)
+        if (request.ActualDurationHours.HasValue)
         {
+            if (request.ActualDurationHours.Value <= 0 || request.ActualDurationHours.Value > 48m)
+            {
+                throw new AppException(400, "Thời lượng thực hiện thực tế phải lớn hơn 0 và không vượt quá 48 giờ.");
+            }
             slip.DurationHours = Math.Round(request.ActualDurationHours.Value, 2, MidpointRounding.AwayFromZero);
         }
 
@@ -2450,7 +2494,10 @@ public sealed partial class ProcedureSlipService(
 
         bool isCreator = slip.RecordedBy.HasValue && slip.RecordedBy.Value == currentUserId;
         bool isPerforming = currentStaffId.HasValue && assignments.Any(a => a.StaffId == currentStaffId.Value);
-        bool isPrivileged = currentUserRole == AccountRoles.Accountant || currentUserRole == AccountRoles.Administrator || currentUserRole == AccountRoles.DepartmentManager;
+        bool isDeptHeadOfSlip = currentUserRole == AccountRoles.DepartmentManager &&
+                                currentStaff?.DepartmentId != null &&
+                                slip.DepartmentId == currentStaff.DepartmentId;
+        bool isPrivileged = currentUserRole == AccountRoles.Accountant || isDeptHeadOfSlip;
 
         if (!isCreator && !isPerforming && !isPrivileged)
         {
@@ -2586,7 +2633,7 @@ public sealed partial class ProcedureSlipService(
 
         var slipsQuery = db.ProcedureSlips.AsNoTracking()
             .Where(s => s.ProcedureDate >= monthStart && s.ProcedureDate <= monthEnd &&
-                        (s.Status == "verified" || s.Status == "approved" || s.Status == "completed"));
+                        s.Status == "completed");
 
         if (request.DepartmentId.HasValue)
         {
@@ -2619,8 +2666,24 @@ public sealed partial class ProcedureSlipService(
         ).ToDictionaryAsync(x => x.StaffId, ct);
 
         var payslipsInMonth = await db.Payslips
-            .Where(p => p.PayMonth == payMonth && staffIds.Contains(p.StaffId) && p.IsLocked != true)
+            .Where(p => p.PayMonth == payMonth && p.IsLocked != true &&
+                        (request.DepartmentId.HasValue ? staffIds.Contains(p.StaffId) : true))
             .ToDictionaryAsync(p => p.StaffId, ct);
+
+        // When filtering by DepartmentId, compute each affected staff's full monthly commission across all departments
+        Dictionary<Guid, decimal>? fullMonthCommByStaff = null;
+        if (request.DepartmentId.HasValue && staffIds.Count > 0)
+        {
+            fullMonthCommByStaff = await (
+                from a in db.ProcedureAssignments.AsNoTracking()
+                where staffIds.Contains(a.StaffId)
+                join s in db.ProcedureSlips.AsNoTracking() on a.SlipId equals s.SlipId
+                where s.ProcedureDate >= monthStart && s.ProcedureDate <= monthEnd &&
+                      s.Status == "completed"
+                group a by a.StaffId into g
+                select new { StaffId = g.Key, Total = g.Sum(x => x.CommissionAmount ?? 0m) }
+            ).ToDictionaryAsync(x => x.StaffId, x => x.Total, ct);
+        }
 
         int updatedPayslipCount = 0;
         var staffSummaries = new List<StaffMonthlyCommissionItemDto>();
@@ -2629,6 +2692,9 @@ public sealed partial class ProcedureSlipService(
         {
             var staffId = group.Key;
             var totalComm = group.Sum(a => a.CommissionAmount ?? 0m);
+            var payslipCommTotal = fullMonthCommByStaff != null && fullMonthCommByStaff.TryGetValue(staffId, out var fullComm)
+                ? fullComm
+                : totalComm;
             var distinctSlips = group.Select(a => a.SlipId).Distinct().Count();
             var assignCount = group.Count();
 
@@ -2637,11 +2703,11 @@ public sealed partial class ProcedureSlipService(
 
             if (payslipsInMonth.TryGetValue(staffId, out var payslip))
             {
-                payslip.CommissionTotal = totalComm;
+                payslip.CommissionTotal = payslipCommTotal;
                 var basePay = payslip.BasePay ?? 0m;
                 var allowance = payslip.AllowanceTotal ?? 0m;
                 var maternity = payslip.MaternityAllowance ?? 0m;
-                payslip.GrossPay = basePay + allowance + totalComm + maternity;
+                payslip.GrossPay = basePay + allowance + payslipCommTotal + maternity;
                 var deductions = (payslip.InsuranceDeduction ?? 0m) + (payslip.TaxDeduction ?? 0m) + (payslip.OtherDeduction ?? 0m);
                 payslip.NetPay = Math.Max(0m, (payslip.GrossPay ?? 0m) - deductions);
                 payslip.UpdatedAt = DateTime.UtcNow;
@@ -2653,7 +2719,10 @@ public sealed partial class ProcedureSlipService(
                 foreach (var a in group)
                 {
                     a.PayslipId = payslip.PayslipId;
-                    a.Status = "verified";
+                    if (!string.Equals(a.Status, "completed", StringComparison.OrdinalIgnoreCase))
+                    {
+                        a.Status = "verified";
+                    }
                 }
             }
 
@@ -2716,7 +2785,13 @@ public sealed partial class ProcedureSlipService(
         if (currentUserRole == AccountRoles.DepartmentManager)
         {
             var currentStaff = await db.Staff.AsNoTracking().FirstOrDefaultAsync(s => s.UserId == currentUserId, ct);
-            if (currentStaff?.DepartmentId == null)
+            if (currentStaff != null)
+            {
+                var managedDept = await db.Departments.AsNoTracking()
+                    .FirstOrDefaultAsync(d => d.ManagerId == currentStaff.StaffId && d.Status == "active", ct);
+                targetDeptId = managedDept?.DepartmentId ?? currentStaff.DepartmentId;
+            }
+            if (!targetDeptId.HasValue)
             {
                 return new CommissionResultsResponseDto(
                     payMonth,
@@ -2726,7 +2801,6 @@ public sealed partial class ProcedureSlipService(
                     filter.PageSize,
                     Array.Empty<StaffMonthlyCommissionItemDto>());
             }
-            targetDeptId = currentStaff.DepartmentId;
         }
         else
         {
@@ -2738,7 +2812,7 @@ public sealed partial class ProcedureSlipService(
 
         var slipsQuery = db.ProcedureSlips.AsNoTracking()
             .Where(s => s.ProcedureDate >= monthStart && s.ProcedureDate <= monthEnd &&
-                        (s.Status == "verified" || s.Status == "approved" || s.Status == "completed"));
+                        s.Status == "completed");
 
         if (targetDeptId.HasValue)
         {
@@ -2779,11 +2853,15 @@ public sealed partial class ProcedureSlipService(
         foreach (var group in assignments.GroupBy(a => a.StaffId))
         {
             var staffId = group.Key;
+            staffInfoMap.TryGetValue(staffId, out var sInfo);
+            if (currentUserRole == AccountRoles.DepartmentManager && targetDeptId.HasValue && sInfo?.DepartmentId != targetDeptId.Value)
+            {
+                continue;
+            }
             var totalComm = group.Sum(a => a.CommissionAmount ?? 0m);
             var distinctSlips = group.Select(a => a.SlipId).Distinct().Count();
             var assignCount = group.Count();
 
-            staffInfoMap.TryGetValue(staffId, out var sInfo);
             payslipsInMonth.TryGetValue(staffId, out var payslip);
 
             staffSummaries.Add(new StaffMonthlyCommissionItemDto(
@@ -2813,6 +2891,69 @@ public sealed partial class ProcedureSlipService(
         var linkedPayslipCount = staffSummaries.Count(s => s.LinkedToPayslip);
         var totalCharged = verifiedSlips.Sum(s => s.ChargedAmount ?? 0m);
 
+        var deptIds = verifiedSlips
+            .Where(s => s.DepartmentId.HasValue)
+            .Select(s => s.DepartmentId!.Value)
+            .Distinct()
+            .ToList();
+
+        var deptInfoMap = deptIds.Count == 0
+            ? new Dictionary<Guid, (string DeptCode, string Name)>()
+            : (await db.Departments.AsNoTracking()
+                .Where(d => deptIds.Contains(d.DepartmentId))
+                .Select(d => new { d.DepartmentId, d.DeptCode, d.Name })
+                .ToListAsync(ct))
+                .ToDictionary(d => d.DepartmentId, d => (d.DeptCode, d.Name));
+
+        var scopedAssignments = (currentUserRole == AccountRoles.DepartmentManager && targetDeptId.HasValue)
+            ? assignments.Where(a => staffInfoMap.TryGetValue(a.StaffId, out var info) && info.DepartmentId == targetDeptId.Value).ToList()
+            : assignments;
+
+        var assignmentsBySlip = scopedAssignments
+            .GroupBy(a => a.SlipId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var departmentBreakdown = verifiedSlips
+            .GroupBy(s => s.DepartmentId)
+            .Select(g =>
+            {
+                var deptId = g.Key;
+                string deptCode = "N/A";
+                string deptName = "Chưa phân khoa";
+                if (deptId.HasValue && deptInfoMap.TryGetValue(deptId.Value, out var dInfo))
+                {
+                    deptCode = dInfo.DeptCode;
+                    deptName = dInfo.Name;
+                }
+
+                var deptSlips = g.ToList();
+                var deptAssignments = deptSlips
+                    .SelectMany(s => assignmentsBySlip.TryGetValue(s.SlipId, out var list) ? list : Enumerable.Empty<ProcedureAssignment>())
+                    .ToList();
+
+                var charged = deptSlips.Sum(s => s.ChargedAmount ?? 0m);
+                var directCost = deptSlips.Sum(s => s.DirectCost ?? 0m);
+                var netRevenue = charged - directCost;
+                var commission = deptAssignments.Sum(a => a.CommissionAmount ?? 0m);
+                var ratePercent = charged > 0m ? Math.Round(commission * 100m / charged, 2) : 0m;
+                var staffCount = deptAssignments.Select(a => a.StaffId).Distinct().Count();
+
+                return new DepartmentCommissionBreakdownDto(
+                    deptId,
+                    deptCode,
+                    deptName,
+                    deptSlips.Count,
+                    staffCount,
+                    charged,
+                    directCost,
+                    netRevenue,
+                    commission,
+                    ratePercent);
+            })
+            .OrderByDescending(d => d.TotalCommissionAmount)
+            .ThenByDescending(d => d.CompletedSlipCount)
+            .ToList();
+
         var summary = new CommissionResultsSummaryDto(
             TotalSlips: verifiedSlips.Count,
             TotalStaff: totalStaff,
@@ -2822,7 +2963,7 @@ public sealed partial class ProcedureSlipService(
             IsPayrollLocked: isLocked);
 
         var page = Math.Max(1, filter.Page);
-        var pageSize = Math.Clamp(filter.PageSize, 1, 100);
+        var pageSize = Math.Clamp(filter.PageSize, 1, 5000);
         var pagedItems = staffSummaries
             .OrderByDescending(s => s.TotalCommissionAmount)
             .Skip((page - 1) * pageSize)
@@ -2835,7 +2976,88 @@ public sealed partial class ProcedureSlipService(
             totalStaff,
             page,
             pageSize,
-            pagedItems);
+            pagedItems,
+            departmentBreakdown);
+    }
+
+    public async Task<IReadOnlyList<CommissionExportDetailRowDto>> GetCommissionExportDetailsAsync(
+        Guid currentUserId, string currentUserRole, GetCommissionResultsFilter filter, CancellationToken ct)
+    {
+        if (currentUserRole != AccountRoles.Accountant && currentUserRole != AccountRoles.DepartmentManager)
+        {
+            throw new AppException(403, "Bạn không có quyền xuất bảng kê chi tiết hoa hồng thủ thuật.");
+        }
+
+        if (string.IsNullOrWhiteSpace(filter.PayMonth) || !MonthRegex.IsMatch(filter.PayMonth.Trim()))
+        {
+            throw new AppException(400, "Định dạng tháng không hợp lệ (định dạng đúng: YYYY-MM).");
+        }
+
+        var payMonth = filter.PayMonth.Trim();
+        var monthStart = DateOnly.ParseExact(payMonth + "-01", "yyyy-MM-dd");
+        var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+
+        Guid? targetDeptId = null;
+        if (currentUserRole == AccountRoles.DepartmentManager)
+        {
+            var currentStaff = await db.Staff.AsNoTracking().FirstOrDefaultAsync(s => s.UserId == currentUserId, ct);
+            if (currentStaff != null)
+            {
+                var managedDept = await db.Departments.AsNoTracking()
+                    .FirstOrDefaultAsync(d => d.ManagerId == currentStaff.StaffId && d.Status == "active", ct);
+                targetDeptId = managedDept?.DepartmentId ?? currentStaff.DepartmentId;
+            }
+            if (!targetDeptId.HasValue)
+            {
+                return Array.Empty<CommissionExportDetailRowDto>();
+            }
+        }
+        else
+        {
+            targetDeptId = filter.DepartmentId;
+        }
+
+        var query =
+            from slip in db.ProcedureSlips.AsNoTracking()
+            where slip.ProcedureDate >= monthStart && slip.ProcedureDate <= monthEnd && slip.Status == "completed"
+            where !targetDeptId.HasValue || slip.DepartmentId == targetDeptId.Value
+            join a in db.ProcedureAssignments.AsNoTracking() on slip.SlipId equals a.SlipId
+            join st in db.Staff.AsNoTracking() on a.StaffId equals st.StaffId
+            join d in db.Departments.AsNoTracking() on slip.DepartmentId equals d.DepartmentId into deptJoin
+            from d in deptJoin.DefaultIfEmpty()
+            join svc in db.ProcedureServices.AsNoTracking() on slip.ServiceId equals svc.ServiceId into svcJoin
+            from svc in svcJoin.DefaultIfEmpty()
+            where currentUserRole != AccountRoles.DepartmentManager || !targetDeptId.HasValue || st.DepartmentId == targetDeptId.Value
+            orderby slip.ProcedureDate descending, slip.SlipNumber descending, st.StaffCode ascending
+            select new CommissionExportDetailRowDto(
+                slip.SlipNumber,
+                slip.ProcedureDate,
+                d != null ? d.Name : "Chưa phân khoa",
+                slip.PatientCode,
+                svc != null ? svc.ServiceCode : "N/A",
+                svc != null ? svc.ServiceName : "Dịch vụ thủ thuật",
+                st.StaffCode,
+                st.FullName,
+                a.Role,
+                slip.IsAfterHours,
+                slip.ChargedAmount ?? 0m,
+                slip.DirectCost ?? 0m,
+                a.CommissionAmount ?? 0m);
+
+        var rows = await query.ToListAsync(ct);
+
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var term = filter.Search.Trim().ToLowerInvariant();
+            rows = rows.Where(r =>
+                r.StaffName.ToLowerInvariant().Contains(term) ||
+                r.StaffCode.ToLowerInvariant().Contains(term) ||
+                r.SlipNumber.ToLowerInvariant().Contains(term) ||
+                r.ServiceName.ToLowerInvariant().Contains(term)
+            ).ToList();
+        }
+
+        return rows;
     }
 
     public async Task<StaffCommissionDetailResponseDto> GetStaffCommissionDetailAsync(
@@ -2870,10 +3092,17 @@ public sealed partial class ProcedureSlipService(
             }
         ).FirstOrDefaultAsync(ct) ?? throw new AppException(404, "Không tìm thấy thông tin nhân viên.");
 
+        Guid? deptHeadTargetDeptId = null;
         if (currentUserRole == AccountRoles.DepartmentManager)
         {
             var currentStaff = await db.Staff.AsNoTracking().FirstOrDefaultAsync(s => s.UserId == currentUserId, ct);
-            if (currentStaff?.DepartmentId == null || currentStaff.DepartmentId != staff.DepartmentId)
+            if (currentStaff != null)
+            {
+                var managedDept = await db.Departments.AsNoTracking()
+                    .FirstOrDefaultAsync(d => d.ManagerId == currentStaff.StaffId && d.Status == "active", ct);
+                deptHeadTargetDeptId = managedDept?.DepartmentId ?? currentStaff.DepartmentId;
+            }
+            if (!deptHeadTargetDeptId.HasValue || deptHeadTargetDeptId.Value != staff.DepartmentId)
             {
                 throw new AppException(403, "Trưởng khoa chỉ có thể xem chi tiết hoa hồng của nhân viên thuộc khoa quản lý.");
             }
@@ -2884,7 +3113,8 @@ public sealed partial class ProcedureSlipService(
             where a.StaffId == staffId
             join slip in db.ProcedureSlips.AsNoTracking() on a.SlipId equals slip.SlipId
             where slip.ProcedureDate >= monthStart && slip.ProcedureDate <= monthEnd &&
-                  (slip.Status == "verified" || slip.Status == "approved" || slip.Status == "completed")
+                  slip.Status == "completed" &&
+                  (!deptHeadTargetDeptId.HasValue || slip.DepartmentId == deptHeadTargetDeptId.Value)
             join svc in db.ProcedureServices.AsNoTracking() on slip.ServiceId equals svc.ServiceId into svcJoin
             from svc in svcJoin.DefaultIfEmpty()
             orderby slip.ProcedureDate descending, slip.SlipNumber descending

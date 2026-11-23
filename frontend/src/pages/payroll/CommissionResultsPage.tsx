@@ -13,6 +13,7 @@ import type {
   StaffCommissionDetailResponse,
   StaffMonthlyCommissionItem,
 } from '../../types/procedureSlip';
+import { exportCommissionDetailsExcel } from '../../utils/commissionExcelExport';
 import { formatDateOnly, formatVnd } from '../../utils/format';
 import { PROCEDURE_ROLE_LABELS } from '../../utils/procedureHelpers';
 
@@ -35,6 +36,10 @@ export default function CommissionResultsPage() {
   const [search, setSearch] = useState<string>('');
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(20);
+
+  // View tab & export state
+  const [activeTab, setActiveTab] = useState<'staff' | 'department'>('staff');
+  const [exportingDetails, setExportingDetails] = useState<boolean>(false);
 
   // Data state
   const [lookups, setLookups] = useState<ProcedureLookups | null>(null);
@@ -150,41 +155,42 @@ export default function CommissionResultsPage() {
     }
   };
 
-  // Export CSV
-  const handleExportCsv = () => {
-    if (!data || !data.items || data.items.length === 0) return;
-    const headers = [
-      'Mã nhân viên',
-      'Họ và tên',
-      'Khoa / Phòng ban',
-      'Số ca thủ thuật',
-      'Số lượt phân công',
-      'Tổng hoa hồng (VNĐ)',
-      'Trạng thái Bảng lương',
-    ];
-    const rows = data.items.map((item) => [
-      item.staffCode,
-      `"${item.staffName.replace(/"/g, '""')}"`,
-      `"${(item.departmentName || 'N/A').replace(/"/g, '""')}"`,
-      item.verifiedSlipCount,
-      item.assignmentCount,
-      item.totalCommissionAmount,
-      item.linkedToPayslip ? 'Đã liên kết Payslip' : 'Chưa có Payslip',
-    ]);
+  // Export styled Excel (.xlsx) for detailed procedure assignment rows
+  const handleExportDetailExcel = async () => {
+    if (!data) return;
+    setExportingDetails(true);
+    setError('');
+    try {
+      const detailRows = await procedureSlipApi.getCommissionExportDetails({
+        payMonth,
+        departmentId: isAccountant && departmentId ? departmentId : undefined,
+        search: search.trim() || undefined,
+      });
+      if (detailRows.length === 0) return;
 
-    const csvContent =
-      '\uFEFF' +
-      [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+      let scopeLabel = 'Tất cả Khoa / Phòng ban';
+      if (isDeptHead) {
+        scopeLabel = data.departmentBreakdown?.[0]?.departmentName || 'Khoa / Phòng quản lý';
+      } else if (departmentId) {
+        const matched = lookups?.departments.find((d) => d.departmentId === departmentId);
+        scopeLabel = matched ? `${matched.name} (${matched.deptCode})` : 'Khoa / Phòng đã chọn';
+      }
+      if (search.trim()) {
+        scopeLabel += ` — Lọc: "${search.trim()}"`;
+      }
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `Hoa_hong_thu_thuat_${payMonth}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      exportCommissionDetailsExcel({
+        payMonth,
+        scopeLabel,
+        rows: detailRows,
+      });
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : 'Không thể xuất file Excel bảng kê chi tiết ca.'
+      );
+    } finally {
+      setExportingDetails(false);
+    }
   };
 
   // Columns definition
@@ -297,20 +303,21 @@ export default function CommissionResultsPage() {
           </h1>
           <p className="text-sm text-slate-500 mt-1">
             {isAccountant
-              ? 'Tổng hợp và theo dõi hoa hồng ca thủ thuật đã được xác minh theo từng nhân sự và kỳ lương.'
+              ? 'Tổng hợp và theo dõi hoa hồng ca thủ thuật đã hoàn thành theo từng nhân sự, khoa/phòng và kỳ lương.'
               : 'Theo dõi bảng kết quả hoa hồng thủ thuật của nhân sự thuộc khoa bạn quản lý.'}
           </p>
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
-          {data && data.items.length > 0 && (
+          {data && (data.summary.totalSlips > 0 || data.total > 0) && (
             <button
               type="button"
-              onClick={handleExportCsv}
-              className="button bg-white text-slate-700 border-slate-300 hover:bg-slate-50 text-sm font-medium py-2 px-3.5 inline-flex items-center gap-1.5 shadow-xs"
+              disabled={exportingDetails}
+              onClick={() => void handleExportDetailExcel()}
+              className="button bg-white text-slate-700 border-slate-300 hover:bg-slate-50 text-sm font-medium py-2 px-3.5 inline-flex items-center gap-1.5 shadow-xs disabled:opacity-60"
             >
               <Icon name="fileText" size={16} />
-              Xuất CSV
+              {exportingDetails ? 'Đang xuất Excel...' : 'Xuất Excel chi tiết ca'}
             </button>
           )}
 
@@ -446,7 +453,7 @@ export default function CommissionResultsPage() {
               {data.summary.totalSlips} ca
             </strong>
             <span className="text-[11px] text-sky-600 mt-1 block">
-              Trạng thái Đã xác minh
+              Trạng thái Đã hoàn thành
             </span>
           </div>
 
@@ -499,38 +506,219 @@ export default function CommissionResultsPage() {
         </div>
       )}
 
-      {/* Main Table */}
-      <div className="card bg-white shadow-xs border border-slate-200 rounded-xl overflow-hidden workspace-list-panel">
-        <DataTable
-          columns={columns}
-          rows={data?.items || []}
-          rowKey={(r: StaffMonthlyCommissionItem) => r.staffId}
-          emptyMessage={`Không có dữ liệu hoa hồng thủ thuật cho kỳ ${payMonth}.`}
-        />
+      {/* View Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200">
+        <button
+          type="button"
+          onClick={() => setActiveTab('staff')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors inline-flex items-center gap-2 -mb-px ${
+            activeTab === 'staff'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+          }`}
+        >
+          <span>Theo Nhân sự</span>
+          <span
+            className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+              activeTab === 'staff'
+                ? 'bg-emerald-50 text-emerald-700'
+                : 'bg-slate-100 text-slate-600'
+            }`}
+          >
+            {data?.total ?? 0}
+          </span>
+        </button>
 
-        {data && data.total > 0 && (
-          <div className="p-4 border-t border-slate-200">
-            <Pagination
-              page={page}
-              pageSize={pageSize}
-              total={data.total}
-              label="nhân sự"
-              disabled={loading}
-              onPageChange={setPage}
-              onPageSizeChange={setPageSize}
-            />
-          </div>
-        )}
+        <button
+          type="button"
+          onClick={() => setActiveTab('department')}
+          className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors inline-flex items-center gap-2 -mb-px ${
+            activeTab === 'department'
+              ? 'border-emerald-600 text-emerald-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+          }`}
+        >
+          <span>Tổng hợp theo Khoa/phòng</span>
+          <span
+            className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+              activeTab === 'department'
+                ? 'bg-emerald-50 text-emerald-700'
+                : 'bg-slate-100 text-slate-600'
+            }`}
+          >
+            {data?.departmentBreakdown?.length ?? 0}
+          </span>
+        </button>
       </div>
+
+      {/* Main Content */}
+      {activeTab === 'staff' ? (
+        <div className="card bg-white shadow-xs border border-slate-200 rounded-xl overflow-hidden workspace-list-panel">
+          <DataTable
+            columns={columns}
+            rows={data?.items || []}
+            rowKey={(r: StaffMonthlyCommissionItem) => r.staffId}
+            emptyMessage={`Không có dữ liệu hoa hồng thủ thuật cho kỳ ${payMonth}.`}
+          />
+
+          {data && data.total > 0 && (
+            <div className="p-4 border-t border-slate-200">
+              <Pagination
+                page={page}
+                pageSize={pageSize}
+                total={data.total}
+                label="nhân sự"
+                disabled={loading}
+                onPageChange={setPage}
+                onPageSizeChange={(nextSize) => {
+                  setPageSize(nextSize);
+                  setPage(1);
+                }}
+              />
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="card bg-white shadow-xs border border-slate-200 rounded-xl overflow-hidden">
+          {!data?.departmentBreakdown || data.departmentBreakdown.length === 0 ? (
+            <div className="py-12 text-center text-sm text-slate-500">
+              Không có dữ liệu tổng hợp theo khoa/phòng cho kỳ {payMonth}.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200">
+                  <tr>
+                    <th className="py-3 px-4">Khoa / Phòng ban</th>
+                    <th className="py-3 px-3 text-right">Số ca hoàn thành</th>
+                    <th className="py-3 px-3 text-right">Số nhân sự</th>
+                    <th className="py-3 px-3 text-right">Tổng viện phí</th>
+                    <th className="py-3 px-3 text-right">Chi phí trực tiếp</th>
+                    <th className="py-3 px-3 text-right">Doanh thu ròng</th>
+                    <th className="py-3 px-3 text-right text-emerald-700">Tổng hoa hồng</th>
+                    <th className="py-3 px-3 text-right">Tỷ lệ HH / VP</th>
+                    {isAccountant && <th className="py-3 px-4 text-right">Thao tác</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {data.departmentBreakdown.map((dept) => (
+                    <tr
+                      key={dept.departmentId ?? dept.departmentCode}
+                      className="hover:bg-slate-50/70"
+                    >
+                      <td className="py-3 px-4">
+                        <div className="font-medium text-slate-900">{dept.departmentName}</div>
+                        <div className="text-xs font-mono text-slate-500">{dept.departmentCode}</div>
+                      </td>
+                      <td className="py-3 px-3 text-right whitespace-nowrap">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700">
+                          {dept.completedSlipCount} ca
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right text-slate-700 whitespace-nowrap">
+                        {dept.staffCount} người
+                      </td>
+                      <td className="py-3 px-3 text-right text-slate-800 whitespace-nowrap">
+                        {formatVnd(dept.totalChargedAmount)}
+                      </td>
+                      <td className="py-3 px-3 text-right text-slate-600 whitespace-nowrap">
+                        {formatVnd(dept.totalDirectCost)}
+                      </td>
+                      <td className="py-3 px-3 text-right font-medium text-slate-800 whitespace-nowrap">
+                        {formatVnd(dept.totalNetRevenue)}
+                      </td>
+                      <td className="py-3 px-3 text-right font-semibold text-emerald-700 whitespace-nowrap">
+                        {formatVnd(dept.totalCommissionAmount)}
+                      </td>
+                      <td className="py-3 px-3 text-right text-slate-700 whitespace-nowrap">
+                        {dept.commissionRatePercent.toFixed(2)}%
+                      </td>
+                      {isAccountant && (
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          {dept.departmentId && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDepartmentId(dept.departmentId!);
+                                setPage(1);
+                                setActiveTab('staff');
+                              }}
+                              className="proc-action-btn"
+                            >
+                              Xem nhân sự
+                            </button>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+                {(() => {
+                  const totalSlips = data.departmentBreakdown.reduce(
+                    (acc, d) => acc + d.completedSlipCount,
+                    0
+                  );
+                  const totalCharged = data.departmentBreakdown.reduce(
+                    (acc, d) => acc + d.totalChargedAmount,
+                    0
+                  );
+                  const totalDirect = data.departmentBreakdown.reduce(
+                    (acc, d) => acc + d.totalDirectCost,
+                    0
+                  );
+                  const totalNet = data.departmentBreakdown.reduce(
+                    (acc, d) => acc + d.totalNetRevenue,
+                    0
+                  );
+                  const totalComm = data.departmentBreakdown.reduce(
+                    (acc, d) => acc + d.totalCommissionAmount,
+                    0
+                  );
+                  const totalRate =
+                    totalCharged > 0 ? (totalComm * 100) / totalCharged : 0;
+
+                  return (
+                    <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-semibold text-slate-900">
+                      <tr>
+                        <td className="py-3 px-4">Tổng cộng ({data.departmentBreakdown.length} khoa/phòng)</td>
+                        <td className="py-3 px-3 text-right whitespace-nowrap">{totalSlips} ca</td>
+                        <td className="py-3 px-3 text-right whitespace-nowrap">
+                          {data.summary.totalStaff} người
+                        </td>
+                        <td className="py-3 px-3 text-right whitespace-nowrap">
+                          {formatVnd(totalCharged)}
+                        </td>
+                        <td className="py-3 px-3 text-right whitespace-nowrap">
+                          {formatVnd(totalDirect)}
+                        </td>
+                        <td className="py-3 px-3 text-right whitespace-nowrap">
+                          {formatVnd(totalNet)}
+                        </td>
+                        <td className="py-3 px-3 text-right text-emerald-700 whitespace-nowrap">
+                          {formatVnd(totalComm)}
+                        </td>
+                        <td className="py-3 px-3 text-right whitespace-nowrap">
+                          {totalRate.toFixed(2)}%
+                        </td>
+                        {isAccountant && <td className="py-3 px-4" />}
+                      </tr>
+                    </tfoot>
+                  );
+                })()}
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Modal Drilldown: Chi tiết ca thủ thuật của nhân viên */}
       {selectedStaff && (
         <Modal
-          title={`Chi tiết ca thủ thuật - ${selectedStaff.staffName} (${selectedStaff.staffCode})`}
+          title={`Chi tiết hoa hồng ca thủ thuật - ${selectedStaff.staffName} (${selectedStaff.staffCode})`}
           onClose={() => setSelectedStaff(null)}
-          maxWidth="900px"
+          maxWidth="1040px"
         >
-          <div className="p-6 space-y-4">
+          <div className="p-5 space-y-4">
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs grid grid-cols-2 sm:grid-cols-4 gap-2">
               <div>
                 <span className="text-slate-500 block">Khoa / Phòng:</span>
@@ -543,13 +731,13 @@ export default function CommissionResultsPage() {
                 <strong className="text-slate-800 text-sm">{payMonth}</strong>
               </div>
               <div>
-                <span className="text-slate-500 block">Số ca thực hiện:</span>
+                <span className="text-slate-500 block">Số ca hoàn thành:</span>
                 <strong className="text-sky-700 text-sm">
                   {selectedStaff.verifiedSlipCount} ca
                 </strong>
               </div>
               <div>
-                <span className="text-slate-500 block">Tổng hoa hồng:</span>
+                <span className="text-slate-500 block">Tổng hoa hồng được hưởng:</span>
                 <strong className="text-emerald-700 text-sm">
                   {formatVnd(selectedStaff.totalCommissionAmount)}
                 </strong>
@@ -564,77 +752,81 @@ export default function CommissionResultsPage() {
               </div>
             ) : detailData && detailData.procedures.length > 0 ? (
               <div className="overflow-x-auto border border-slate-200 rounded-lg">
-                <table className="w-full text-xs text-left">
+                <table className="w-full table-fixed text-xs text-left">
+                  <colgroup>
+                    <col className="w-[15%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[11%]" />
+                    <col className="w-[22%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-[15%]" />
+                  </colgroup>
                   <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                     <tr>
-                      <th className="py-2.5 px-3">Mã phiếu</th>
-                      <th className="py-2.5 px-3">Ngày làm</th>
-                      <th className="py-2.5 px-3">Bệnh nhân</th>
-                      <th className="py-2.5 px-3">Dịch vụ</th>
-                      <th className="py-2.5 px-3">Vai trò</th>
-                      <th className="py-2.5 px-3 text-right">Phí dịch vụ</th>
-                      <th className="py-2.5 px-3 text-right">Hoa hồng nhận</th>
-                      <th className="py-2.5 px-3 text-center">Trạng thái</th>
+                      <th className="py-2.5 px-2.5">Mã phiếu</th>
+                      <th className="py-2.5 px-2.5">Ngày làm</th>
+                      <th className="py-2.5 px-2.5">Bệnh nhân</th>
+                      <th className="py-2.5 px-2.5">Dịch vụ</th>
+                      <th className="py-2.5 px-2.5">Vai trò</th>
+                      <th className="py-2.5 px-2.5 text-right">Phí dịch vụ</th>
+                      <th className="py-2.5 px-2.5 text-right text-emerald-700">Hoa hồng được hưởng</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
                     {detailData.procedures.map((p) => (
                       <tr key={p.slipId + p.role} className="hover:bg-slate-50/70">
-                        <td className="py-2 px-3 font-mono font-medium text-slate-800">
+                        <td className="py-2 px-2.5 font-mono font-medium text-slate-800 truncate" title={p.slipNumber}>
                           {p.slipNumber}
                         </td>
-                        <td className="py-2 px-3 text-slate-600">
+                        <td className="py-2 px-2.5 text-slate-600 whitespace-nowrap">
                           {formatDateOnly(p.procedureDate)}
                           {p.isAfterHours && (
-                            <span className="ml-1 inline-block px-1.5 py-0.2 rounded text-[10px] bg-purple-50 text-purple-700 border border-purple-200">
+                            <span className="block mt-0.5 w-fit px-1.5 py-0.2 rounded text-[10px] bg-purple-50 text-purple-700 border border-purple-200">
                               Ngoài giờ
                             </span>
                           )}
                         </td>
-                        <td className="py-2 px-3 text-slate-600">
+                        <td className="py-2 px-2.5 text-slate-600 truncate" title={p.patientCode || ''}>
                           {p.patientCode || '-'}
                         </td>
-                        <td className="py-2 px-3">
-                          <div className="font-medium text-slate-900">{p.serviceName}</div>
-                          <div className="text-[11px] text-slate-400 font-mono">
+                        <td className="py-2 px-2.5">
+                          <div className="font-medium text-slate-900 truncate" title={p.serviceName}>
+                            {p.serviceName}
+                          </div>
+                          <div className="text-[11px] text-slate-400 font-mono truncate">
                             {p.serviceCode}
                           </div>
                         </td>
-                        <td className="py-2 px-3">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-sky-50 text-sky-700 border border-sky-100">
+                        <td className="py-2 px-2.5">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-sky-50 text-sky-700 border border-sky-100 truncate max-w-full">
                             {PROCEDURE_ROLE_LABELS[p.role] || p.role}
                           </span>
                         </td>
-                        <td className="py-2 px-3 text-right text-slate-600 font-mono">
+                        <td className="py-2 px-2.5 text-right text-slate-600 font-mono whitespace-nowrap">
                           {formatVnd(p.chargedAmount)}
                         </td>
-                        <td className="py-2 px-3 text-right font-semibold text-emerald-700 font-mono">
+                        <td className="py-2 px-2.5 text-right font-bold text-emerald-700 font-mono whitespace-nowrap">
                           {formatVnd(p.commissionAmount)}
-                        </td>
-                        <td className="py-2 px-3 text-center">
-                          <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Đã xác minh
-                          </span>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot className="bg-slate-50 font-semibold border-t border-slate-200">
                     <tr>
-                      <td colSpan={6} className="py-2.5 px-3 text-right text-slate-700">
-                        Tổng cộng:
+                      <td colSpan={6} className="py-2.5 px-2.5 text-right text-slate-700">
+                        Tổng hoa hồng được hưởng:
                       </td>
-                      <td className="py-2.5 px-3 text-right text-emerald-700 font-mono text-sm">
+                      <td className="py-2.5 px-2.5 text-right text-emerald-700 font-mono text-sm whitespace-nowrap">
                         {formatVnd(detailData.totalCommissionAmount)}
                       </td>
-                      <td></td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
             ) : (
               <div className="py-8 text-center text-sm text-slate-500">
-                Không có chi tiết ca thủ thuật nào.
+                Không có ca thủ thuật đã hoàn thành nào trong kỳ này.
               </div>
             )}
 
@@ -665,7 +857,7 @@ export default function CommissionResultsPage() {
               </div>
               <p>
                 1. Hệ thống sẽ quét toàn bộ các phiếu thủ thuật ở trạng thái{' '}
-                <strong className="text-emerald-700">Đã xác minh (Verified)</strong> trong kỳ lương.
+                <strong className="text-emerald-700">Đã hoàn thành (Completed)</strong> trong kỳ lương.
               </p>
               <p>
                 2. Tổng hợp hoa hồng theo từng nhân sự và ghi đè cập nhật vào trường{' '}

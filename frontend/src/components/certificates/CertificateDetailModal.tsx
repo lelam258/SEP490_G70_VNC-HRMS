@@ -3,7 +3,7 @@ import Modal from '../ui/Modal';
 import Icon from '../ui/Icon';
 import Alert from '../ui/Alert';
 import type { Certificate } from '../../types/certificates';
-import { formatDate } from '../../utils/format';
+import { formatDate, todayVn } from '../../utils/format';
 
 interface Props {
   certificate: Certificate;
@@ -49,7 +49,7 @@ export default function CertificateDetailModal({
   const [reasonError, setReasonError] = useState('');
 
   const isDegree = certificate.category === 'degree';
-  const isExpired = certificate.expiryDate ? new Date(certificate.expiryDate) < new Date() : false;
+  const isExpired = certificate.expiryDate ? certificate.expiryDate.slice(0, 10) < todayVn() : false;
 
   const isPendingReview =
     certificate.status === 'unverified' ||
@@ -109,8 +109,8 @@ export default function CertificateDetailModal({
     <>
       <Modal title={isDegree ? 'Chi tiết bằng cấp' : 'Chi tiết chứng chỉ'} onClose={onClose} busy={busyReview}>
         <div className="p-6">
-          {/* Review Alert Banner */}
-          {isPendingReview && (
+          {/* Review Alert Banner (HR only) */}
+          {isPendingReview && Boolean(onReview) && (
             <div className="mb-5 p-3.5 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 text-xs text-amber-900">
                 <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
@@ -244,7 +244,7 @@ export default function CertificateDetailModal({
                 <div>
                   <span className="text-xs text-slate-400 block font-medium">Ngày hết hạn</span>
                   <span className={`font-medium ${isExpired ? 'text-red-600' : 'text-slate-700'}`}>
-                    {formatDate(certificate.expiryDate) || 'Vô thời hạn'}
+                    {certificate.expiryDate ? formatDate(certificate.expiryDate) : 'Vô thời hạn'}
                     {isExpired && ' (Đã hết hạn)'}
                   </span>
                 </div>

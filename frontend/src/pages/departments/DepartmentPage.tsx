@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { departmentApi, type Department, type FacilityOption } from '../../services/departmentApi';
+import {
+  departmentApi,
+  type Department,
+  type DepartmentManagerOption,
+  type FacilityOption,
+} from '../../services/departmentApi';
 import Alert from '../../components/ui/Alert';
 import DataTable from '../../components/ui/DataTable';
 import Modal from '../../components/ui/Modal';
@@ -12,6 +17,7 @@ import { normalize } from '../../utils/format';
 export default function DepartmentPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [facilities, setFacilities] = useState<FacilityOption[]>([]);
+  const [managerOptions, setManagerOptions] = useState<DepartmentManagerOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -26,6 +32,12 @@ export default function DepartmentPage() {
   const [facilityError, setFacilityError] = useState('');
   const [savingFacility, setSavingFacility] = useState(false);
 
+  // Modal bổ nhiệm Trưởng khoa/phòng
+  const [managerTarget, setManagerTarget] = useState<Department | null>(null);
+  const [selectedManagerId, setSelectedManagerId] = useState<string>('');
+  const [managerError, setManagerError] = useState('');
+  const [savingManager, setSavingManager] = useState(false);
+
   const [statusTarget, setStatusTarget] = useState<Department | null>(null);
   const [statusError, setStatusError] = useState('');
   const [changingStatus, setChangingStatus] = useState(false);
@@ -37,7 +49,9 @@ export default function DepartmentPage() {
       departments.filter(
         (d) =>
           (!status || d.status === status) &&
-          normalize(`${d.code} ${d.name} ${d.facilityLabel || ''}`).includes(normalize(search))
+          normalize(
+            `${d.code} ${d.name} ${d.facilityLabel || ''} ${d.managerName || ''} ${d.managerCode || ''}`
+          ).includes(normalize(search))
       ),
     [departments, search, status]
   );
@@ -72,16 +86,25 @@ export default function DepartmentPage() {
     }
   }
 
+  function openAssignManager(dept: Department) {
+    setManagerTarget(dept);
+    setSelectedManagerId(dept.managerId || '');
+    setManagerError('');
+    setNotice('');
+  }
+
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const [deptRes, facRes] = await Promise.all([
+      const [deptRes, facRes, mgrRes] = await Promise.all([
         departmentApi.list(),
         departmentApi.listFacilities().catch(() => [] as FacilityOption[]),
+        departmentApi.listManagerOptions().catch(() => [] as DepartmentManagerOption[]),
       ]);
       setDepartments(deptRes);
       setFacilities(facRes);
+      setManagerOptions(mgrRes);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Không tải được khoa/phòng.');
     } finally {
@@ -132,6 +155,30 @@ export default function DepartmentPage() {
       );
     } finally {
       setSavingFacility(false);
+    }
+  }
+
+  async function saveAssignedManager() {
+    if (!managerTarget || savingManager) return;
+    setSavingManager(true);
+    setManagerError('');
+    setNotice('');
+    try {
+      const nextManagerId = selectedManagerId.trim() ? selectedManagerId.trim() : null;
+      const updated = await departmentApi.assignManager(managerTarget.id, nextManagerId);
+      setManagerTarget(null);
+      setNotice(
+        updated.managerName
+          ? `Đã bổ nhiệm ${updated.managerName} (${updated.managerCode || ''}) làm Trưởng khoa/phòng ${updated.name}.`
+          : `Đã miễn nhiệm Trưởng khoa/phòng ${updated.name}.`
+      );
+      await load();
+    } catch (cause) {
+      setManagerError(
+        cause instanceof Error ? cause.message : 'Không cập nhật được trưởng khoa/phòng.'
+      );
+    } finally {
+      setSavingManager(false);
     }
   }
 
@@ -321,6 +368,21 @@ export default function DepartmentPage() {
                   ),
                 },
                 {
+                  key: 'manager',
+                  label: 'Trưởng khoa/phòng',
+                  render: (d) =>
+                    d.managerName ? (
+                      <div>
+                        <strong className="text-slate-900">{d.managerName}</strong>
+                        {d.managerCode && (
+                          <div className="text-xs text-slate-500">{d.managerCode}</div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400 italic">Chưa bổ nhiệm</span>
+                    ),
+                },
+                {
                   key: 'status',
                   label: 'Trạng thái',
                   className: 'directory-col-status',
@@ -343,8 +405,24 @@ export default function DepartmentPage() {
                     <div className="directory-actions">
                       <button
                         className="directory-action"
+                        aria-label={`Bổ nhiệm trưởng khoa/phòng cho ${d.name}`}
+                        disabled={
+                          saving ||
+                          changingStatus ||
+                          savingFacility ||
+                          savingManager ||
+                          !!error ||
+                          (d.status !== 'active' && !d.managerId)
+                        }
+                        onClick={() => openAssignManager(d)}
+                      >
+                        <Icon name="users" size={15} />
+                        Bổ nhiệm
+                      </button>
+                      <button
+                        className="directory-action"
                         aria-label={`Phân cơ sở cho ${d.name}`}
-                        disabled={saving || changingStatus || savingFacility || !!error}
+                        disabled={saving || changingStatus || savingFacility || savingManager || !!error}
                         onClick={() => openAssignFacility(d)}
                       >
                         <Icon name="building" size={15} />
@@ -353,7 +431,7 @@ export default function DepartmentPage() {
                       <button
                         className="directory-action"
                         aria-label={`Sửa khoa/phòng ${d.name}`}
-                        disabled={saving || changingStatus || savingFacility || !!error}
+                        disabled={saving || changingStatus || savingFacility || savingManager || !!error}
                         onClick={() => edit(d)}
                       >
                         <Icon name="edit" size={15} />
@@ -366,7 +444,7 @@ export default function DepartmentPage() {
                         aria-label={`${
                           d.status === 'active' ? 'Ngừng hoạt động' : 'Kích hoạt'
                         } ${d.name}`}
-                        disabled={saving || changingStatus || savingFacility || !!error}
+                        disabled={saving || changingStatus || savingFacility || savingManager || !!error}
                         onClick={() => {
                           setStatusTarget(d);
                           setStatusError('');
@@ -488,6 +566,116 @@ export default function DepartmentPage() {
           </div>
         </Modal>
       )}
+
+      {managerTarget && (() => {
+        const eligibleOptions = managerOptions.filter(
+          (m) =>
+            m.departmentId === managerTarget.id &&
+            (m.staffId === managerTarget.managerId ||
+              m.accountRole === 'employee' ||
+              m.accountRole === 'medical_staff')
+        );
+        const hasCurrentInOptions =
+          !managerTarget.managerId ||
+          eligibleOptions.some((m) => m.staffId === managerTarget.managerId);
+        const selectedOption = eligibleOptions.find((m) => m.staffId === selectedManagerId);
+        const isInactiveDept = managerTarget.status !== 'active';
+        const isUnchanged = selectedManagerId === (managerTarget.managerId || '');
+        const isChangingManager =
+          Boolean(managerTarget.managerId) && selectedManagerId !== managerTarget.managerId;
+        return (
+          <Modal
+            className="directory-dialog"
+            title={`Bổ nhiệm Trưởng khoa/phòng: ${managerTarget.name} (${managerTarget.code})`}
+            busy={savingManager}
+            onClose={() => setManagerTarget(null)}
+          >
+            <div className="form-section space-y-3">
+              <p className="text-sm text-slate-600">
+                Trưởng khoa/phòng hiện tại:{' '}
+                <strong>
+                  {managerTarget.managerName
+                    ? `${managerTarget.managerName}${managerTarget.managerCode ? ` (${managerTarget.managerCode})` : ''}`
+                    : 'Chưa bổ nhiệm'}
+                </strong>
+              </p>
+              <div>
+                <label htmlFor="department-manager-select">
+                  Chọn Nhân viên y tế thuộc {managerTarget.name}
+                </label>
+                <select
+                  id="department-manager-select"
+                  value={selectedManagerId}
+                  disabled={savingManager}
+                  onChange={(e) => setSelectedManagerId(e.target.value)}
+                >
+                  <option value="">— Không bổ nhiệm (Miễn nhiệm / Bỏ trống) —</option>
+                  {(!hasCurrentInOptions || isInactiveDept) && managerTarget.managerId && (
+                    <option value={managerTarget.managerId}>
+                      {managerTarget.managerName || 'Trưởng khoa hiện tại'}
+                      {managerTarget.managerCode ? ` (${managerTarget.managerCode})` : ''} · Đang là Trưởng khoa
+                    </option>
+                  )}
+                  {!isInactiveDept &&
+                    eligibleOptions.map((m) => (
+                      <option key={m.staffId} value={m.staffId}>
+                        {m.fullName} ({m.staffCode})
+                        {m.staffId === managerTarget.managerId
+                          ? ' · Đang là Trưởng khoa'
+                          : ' · Nhân viên y tế'}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              {isInactiveDept && (
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                  Khoa/phòng đang ngừng hoạt động nên chỉ có thể miễn nhiệm trưởng khoa hiện tại.
+                </p>
+              )}
+              {!isInactiveDept && eligibleOptions.length === 0 && (
+                <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
+                  Hiện chưa có nhân sự vai trò <strong>Nhân viên y tế (Medical Staff)</strong> có tài khoản hoạt động thuộc <strong>{managerTarget.name}</strong> để bổ nhiệm.
+                </p>
+              )}
+              {selectedOption && selectedOption.staffId !== managerTarget.managerId && (
+                <p className="text-xs text-sky-900 bg-sky-50 border border-sky-200 rounded-md px-3 py-2">
+                  Hệ thống sẽ bổ nhiệm <strong>{selectedOption.fullName}</strong> làm Trưởng
+                  khoa/phòng và tự động chuyển vai trò tài khoản sang{' '}
+                  <strong>Trưởng khoa (Department Manager)</strong>.
+                  {isChangingManager &&
+                    ' Trưởng khoa hiện tại sẽ được chuyển lại về vai trò Nhân viên y tế (Medical Staff).'}
+                </p>
+              )}
+              {!selectedManagerId && managerTarget.managerId && (
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                  Khi xác nhận miễn nhiệm, tài khoản của{' '}
+                  <strong>{managerTarget.managerName || 'trưởng khoa hiện tại'}</strong> sẽ được
+                  chuyển lại về vai trò <strong>Nhân viên y tế (Medical Staff)</strong>.
+                </p>
+              )}
+              {managerError && <Alert>{managerError}</Alert>}
+            </div>
+            <div className="form-actions">
+              <button
+                type="button"
+                className="button"
+                disabled={savingManager}
+                onClick={() => setManagerTarget(null)}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                className="button primary"
+                disabled={savingManager || isUnchanged}
+                onClick={() => void saveAssignedManager()}
+              >
+                {savingManager ? 'Đang lưu…' : selectedManagerId ? 'Lưu bổ nhiệm' : 'Xác nhận miễn nhiệm'}
+              </button>
+            </div>
+          </Modal>
+        );
+      })()}
 
       {statusTarget && (
         <Modal
