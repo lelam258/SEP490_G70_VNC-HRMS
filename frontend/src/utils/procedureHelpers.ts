@@ -309,8 +309,8 @@ export function intersectMinuteIntervalLists(
 
 /**
  * Xác định các khung giờ làm việc trong ngày của nhân sự dựa theo danh sách ca (shiftsToday).
- * Ca Sáng: 08:00 - 12:00, Trực trưa: 12:00 - 13:30, Ca Chiều: 13:00 - 17:00, Trực tối: 17:00 - 19:00.
- * Tự động tách khung nghỉ trưa 12:00 - 13:00 nếu nhân sự không có ca Trực trưa.
+ * Ca Sáng: 07:00 - 11:30, Trực trưa: 11:30 - 13:30, Ca Chiều: 13:30 - 17:00, Trực tối: 17:00 - 19:00.
+ * Tự động tách khung nghỉ trưa 11:30 - 13:30 nếu nhân sự không có ca Trực trưa.
  */
 export function getStaffShiftIntervals(
   shiftsToday: string[],
@@ -332,20 +332,20 @@ export function getStaffShiftIntervals(
   );
 
   if (hasMorning) {
-    intervals.push({ start: 8 * 60, end: 12 * 60 });
+    intervals.push({ start: 7 * 60, end: 11 * 60 + 30 });
   }
   if (hasNoon) {
-    intervals.push({ start: 12 * 60, end: 13 * 60 + 30 });
+    intervals.push({ start: 11 * 60 + 30, end: 13 * 60 + 30 });
   }
   if (hasAfternoon) {
-    intervals.push({ start: 13 * 60, end: 17 * 60 });
+    intervals.push({ start: 13 * 60 + 30, end: 17 * 60 });
   }
   if (hasEvening) {
     intervals.push({ start: 17 * 60, end: 19 * 60 });
   }
 
   if (intervals.length === 0 && (hasOnCallOrFull || shiftsToday.length > 0)) {
-    intervals.push({ start: 8 * 60, end: 12 * 60 }, { start: 13 * 60, end: 17 * 60 });
+    intervals.push({ start: 7 * 60, end: 11 * 60 + 30 }, { start: 13 * 60 + 30, end: 17 * 60 });
   }
 
   return mergeMinuteIntervals(intervals);
@@ -392,13 +392,13 @@ export interface TimelineSegment {
 }
 
 /**
- * Tạo dữ liệu thanh timeline mini (08:00 -> 17:00) cho thẻ nhân sự để bác sĩ nhìn trực quan
+ * Tạo dữ liệu thanh timeline mini (07:00 -> 17:00) cho thẻ nhân sự để bác sĩ nhìn trực quan
  * đoạn nào đang rảnh (xanh), đã có ca thủ thuật (cam), hay nghỉ trưa / ngoài ca (xám).
  */
 export function buildDayTimelineSegments(
   shiftsToday: string[],
   bookings: { startTime: string; endTime: string; serviceName?: string; slipNumber?: string }[],
-  dayStart: number = 8 * 60,
+  dayStart: number = 7 * 60,
   dayEnd: number = 17 * 60
 ): TimelineSegment[] {
   const totalMinutes = dayEnd - dayStart;
@@ -462,7 +462,7 @@ export function buildDayTimelineSegments(
         label: `Rảnh ${formatMinutesVn(segStart)}-${formatMinutesVn(segEnd)}`,
       });
     } else {
-      const isLunch = segStart >= 12 * 60 && segEnd <= 13 * 60 + 30;
+      const isLunch = segStart >= 11 * 60 + 30 && segEnd <= 13 * 60 + 30;
       rawSegments.push({
         start: segStart,
         end: segEnd,

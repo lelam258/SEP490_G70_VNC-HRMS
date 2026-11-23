@@ -1269,7 +1269,7 @@ export default function ProcedureFormPage() {
                   </option>
                   {availableDepartments.map((d) => (
                     <option key={d.departmentId} value={d.departmentId}>
-                      {d.name} ({d.deptCode}){d.facilityLabel ? ` • ${d.facilityLabel}` : ''}
+                      {d.name} ({d.deptCode})
                     </option>
                   ))}
                 </select>
@@ -1570,9 +1570,9 @@ export default function ProcedureFormPage() {
                                         ))}
                                       </div>
                                       <div className="flex justify-between text-[9px] text-slate-400 leading-none mt-0.5">
-                                        <span>8h</span>
-                                        <span>12h</span>
-                                        <span>13h</span>
+                                        <span>7h</span>
+                                        <span>11h30</span>
+                                        <span>13h30</span>
                                         <span>17h</span>
                                       </div>
                                     </div>

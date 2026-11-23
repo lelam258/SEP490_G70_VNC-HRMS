@@ -503,7 +503,7 @@ public sealed partial class ProcedureSlipService(
             }
 
             var freeRangesUntil17h = isWorkingToday
-                ? ComputeFreeTimeRangesUntil17h(hasRequestedWindow ? reqStart : new TimeOnly(8, 0), bookings)
+                ? ComputeFreeTimeRangesUntil17h(hasRequestedWindow ? reqStart : new TimeOnly(7, 0), bookings)
                 : Array.Empty<string>();
 
             result.Add(new ProcedureStaffAvailabilityDto(
