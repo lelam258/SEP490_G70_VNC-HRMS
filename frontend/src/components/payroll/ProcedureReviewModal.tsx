@@ -155,14 +155,13 @@ export default function ProcedureReviewModal({
                   : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
               }`}
             >
-              <div className="font-semibold text-sm flex items-center gap-1.5">
-                <span className="text-emerald-600">✓</span>
-                <span>{isHr ? 'Đạt yêu cầu (Pass)' : 'Xác minh (Verify)'}</span>
+              <div className="font-semibold text-sm">
+                {isHr ? 'Đạt yêu cầu' : 'Duyệt viện phí'}
               </div>
               <div className="text-[11px] text-slate-500 mt-0.5">
                 {isHr
                   ? 'Chuyển tiếp sang Kế toán thẩm định'
-                  : 'Duyệt viện phí và chuyển phiếu cho Bác sĩ thực hiện'}
+                  : 'Xác minh viện phí hợp lệ và chuyển Bác sĩ thực hiện'}
               </div>
             </button>
 
@@ -175,9 +174,8 @@ export default function ProcedureReviewModal({
                   : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
               }`}
             >
-              <div className="font-semibold text-sm flex items-center gap-1.5">
-                <span className="text-rose-600">✕</span>
-                <span>Từ chối (Reject)</span>
+              <div className="font-semibold text-sm">
+                Từ chối
               </div>
               <div className="text-[11px] text-slate-500 mt-0.5">
                 Đổi trạng thái sang Rejected và báo nhân viên y tế
@@ -242,8 +240,8 @@ export default function ProcedureReviewModal({
               : decision === 'approve'
               ? isHr
                 ? 'Xác nhận Đạt & Chuyển Kế toán'
-                : 'Duyệt viện phí & Chuyển Bác sĩ (Verify)'
-              : 'Xác nhận Từ chối & Gửi thông báo'}
+                : 'Duyệt viện phí & Chuyển Bác sĩ'
+              : 'Xác nhận Từ chối'}
           </button>
         </div>
       </form>

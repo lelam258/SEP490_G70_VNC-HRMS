@@ -38,3 +38,13 @@ export function monthEnd(month: string) {
   const [year, m] = month.split('-').map(Number);
   return `${month}-${new Date(year, m, 0).getDate()}`;
 }
+export function formatAttendanceNote(value: string | null | undefined): string {
+  if (!value) return '';
+  return value
+    .replace(/^(?:Lưu ý:\s*)?MSG[-A-Z0-9]+(?:\s*\/\s*MSG[-A-Z0-9]+)*:\s*/i, 'Lưu ý: ')
+    .replace(/\bMSG[-A-Z0-9]+(?:\s*\/\s*MSG[-A-Z0-9]+)*:\s*/gi, 'Lưu ý: ')
+    .replace(/\s*\(MSG[-A-Z0-9]+(?:\s*\/\s*(?:MSG)?[-A-Z0-9]+)*\)/gi, '')
+    .replace(/\s*theo GB-\d+/gi, '')
+    .replace(/\s*\(GB-\d+(?:,\s*GB-\d+)*\)/gi, '')
+    .trim();
+}

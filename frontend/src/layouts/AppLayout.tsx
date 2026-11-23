@@ -19,6 +19,9 @@ export default function AppLayout() {
   const [error, setError] = useState('');
   const location = useLocation();
   useEffect(() => {
+    if (window.matchMedia('(max-width: 600px)').matches && useAppStore.getState().sidebarOpen) {
+      useAppStore.getState().toggleSidebar();
+    }
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.querySelector('.workspace-main')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.querySelector('.page-content')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -52,11 +55,11 @@ export default function AppLayout() {
     : location.pathname.startsWith('/contracts')
     ? 'Hợp đồng lao động'
     : location.pathname.startsWith('/compliance')
-    ? 'Compliance Dashboard'
+    ? 'Theo dõi tuân thủ Chứng chỉ & CME'
     : location.pathname.startsWith('/certificates')
-    ? 'Certificate / Qualification List'
+    ? 'Quản lý bằng cấp & chứng chỉ'
     : location.pathname.startsWith('/cme-records')
-    ? 'CME Records'
+    ? 'Quản lý đào tạo liên tục (CME)'
     : location.pathname.startsWith('/payroll/commission-results')
     ? 'Kết quả hoa hồng thủ thuật'
     : location.pathname.startsWith('/payroll/parameters')
@@ -166,22 +169,22 @@ export default function AppLayout() {
                 </NavLink>
                 <NavLink to="/compliance" className={navClass}>
                   <Icon name="shield" />
-                  Compliance
+                  Tuân thủ Chứng chỉ & CME
                 </NavLink>
                 <NavLink to="/certificates" className={navClass}>
                   <Icon name="award" />
-                  Certificate / Qualification List
+                  Quản lý Bằng cấp & CCHN
                 </NavLink>
                 <NavLink to="/cme-records" className={navClass}>
                   <Icon name="fileText" />
-                  CME Records
+                  Hồ sơ đào tạo CME
                 </NavLink>
               </>
             )}
             {(user.role === 'department_head' || user.role === 'admin') && (
               <NavLink to="/compliance" className={navClass}>
                 <Icon name="shield" />
-                Compliance
+                Tuân thủ Chứng chỉ & CME
               </NavLink>
             )}
             {['department_head', 'hr_manager', 'admin'].includes(user.role) && (
@@ -318,6 +321,7 @@ export default function AppLayout() {
           </button>
         </aside>
       )}
+      {sidebarOpen && <button type="button" className="workspace-sidebar-backdrop" aria-label="Đóng menu điều hướng" onClick={toggleSidebar} />}
       <div className="workspace-main">
         <header className="topbar">
           <div className="flex items-center gap-4">

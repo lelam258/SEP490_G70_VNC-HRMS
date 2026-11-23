@@ -750,12 +750,15 @@ export default function CertificateListPage() {
                 Đang tải hồ sơ của {selectedStaff.fullName}…
               </p>
             ) : staffCertificates.length === 0 ? (
-              <div className="empty-state p-8 text-center">
-                <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+              <div className="empty-state p-8 flex flex-col items-center justify-center text-center">
+                <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mb-3">
                   <Icon name="award" size={26} />
                 </div>
-                <h3 className="font-semibold text-slate-700">Chưa có bằng cấp hoặc chứng chỉ</h3>
-                <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1 mb-4">
+                <h3 className="font-semibold text-slate-700 text-center">Chưa có bằng cấp hoặc chứng chỉ</h3>
+                <p
+                  className="text-xs text-slate-400 max-w-sm mx-auto mt-1 mb-4 text-center"
+                  style={{ margin: '4px auto 12px', textAlign: 'center' }}
+                >
                   Nhân viên {selectedStaff.fullName} ({selectedStaff.staffCode}) chưa được thêm hồ sơ nào vào hệ thống.
                 </p>
                 <button
@@ -767,8 +770,8 @@ export default function CertificateListPage() {
                 </button>
               </div>
             ) : filteredCertificates.length === 0 ? (
-              <div className="empty-state p-8 text-center">
-                <p className="text-xs text-slate-500">
+              <div className="empty-state p-8 flex flex-col items-center justify-center text-center">
+                <p className="text-xs text-slate-500 text-center" style={{ margin: '0 auto', textAlign: 'center' }}>
                   Không có hồ sơ nào thuộc nhóm đang chọn.
                 </p>
               </div>

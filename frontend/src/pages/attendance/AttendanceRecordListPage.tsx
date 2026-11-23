@@ -1,4 +1,3 @@
-import { attendanceText } from '../../utils/attendance';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import AttendanceShell from '../../components/attendance/AttendanceShell';
@@ -10,7 +9,7 @@ import useApiResource from '../../hooks/useApiResource';
 import { useAuthStore } from '../../store/useAuthStore';
 import type { AttendanceList, AttendanceOptions } from '../../types/attendance';
 import { clinicToday, shortDate } from '../../utils/schedule';
-import { attendanceLabel, clockTime } from '../../utils/attendance';
+import { attendanceLabel, clockTime, formatAttendanceNote } from '../../utils/attendance';
 
 export default function AttendanceRecordListPage() {
   const role = useAuthStore(state => state.session?.user.role);
@@ -85,7 +84,7 @@ export default function AttendanceRecordListPage() {
               )}
             </div>
             {data.lockedReason && (
-              <p className="alert warning">{attendanceText(data.lockedReason)} Có thể tiếp tục xem dữ liệu và lịch sử.</p>
+              <p className="alert warning">{formatAttendanceNote(data.lockedReason)} Có thể tiếp tục xem dữ liệu và lịch sử.</p>
             )}
             <DataTable
               rows={data.items}

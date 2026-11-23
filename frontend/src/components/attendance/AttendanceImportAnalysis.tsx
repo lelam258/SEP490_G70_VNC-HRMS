@@ -1,11 +1,10 @@
-import { attendanceText } from '../../utils/attendance';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import DataTable from '../ui/DataTable';
 import Pagination from '../ui/Pagination';
 import Modal from '../ui/Modal';
 import type { ImportAnalysis, ImportAnalysisQuery, ImportRow } from '../../types/attendance';
-import { attendanceLabel, clockTime } from '../../utils/attendance';
+import { attendanceLabel, clockTime, formatAttendanceNote } from '../../utils/attendance';
 import { shortDate } from '../../utils/schedule';
 import ImportIdentityResolver from './ImportIdentityResolver';
 
@@ -36,7 +35,7 @@ export default function AttendanceImportAnalysis({ data, facilityName, query, bu
       {pendingIdentity > 0 && <div id="import-identity-summary" className="alert warning"><p><strong>Việc cần làm trước: đối chiếu {data.identity?.unresolvedCodes} mã máy.</strong> {pendingIdentity} dòng đang chờ liên kết nhân viên. Bạn không cần sửa từng ngày công; liên kết một mã sẽ kiểm tra lại tất cả dòng thuộc mã đó.</p><a className="button" href="#import-identity-resolver">Liên kết ngay tại đây</a></div>}
       {data.sourceMonths.length > 0 && <p>Tháng có trong dữ liệu ngày công: {data.sourceMonths.map(item => `${item.month} (${item.rows} dòng)`).join(', ')}.</p>}
       {data.suggestedMonth && data.suggestedMonth !== data.payMonth && <div className="alert warning" role="status"><p>Dữ liệu ngày công được nhận diện thuộc tháng {data.suggestedMonth}. Chọn tháng này để kiểm tra lại các dòng.</p><button id="use-source-month" className="button" type="button" disabled={busy} onClick={() => onSuggestedMonth(data.suggestedMonth!)}>Dùng tháng {data.suggestedMonth}</button></div>}
-      {data.lockedReason && <div id="import-period-blocker" className="alert warning" role="status"><p><strong>Kỳ {data.payMonth} chưa cho phép lưu.</strong> Đây là điều kiện của kỳ, tách biệt với chất lượng tệp và liên kết nhân viên.</p><p>{attendanceText(data.lockedReason)}</p><p>Bạn vẫn có thể hoàn thành liên kết mã máy và kiểm tra tệp. Việc điều chỉnh kỳ thuộc chức năng quản lý kỳ lương.</p></div>}
+      {data.lockedReason && <div id="import-period-blocker" className="alert warning" role="status"><p><strong>Kỳ {data.payMonth} chưa cho phép lưu.</strong> Đây là điều kiện của kỳ, tách biệt với chất lượng tệp và liên kết nhân viên.</p><p>{formatAttendanceNote(data.lockedReason)}</p><p>Bạn vẫn có thể hoàn thành liên kết mã máy và kiểm tra tệp. Việc điều chỉnh kỳ thuộc chức năng quản lý kỳ lương.</p></div>}
       {(data.items.some(item => item.errorCode === 'unknown_device' || item.errorCode === 'ambiguous_device') || ['unknown_device', 'ambiguous_device'].includes(query.errorCode)) && <p className="operations-note">Một số mã máy chưa xác định được nhân viên. <Link id="analysis-device-mappings" to="/attendance/device-mappings">Liên kết mã máy với nhân viên</Link>, sau đó đọc lại tệp để kiểm tra.</p>}
       <p className="operations-note">Kết quả này chưa lưu ngày công. Sau khi liên kết nhân viên và kỳ cho phép lưu, tạo đợt nhập để xử lý các dòng cần điều chỉnh rồi xác nhận lưu.</p>
       <button id="stage-attendance-import" className="button primary" type="button" disabled={busy || !data.canStage} onClick={onStage}>{staging ? 'Đang tạo đợt nhập…' : 'Tạo đợt nhập'}</button>

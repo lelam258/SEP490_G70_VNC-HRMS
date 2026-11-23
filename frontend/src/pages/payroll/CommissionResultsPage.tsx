@@ -254,22 +254,25 @@ export default function CommissionResultsPage() {
               : 'bg-amber-50 text-amber-700 border border-amber-200'
           }`}
         >
-          {r.linkedToPayslip ? '✓ Đã cập nhật' : 'Chưa liên kết'}
+          {r.linkedToPayslip ? 'Đã cập nhật' : 'Chưa liên kết'}
         </span>
       ),
     },
     {
       key: 'action',
       label: 'Thao tác',
+      className: 'col-nowrap text-right',
+      headerClassName: 'col-nowrap text-right',
       render: (r: StaffMonthlyCommissionItem) => (
-        <button
-          type="button"
-          onClick={() => void handleOpenDetail(r)}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition"
-        >
-          <Icon name="eye" size={14} />
-          Xem chi tiết ca
-        </button>
+        <div className="proc-actions-group">
+          <button
+            type="button"
+            onClick={() => void handleOpenDetail(r)}
+            className="proc-action-btn"
+          >
+            Xem chi tiết ca
+          </button>
+        </div>
       ),
     },
   ];
@@ -409,9 +412,10 @@ export default function CommissionResultsPage() {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
+                style={{ paddingLeft: '36px' }}
                 className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none"
               />
-              <span className="absolute left-3 top-2.5 text-slate-400">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex items-center">
                 <Icon name="search" size={16} />
               </span>
             </div>

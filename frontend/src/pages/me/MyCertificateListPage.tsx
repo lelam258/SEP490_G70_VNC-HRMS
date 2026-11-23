@@ -389,18 +389,19 @@ export default function MyCertificateListPage() {
           <div className="relative flex-1 min-w-[240px]">
             <input
               type="text"
-              className="w-full text-xs pl-9 pr-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+              className="w-full text-xs pr-8 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+              style={{ paddingLeft: '34px', minHeight: '38px' }}
               placeholder="Tìm theo tên chứng chỉ, số hiệu, nơi cấp, chuyên ngành..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-            <span className="absolute left-3 top-2.5 text-slate-400 pointer-events-none">
-              <Icon name="search" size={14} />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex items-center">
+              <Icon name="search" size={15} />
             </span>
             {searchTerm && (
               <button
                 type="button"
-                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 flex items-center"
                 onClick={() => setSearchTerm('')}
               >
                 <Icon name="close" size={14} />
@@ -447,7 +448,8 @@ export default function MyCertificateListPage() {
 
           {/* Status filter dropdown */}
           <select
-            className="text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 bg-white"
+            className="text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 bg-white shrink-0"
+            style={{ width: 'auto', minWidth: '190px', minHeight: '38px', padding: '6px 12px' }}
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
           >
@@ -497,22 +499,28 @@ export default function MyCertificateListPage() {
           <p className="text-sm font-medium">Đang tải hồ sơ chứng chỉ & bằng cấp của bạn...</p>
         </div>
       ) : filteredList.length === 0 ? (
-        <div className="p-12 text-center bg-white rounded-xl border border-slate-200">
-          <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+        <div className="p-12 flex flex-col items-center justify-center text-center bg-white rounded-xl border border-slate-200">
+          <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mb-3">
             <Icon name="award" size={24} />
           </div>
           {certificates.length === 0 ? (
             <>
-              <h3 className="text-base font-semibold text-slate-700">Chưa có chứng chỉ hoặc bằng cấp</h3>
-              <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+              <h3 className="text-base font-semibold text-slate-700 text-center">Chưa có chứng chỉ hoặc bằng cấp</h3>
+              <p
+                className="text-xs text-slate-500 mt-1 max-w-md text-center"
+                style={{ margin: '4px auto 0', textAlign: 'center' }}
+              >
                 Hiện tại hồ sơ nhân sự của bạn chưa được cập nhật thông tin bằng cấp, chứng chỉ hành nghề.
                 Vui lòng liên hệ Phòng Nhân sự (HR) để được hỗ trợ nhập liệu.
               </p>
             </>
           ) : (
             <>
-              <h3 className="text-base font-semibold text-slate-700">Không tìm thấy kết quả phù hợp</h3>
-              <p className="text-xs text-slate-500 mt-1">
+              <h3 className="text-base font-semibold text-slate-700 text-center">Không tìm thấy kết quả phù hợp</h3>
+              <p
+                className="text-xs text-slate-500 mt-1 text-center"
+                style={{ margin: '4px auto 0', textAlign: 'center' }}
+              >
                 Không có chứng chỉ nào khớp với từ khóa tìm kiếm hoặc bộ lọc hiện tại.
               </p>
               <button
@@ -744,11 +752,21 @@ export default function MyCertificateListPage() {
 
                       <td className="py-3 px-4 whitespace-nowrap">
                         {cert.status === 'rejected' || cert.verificationStatus === 'rejected' ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                        Bị từ chối
-                      </span>
-                    ) : cert.verificationStatus === 'unverified' || cert.status === 'pending' || cert.status === 'unverified' ? (
+                          <div>
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                              Bị từ chối
+                            </span>
+                            {cert.rejectionReason && (
+                              <div
+                                className="text-[11px] text-red-600 mt-1 max-w-[200px] truncate"
+                                title={cert.rejectionReason}
+                              >
+                                Lý do: {cert.rejectionReason}
+                              </div>
+                            )}
+                          </div>
+                        ) : cert.verificationStatus === 'unverified' || cert.status === 'pending' || cert.status === 'unverified' ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                             Chờ HR duyệt

@@ -354,8 +354,10 @@ export default function ProcedureListPage() {
     {
       key: 'financials',
       label: 'Viện phí & Hoa hồng',
+      className: 'col-nowrap text-right',
+      headerClassName: 'col-nowrap text-right',
       render: (r) => (
-        <div className="text-right font-[tabular-nums]">
+        <div className="text-right font-[tabular-nums] whitespace-nowrap">
           <div className="text-xs text-slate-500">
             Thu: <strong className="text-slate-800">{formatVnd(r.chargedAmount)}</strong>
           </div>
@@ -368,41 +370,42 @@ export default function ProcedureListPage() {
     {
       key: 'actions',
       label: 'Đánh giá & Xử lý',
+      className: 'col-nowrap text-right',
+      headerClassName: 'col-nowrap text-right',
       render: (r) => (
-        <div className="flex items-center justify-end gap-1.5 flex-wrap">
-          <button
-            type="button"
-            onClick={() => navigate(`/procedures/${r.slipId}`)}
-            className="button text-xs py-1 px-2.5"
-          >
-            Xem chi tiết
-          </button>
-
+        <div className="proc-actions-group">
           {!r.isPeriodLocked && isAccountant && (r.status === 'pending' || r.status === 'hr_checked') && (
             <>
               <button
                 type="button"
                 onClick={() => handleOpenReview(r, 'accountant_verify', 'approve')}
-                className="button text-xs py-1 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 font-semibold"
+                className="proc-action-btn approve"
               >
-                ✓ Duyệt viện phí
+                Duyệt
               </button>
               <button
                 type="button"
                 onClick={() => navigate(`/procedures/${r.slipId}/edit`)}
-                className="button text-xs py-1 px-2.5 text-sky-700 border-sky-300 bg-sky-50 hover:bg-sky-100 font-medium"
+                className="proc-action-btn adjust"
               >
-                ✎ Sửa ca
+                Điều chỉnh
               </button>
               <button
                 type="button"
                 onClick={() => handleOpenReview(r, 'accountant_verify', 'reject')}
-                className="button text-xs py-1 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-300"
+                className="proc-action-btn reject"
               >
-                ✕ Từ chối
+                Từ chối
               </button>
             </>
           )}
+          <button
+            type="button"
+            onClick={() => navigate(`/procedures/${r.slipId}`)}
+            className="proc-action-btn"
+          >
+            Chi tiết
+          </button>
         </div>
       ),
     },
@@ -532,14 +535,16 @@ export default function ProcedureListPage() {
     {
       key: 'actions',
       label: 'Chi tiết',
+      className: 'col-nowrap text-right',
+      headerClassName: 'col-nowrap text-right',
       render: (r) => (
-        <div className="flex justify-end">
+        <div className="proc-actions-group">
           <button
             type="button"
             onClick={() => navigate(`/procedures/${r.slipId}`)}
-            className="button text-xs py-1 px-2.5 text-sky-700 border-sky-200 bg-sky-50/70 hover:bg-sky-100"
+            className="proc-action-btn"
           >
-            Xem chi tiết
+            Chi tiết
           </button>
         </div>
       ),
@@ -638,22 +643,24 @@ export default function ProcedureListPage() {
     {
       key: 'actions',
       label: 'Thao tác',
+      className: 'col-nowrap text-right',
+      headerClassName: 'col-nowrap text-right',
       render: (r) => (
-        <div className="flex items-center gap-1.5 justify-end">
+        <div className="proc-actions-group">
           {/* Nút Hoàn thành ca chỉ xuất hiện khi xem Thủ thuật được giao làm cho mình */}
           {viewScope === 'assigned' && r.status === 'verified' && (
             <button
               type="button"
               onClick={() => setCompleteModalSlip(r)}
-              className="button text-xs py-1 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 font-semibold"
+              className="proc-action-btn approve"
             >
-              ✓ Hoàn thành
+              Hoàn thành
             </button>
           )}
           <button
             type="button"
             onClick={() => navigate(`/procedures/${r.slipId}`)}
-            className="button text-xs py-1 px-2.5"
+            className="proc-action-btn"
           >
             Chi tiết
           </button>
@@ -663,7 +670,7 @@ export default function ProcedureListPage() {
               <button
                 type="button"
                 onClick={() => navigate(`/procedures/${r.slipId}/edit`)}
-                className="button text-xs py-1 px-2.5 text-sky-700 border-sky-200 bg-sky-50 hover:bg-sky-100"
+                className="proc-action-btn adjust"
               >
                 Sửa
               </button>

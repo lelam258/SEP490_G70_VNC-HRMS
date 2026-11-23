@@ -23,6 +23,7 @@ export default function AttendanceDeviceMappingsPage() {
   const [reason, setReason] = useState('');
   const [search, setSearch] = useState('');
   const [review, setReview] = useState<MappingReview>();
+  const [editing, setEditing] = useState(!!queryDevice);
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -33,11 +34,12 @@ export default function AttendanceDeviceMappingsPage() {
   const unchanged = !!selected && (selected.deviceEnrollId || null) === next;
 
   useEffect(() => {
-    setDevice(queryDevice); setStaffId(''); setReason(''); setReview(undefined); setConfirmed(false); setError('');
+    setDevice(queryDevice); setEditing(!!queryDevice); setStaffId(''); setReason(''); setReview(undefined); setConfirmed(false); setError('');
   }, [queryDevice]);
   useEffect(() => { setReview(undefined); setConfirmed(false); }, [selected?.version]);
 
   function choose(value: string) {
+    setEditing(true);
     setStaffId(value); setReason(''); setError(''); setNotice(''); setConfirmed(false); setReview(undefined);
     setDevice(queryDevice || items.find(item => item.staffId === value)?.deviceEnrollId || '');
   }
@@ -48,7 +50,7 @@ export default function AttendanceDeviceMappingsPage() {
     if (!reason.trim()) { setError('Cần ghi căn cứ xác nhận nhân viên và mã máy.'); return; }
     if (next && (selected.status !== 'active' || !selected.departmentName)) { setError('Chỉ liên kết mã máy cho nhân viên đang hoạt động và đã phân khoa/phòng.'); return; }
     if (conflict || unchanged) return;
-    setConfirmed(false); setReview({ employee: selected, next, reason: reason.trim() });
+    setConfirmed(false); setEditing(false); setReview({ employee: selected, next, reason: reason.trim() });
   }
   async function save() {
     if (!review || !confirmed || busy) return;
@@ -63,15 +65,15 @@ export default function AttendanceDeviceMappingsPage() {
   }
 
   return <AttendanceShell layout="list" title="Liên kết mã máy chấm công" description="Chọn đúng nhân viên và xác nhận mã đăng ký trên máy từ hồ sơ gốc trước khi nhập chấm công."
-    actions={<Link className="button" to="/attendance/imports">Lịch sử nhập</Link>}>
+    actions={<>{manager && <button type="button" className="button primary" onClick={() => setEditing(true)}>Cập nhật liên kết</button>}<Link className="button" to="/attendance/imports">Lịch sử nhập</Link></>}>
     {notice && <p className="alert success" role="status">{notice}</p>}
     {error && !review && <p className="alert error" role="alert">{error}</p>}
     <ResourceState loading={resource.loading} error={resource.error} reload={resource.reload} />
-    <section className="operations-panel"><p>Mã nhân viên trong hồ sơ và mã đăng ký trên máy là hai trường riêng. Mỗi mã máy chỉ liên kết với một nhân viên, kể cả hồ sơ ngừng hoạt động. Các mã số như 0001 và 1 được coi là cùng mã.</p>
+    <details className="operations-panel attendance-help"><summary>Hướng dẫn liên kết mã máy với nhân viên</summary><p>Mã nhân viên trong hồ sơ và mã đăng ký trên máy là hai trường riêng. Mỗi mã máy chỉ liên kết với một nhân viên, kể cả hồ sơ ngừng hoạt động. Các mã số như 0001 và 1 được coi là cùng mã.</p>
       <p className="operations-note">Khi chuyển mã sang người khác, cần chọn người đang giữ mã, xác nhận xóa liên kết, rồi chọn người nhận mã và xác nhận liên kết mới. Dữ liệu chấm công đã lưu giữ nguyên nhân viên đã xác nhận.</p>
       {!manager && <p className="operations-note">Bạn có quyền tra cứu. HR Staff thực hiện thay đổi liên kết có căn cứ.</p>}
-    </section>
-    {manager && <form className="operations-panel operations-form" onSubmit={submit}><fieldset disabled={busy || resource.loading || !!resource.error}>
+    </details>
+    {manager && editing && <Modal title="Cập nhật liên kết mã máy" busy={busy} onClose={() => setEditing(false)}><form className="operations-panel operations-form" onSubmit={submit}><fieldset disabled={busy || resource.loading || !!resource.error}>
       <div className="operations-grid"><label htmlFor="mapping-employee">Nhân viên<select id="mapping-employee" required value={staffId} onChange={event => choose(event.target.value)}>
         <option value="">Chọn nhân viên sau khi đối chiếu hồ sơ</option>{items.map(item => <option key={item.staffId} value={item.staffId}>{item.staffCode} · {item.staffName}{item.departmentName ? ` · ${item.departmentName}` : ' · Chưa phân khoa'}{item.status !== 'active' ? ' · Ngừng hoạt động' : ''}</option>)}
       </select></label><label htmlFor="mapping-device">Mã đăng ký trên máy<input id="mapping-device" maxLength={50} value={device} onChange={event => { setDevice(event.target.value); setReview(undefined); setConfirmed(false); }} aria-describedby="mapping-device-help" /></label></div>
@@ -81,7 +83,7 @@ export default function AttendanceDeviceMappingsPage() {
       {selected?.status !== 'active' && selected && <p className="alert warning">Nhân viên đã ngừng hoạt động. Chỉ có thể xóa liên kết hiện tại.</p>}
       <label htmlFor="mapping-reason">Căn cứ xác nhận<textarea id="mapping-reason" required maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} placeholder="Ghi nguồn đối chiếu nhân viên với mã máy, biên bản hoặc xác nhận liên quan" /></label>
       <div className="form-actions"><button className="button" type="button" onClick={resource.reload}>Tải lại danh sách</button><button className="button primary" type="submit" disabled={!selected || !reason.trim() || !!conflict || unchanged}>{next ? 'Kiểm tra liên kết' : 'Kiểm tra xóa liên kết'}</button></div>
-    </fieldset></form>}
+    </fieldset></form></Modal>}
     {resource.data && <section className="operations-panel workspace-list-panel"><div className="operations-filters"><label htmlFor="mapping-search">Tìm mã hoặc nhân viên<input id="mapping-search" value={search} onChange={event => setSearch(event.target.value)} /></label></div>
       <DataTable rows={items.filter(item => `${item.staffCode} ${item.staffName} ${item.departmentName || ''} ${item.deviceEnrollId || ''}`.toLocaleLowerCase('vi').includes(search.trim().toLocaleLowerCase('vi')))} rowKey={item => item.staffId} emptyMessage="Không có nhân viên phù hợp." columns={[
         { key: 'staff', label: 'Nhân viên', render: item => <>{item.staffCode}<small className="table-secondary">{item.staffName}</small></> },

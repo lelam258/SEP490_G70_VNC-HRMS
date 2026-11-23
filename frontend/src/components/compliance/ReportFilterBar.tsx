@@ -449,7 +449,7 @@ export default function ReportFilterBar({
               Tìm kiếm (Mã NV, Họ tên, Số/Tên chứng chỉ)
             </label>
             <div className="relative flex items-center">
-              <span className="absolute left-2.5 text-slate-400 pointer-events-none">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none flex items-center">
                 <Icon name="search" size={14} />
               </span>
               <input
@@ -459,6 +459,7 @@ export default function ReportFilterBar({
                 onChange={e => onChangeDraft({ keyword: e.target.value })}
                 placeholder="Nhập tên, mã NV, chứng chỉ…"
                 disabled={loading}
+                style={{ paddingLeft: '32px' }}
                 className="w-full border border-slate-300 rounded pl-8 pr-2.5 py-1.5 text-sm bg-white text-slate-800 placeholder:text-slate-400"
               />
             </div>

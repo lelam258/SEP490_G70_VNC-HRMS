@@ -8,7 +8,7 @@ import { attendanceApi } from '../../services/attendanceApi';
 import { ApiError } from '../../services/axiosClient';
 import type { AttendanceDetail, ReconcileAttendanceInput } from '../../types/attendance';
 import { useAuthStore } from '../../store/useAuthStore';
-import { attendanceLabel, clockTime, instant } from '../../utils/attendance';
+import { attendanceLabel, clockTime, formatAttendanceNote, instant } from '../../utils/attendance';
 import { shortDate, shiftHours } from '../../utils/schedule';
 
 export default function AttendanceRecordDetailPage() {
@@ -80,7 +80,7 @@ export default function AttendanceRecordDetailPage() {
     event.preventDefault();
     if (!data || !id || busy) return;
     if (!reconcileReason.trim()) {
-      setError('Vui lòng nhập lý do và căn cứ đối chiếu chấm công.');
+      setError('Lưu ý: Vui lòng nhập lý do và căn cứ đối chiếu chấm công.');
       document.getElementById('reconcile-reason')?.focus();
       return;
     }
@@ -97,12 +97,15 @@ export default function AttendanceRecordDetailPage() {
         supervisorEvidence: supervisorEvidence.trim() || undefined,
         version: data.version || 'v1',
       });
-      setNotice(result.message);
+      setNotice(formatAttendanceNote(result.message));
       setReconcileReason('');
       resource.reload();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Không thể lưu kết quả đối chiếu.');
-      if (cause instanceof ApiError && cause.status === 409) {
+      setError(formatAttendanceNote(cause instanceof Error ? cause.message : 'Không thể lưu kết quả đối chiếu.'));
+      if (
+        (cause instanceof ApiError && cause.status === 409) ||
+        (cause instanceof Error && cause.message.includes('MSG44'))
+      ) {
         resource.reload();
       }
     } finally {
@@ -114,7 +117,7 @@ export default function AttendanceRecordDetailPage() {
     event.preventDefault();
     if (!data || !id || busy) return;
     if (verifyDecision === 'return' && !verifyReason.trim()) {
-      setError('Vui lòng nhập lý do trả về để đối chiếu lại.');
+      setError('Lưu ý: Vui lòng nhập lý do trả về để đối chiếu lại.');
       document.getElementById('verify-reason')?.focus();
       return;
     }
@@ -128,12 +131,15 @@ export default function AttendanceRecordDetailPage() {
         supervisorEvidence: supervisorEvidence.trim() || undefined,
         version: data.version || 'v1',
       });
-      setNotice(result.message);
+      setNotice(formatAttendanceNote(result.message));
       setVerifyReason('');
       resource.reload();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Không thể xác nhận bản ghi chấm công.');
-      if (cause instanceof ApiError && cause.status === 409) {
+      setError(formatAttendanceNote(cause instanceof Error ? cause.message : 'Không thể xác nhận bản ghi chấm công.'));
+      if (
+        (cause instanceof ApiError && cause.status === 409) ||
+        (cause instanceof Error && cause.message.includes('MSG44'))
+      ) {
         resource.reload();
       }
     } finally {
@@ -174,7 +180,7 @@ export default function AttendanceRecordDetailPage() {
       }
     >
       <ResourceState {...resource} />
-      {notice && <p className="alert success" role="status">{notice}</p>}
+      {notice && <p className="alert success" role="status">{formatAttendanceNote(notice)}</p>}
       {data && item && (
         <div className="att-split">
           {/* CỘT TRÁI: DỮ LIỆU ĐỐI CHIẾU SONG SONG (SIDE-BY-SIDE) */}
@@ -198,7 +204,7 @@ export default function AttendanceRecordDetailPage() {
               </div>
             </div>
 
-            {data.lockedReason && <p className="alert warning" style={{ margin: '6px 0' }}>{attendanceText(data.lockedReason)}</p>}
+            {data.lockedReason && <p className="alert warning" style={{ margin: '6px 0' }}>{formatAttendanceNote(data.lockedReason)}</p>}
 
             <div className="att-meta-bar">
               <span>Nguồn: <strong>{attendanceLabel(item.source)}</strong></span>
@@ -353,7 +359,7 @@ export default function AttendanceRecordDetailPage() {
               </div>
             </div>
 
-            {error && <p className="alert error" role="alert" style={{ margin: '6px 0' }}>{error}</p>}
+            {error && <p className="alert error" role="alert" style={{ margin: '6px 0' }}>{formatAttendanceNote(error)}</p>}
 
             {!isHrStaff ? (
               <div className="oncall-readiness">
@@ -504,13 +510,13 @@ export default function AttendanceRecordDetailPage() {
                     <div style={{ fontSize: 12.5, display: 'grid', gap: 3 }}>
                       <div>Phân loại ca tính công: <strong>{attendanceLabel(item.shiftType)}</strong> tại <strong>{item.facilityName || '—'}</strong></div>
                       <div>Người đối chiếu trước: <strong>{actor(data.reconciledBy)}</strong> · {instant(data.reconciledAt)}</div>
-                      <div>Căn cứ lưu trữ: <span>{attendanceText(data.reconcileNote || data.note) || 'Dữ liệu khớp nguồn máy'}</span></div>
+                      <div>Căn cứ lưu trữ: <span>{formatAttendanceNote(data.reconcileNote || data.note) || 'Dữ liệu khớp nguồn máy'}</span></div>
                     </div>
                   </div>
 
                   {item.status === 'flagged' && verifyDecision === 'confirm' && (
                     <div className="alert warning" style={{ margin: '0 0 8px', fontSize: 12.5 }}>
-                      Bản ghi đang gắn cờ <em>Cần đối chiếu (Flagged)</em>. Hãy thực hiện{' '}
+                      <strong>Lưu ý:</strong> Bản ghi đang gắn cờ <em>Cần đối chiếu (Flagged)</em>. Hãy thực hiện{' '}
                       <button type="button" className="text-button" onClick={() => setActiveTab('reconcile')}>
                         Đối chiếu chấm công
                       </button>{' '}
