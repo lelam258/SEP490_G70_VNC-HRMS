@@ -36,6 +36,7 @@ import MyCertificateListPage from '../pages/me/MyCertificateListPage';
 import MyCmeListPage from '../pages/me/MyCmeListPage';
 import MyLeaveRequestsPage from '../pages/me/MyLeaveRequestsPage';
 import LeaveRequestFormPage from '../pages/me/LeaveRequestFormPage';
+import MyPayslipsPage from '../pages/me/MyPayslipsPage';
 import LeaveApprovalPage from '../pages/leaves/LeaveApprovalPage';
 import ProtectedRoute from './ProtectedRoute';
 import SchedulesPage from '../pages/SchedulesPage';
@@ -120,6 +121,7 @@ export default function AppRoutes() {
             <Route path="/me/leave-requests" element={<MyLeaveRequestsPage />} />
             <Route path="/me/leave-requests/new" element={<LeaveRequestFormPage />} />
             <Route path="/me/leave-requests/:id/edit" element={<LeaveRequestFormPage />} />
+            <Route path="/me/payslips" element={<MyPayslipsPage />} />
           </Route>
           <Route element={<ProtectedRoute roles={['department_head', 'hr_manager', 'admin']} />}>
             <Route path="/leave-approvals" element={<LeaveApprovalPage />} />

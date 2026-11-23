@@ -292,11 +292,11 @@ export default function CommissionResultsPage() {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
             Kết quả tính Hoa hồng Thủ thuật
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            {isAccountant
-              ? 'Tổng hợp và theo dõi hoa hồng ca thủ thuật đã được xác minh theo từng nhân sự và kỳ lương.'
-              : 'Theo dõi bảng kết quả hoa hồng thủ thuật của nhân sự thuộc khoa bạn quản lý.'}
-          </p>
+          {!isAccountant && (
+            <p className="text-sm text-slate-500 mt-1">
+              Theo dõi bảng kết quả hoa hồng thủ thuật của nhân sự thuộc khoa bạn quản lý.
+            </p>
+          )}
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">

@@ -264,9 +264,6 @@ export default function MyCertificateListPage() {
             </span>
             <div>
               <h1 className="text-xl font-bold text-slate-800">Chứng chỉ & Bằng cấp của tôi</h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Hồ sơ năng lực y tế, văn bằng chuyên môn và chứng chỉ hành nghề của bạn tại VNC Clinic
-              </p>
             </div>
           </div>
         </div>

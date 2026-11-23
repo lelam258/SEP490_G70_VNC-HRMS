@@ -316,9 +316,6 @@ export default function MyCmeListPage() {
             <h1 className="text-base font-bold text-slate-900 tracking-tight leading-tight">
               Hồ sơ đào tạo liên tục (CME)
             </h1>
-            <p className="text-[11px] text-slate-500">
-              Tiến độ tích lũy tín chỉ chuyên môn y tế và danh mục khóa học của bạn
-            </p>
           </div>
         </div>
 

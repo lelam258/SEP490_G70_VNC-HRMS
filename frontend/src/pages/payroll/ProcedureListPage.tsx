@@ -731,9 +731,6 @@ export default function ProcedureListPage() {
                 <h2 className="text-sm font-bold text-slate-900 m-0">
                   Bảng lịch sử duyệt & Kiểm tra tình hình phiếu
                 </h2>
-                <p className="text-xs text-slate-500 m-0">
-                  Tra cứu các phiếu đã xử lý theo Bác sĩ chỉ định, Người thực hiện chính, Tháng thực hiện, hoặc trạng thái Đã xác minh / Từ chối.
-                </p>
               </div>
             </div>
 

@@ -131,7 +131,9 @@ public static class PayrollPeriodRules
         decimal EveningDutyCount,
         decimal OvertimeHours,
         decimal OnCallDays,
-        bool HasUnconfirmedAttendance
+        bool HasUnconfirmedAttendance,
+        decimal MaternityCalendarDays = 0m,
+        decimal MaternityMonthRatio = 0m
     );
 
     /// <summary>
@@ -169,10 +171,12 @@ public static class PayrollPeriodRules
         }
 
         var leaveDates = new HashSet<DateOnly>();
+        var maternityDates = new HashSet<DateOnly>();
         decimal paidLeaveDays = 0m;
         decimal unpaidLeaveDays = 0m;
         foreach (var lv in approvedLeaves)
         {
+            var isMaternity = string.Equals(lv.LeaveType, "maternity", StringComparison.OrdinalIgnoreCase);
             var isPaid = !leaveTypesIsPaid.TryGetValue(lv.LeaveType, out var paidFlag) || paidFlag;
             var from = lv.StartDate < monthStart ? monthStart : lv.StartDate;
             var to = lv.EndDate > monthEnd ? monthEnd : lv.EndDate;
@@ -183,6 +187,11 @@ public static class PayrollPeriodRules
 
             for (var d = from; d <= to; d = d.AddDays(1))
             {
+                if (isMaternity)
+                {
+                    maternityDates.Add(d);
+                }
+
                 if (d.DayOfWeek == DayOfWeek.Sunday) continue;
                 if (!leaveDates.Add(d)) continue;
 
@@ -199,6 +208,12 @@ public static class PayrollPeriodRules
                 }
             }
         }
+
+        int daysInMonth = DateTime.DaysInMonth(monthStart.Year, monthStart.Month);
+        decimal maternityCalendarDays = maternityDates.Count;
+        decimal maternityMonthRatio = maternityCalendarDays <= 0m
+            ? 0m
+            : (maternityCalendarDays >= daysInMonth ? 1m : maternityCalendarDays / daysInMonth);
 
         var noonDates = recList
             .Where(r => r.ValidationStatus == "confirmed" && r.ShiftType == "noon")
@@ -237,7 +252,9 @@ public static class PayrollPeriodRules
             EveningDutyCount: eveningDates,
             OvertimeHours: totalOvertimeHours,
             OnCallDays: onCallDays,
-            HasUnconfirmedAttendance: hasUnconfirmed
+            HasUnconfirmedAttendance: hasUnconfirmed,
+            MaternityCalendarDays: maternityCalendarDays,
+            MaternityMonthRatio: maternityMonthRatio
         );
     }
 
@@ -249,7 +266,8 @@ public static class PayrollPeriodRules
         decimal PureAllowanceTotal,
         List<PayslipAllowanceItemDto> PureAllowances,
         decimal NoonDutyCount = 0m,
-        decimal EveningDutyCount = 0m
+        decimal EveningDutyCount = 0m,
+        decimal MaternityPay = 0m
     );
 
     public static decimal ParseDutyCountFromName(string lineName)
@@ -278,6 +296,7 @@ public static class PayrollPeriodRules
         decimal noonPay = 0m;
         decimal eveningPay = 0m;
         decimal overtimePay = 0m;
+        decimal maternityPay = 0m;
         decimal noonCount = 0m;
         decimal eveningCount = 0m;
         var pureItems = new List<PayslipAllowanceItemDto>();
@@ -302,6 +321,11 @@ public static class PayrollPeriodRules
             }
             else
             {
+                if (line.AllowanceId is null
+                    && line.Name.StartsWith("Trợ cấp thai sản", StringComparison.OrdinalIgnoreCase))
+                {
+                    maternityPay += line.Amount;
+                }
                 pureItems.Add(new PayslipAllowanceItemDto(line.Id, line.AllowanceId, line.Name, line.Amount));
             }
         }
@@ -312,7 +336,7 @@ public static class PayrollPeriodRules
             : Math.Max(0m, storedAllowanceTotal - onCallPay - overtimePay);
 
         return new AllowanceSplitResult(
-            noonPay, eveningPay, overtimePay, onCallPay, pureTotal, pureItems, noonCount, eveningCount);
+            noonPay, eveningPay, overtimePay, onCallPay, pureTotal, pureItems, noonCount, eveningCount, maternityPay);
     }
 
     public static bool IsDoctorPosition(Position? position)

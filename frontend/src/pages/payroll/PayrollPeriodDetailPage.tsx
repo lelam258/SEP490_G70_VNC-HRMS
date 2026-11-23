@@ -333,8 +333,7 @@ export default function PayrollPeriodDetailPage() {
       });
       setPayslipDetail(updatedSlip);
       setNotice(
-        `Đã cập nhật trạng thái rà soát cho ${updatedSlip.staffName || 'nhân viên'}: ${
-          REVIEW_STATUS_LABELS[updatedSlip.reviewStatus] || updatedSlip.reviewStatus
+        `Đã cập nhật trạng thái rà soát cho ${updatedSlip.staffName || 'nhân viên'}: ${REVIEW_STATUS_LABELS[updatedSlip.reviewStatus] || updatedSlip.reviewStatus
         }.`
       );
       await loadDetail();
@@ -511,8 +510,8 @@ export default function PayrollPeriodDetailPage() {
       ) {
         const recalcAllowDuty = Math.round(
           inlineBaseRef.fixedAllowanceAndOt +
-            eveningVal * inlineBaseRef.eveningDutyRate +
-            noonVal * inlineBaseRef.noonDutyRate
+          eveningVal * inlineBaseRef.eveningDutyRate +
+          noonVal * inlineBaseRef.noonDutyRate
         );
         next.allowanceAndDutyTotal = formatNumberWithDots(recalcAllowDuty);
       }
@@ -778,8 +777,8 @@ export default function PayrollPeriodDetailPage() {
                     !r.hasContract
                       ? 'Chưa có hợp đồng lao động'
                       : !r.attendanceConfirmed
-                      ? 'Chưa chốt công'
-                      : 'Thủ thuật y tế chờ duyệt'
+                        ? 'Chưa chốt công'
+                        : 'Thủ thuật y tế chờ duyệt'
                   }
                 />
               )}
@@ -886,8 +885,8 @@ export default function PayrollPeriodDetailPage() {
           totalDuty === 0
             ? '0 trực'
             : hasExactSplit
-            ? dutyParts.join(', ')
-            : `${totalDuty} trực`;
+              ? dutyParts.join(', ')
+              : `${totalDuty} trực`;
 
         const dutyTooltip =
           totalDuty > 0 && (noon > 0 || evening > 0)
@@ -979,9 +978,8 @@ export default function PayrollPeriodDetailPage() {
         const commission = r.commissionTotal || 0;
         return (
           <span
-            className={`text-xs font-medium text-slate-800 dark:text-slate-200 tabular-nums${
-              commission === 0 ? ' block text-center' : ''
-            }`}
+            className={`text-xs font-medium text-slate-800 dark:text-slate-200 tabular-nums${commission === 0 ? ' block text-center' : ''
+              }`}
           >
             {formatVnd(commission)}
           </span>
@@ -1006,9 +1004,8 @@ export default function PayrollPeriodDetailPage() {
         const gross = r.grossPay || 0;
         return (
           <span
-            className={`text-xs font-semibold text-slate-900 dark:text-slate-100 tabular-nums${
-              gross === 0 ? ' block text-center' : ''
-            }`}
+            className={`text-xs font-semibold text-slate-900 dark:text-slate-100 tabular-nums${gross === 0 ? ' block text-center' : ''
+              }`}
           >
             {formatVnd(gross)}
           </span>
@@ -1074,9 +1071,8 @@ export default function PayrollPeriodDetailPage() {
         const net = r.netPay || 0;
         return (
           <span
-            className={`text-xs font-bold text-emerald-700 dark:text-emerald-400 tabular-nums${
-              net === 0 ? ' block text-center' : ''
-            }`}
+            className={`text-xs font-bold text-emerald-700 dark:text-emerald-400 tabular-nums${net === 0 ? ' block text-center' : ''
+              }`}
           >
             {formatVnd(net)}
           </span>
@@ -1332,22 +1328,20 @@ export default function PayrollPeriodDetailPage() {
                   return (
                     <div key={s.step} className="flex items-center gap-1.5">
                       <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
-                          completed
-                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                            : active
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${completed
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          : active
                             ? 'bg-sky-50 text-sky-800 border border-sky-300 font-semibold shadow-2xs'
                             : 'bg-white text-slate-500 border border-slate-200/80'
-                        }`}
+                          }`}
                       >
                         <span
-                          className={`w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${
-                            completed
-                              ? 'bg-emerald-600 text-white'
-                              : active
+                          className={`w-4 h-4 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${completed
+                            ? 'bg-emerald-600 text-white'
+                            : active
                               ? 'bg-sky-600 text-white'
                               : 'bg-slate-300 text-white'
-                          }`}
+                            }`}
                         >
                           {completed ? '✓' : s.step}
                         </span>
@@ -1366,11 +1360,10 @@ export default function PayrollPeriodDetailPage() {
               {/* Right: Readiness Pills & Key Dates */}
               <div className="flex items-center gap-2 flex-wrap text-xs">
                 <span
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-medium ${
-                    detail.attendanceLocked
-                      ? 'bg-emerald-50/70 text-emerald-800 border-emerald-200'
-                      : 'bg-amber-50 text-amber-800 border-amber-200'
-                  }`}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-medium ${detail.attendanceLocked
+                    ? 'bg-emerald-50/70 text-emerald-800 border-emerald-200'
+                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                    }`}
                   title={
                     detail.attendanceLocked
                       ? 'Dữ liệu chấm công toàn cơ sở đã được HR chốt hợp lệ.'
@@ -1378,19 +1371,17 @@ export default function PayrollPeriodDetailPage() {
                   }
                 >
                   <span
-                    className={`w-2 h-2 rounded-full ${
-                      detail.attendanceLocked ? 'bg-emerald-500' : 'bg-amber-500'
-                    }`}
+                    className={`w-2 h-2 rounded-full ${detail.attendanceLocked ? 'bg-emerald-500' : 'bg-amber-500'
+                      }`}
                   />
                   <span>Công tháng: {detail.attendanceLocked ? 'Đã khóa' : 'Chưa chốt'}</span>
                 </span>
 
                 <span
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-medium ${
-                    detail.proceduresVerified
-                      ? 'bg-emerald-50/70 text-emerald-800 border-emerald-200'
-                      : 'bg-amber-50 text-amber-800 border-amber-200'
-                  }`}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-medium ${detail.proceduresVerified
+                    ? 'bg-emerald-50/70 text-emerald-800 border-emerald-200'
+                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                    }`}
                   title={
                     detail.proceduresVerified
                       ? 'Tất cả phiếu thủ thuật đã được xác minh.'
@@ -1398,9 +1389,8 @@ export default function PayrollPeriodDetailPage() {
                   }
                 >
                   <span
-                    className={`w-2 h-2 rounded-full ${
-                      detail.proceduresVerified ? 'bg-emerald-500' : 'bg-amber-500'
-                    }`}
+                    className={`w-2 h-2 rounded-full ${detail.proceduresVerified ? 'bg-emerald-500' : 'bg-amber-500'
+                      }`}
                   />
                   <span>Thủ thuật: {detail.proceduresVerified ? 'Đã duyệt' : 'Chờ duyệt'}</span>
                 </span>
@@ -1674,15 +1664,15 @@ export default function PayrollPeriodDetailPage() {
                 {(!payslipDetail.hasContract ||
                   !payslipDetail.attendanceConfirmed ||
                   !payslipDetail.procedureConfirmed) && (
-                  <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1">
-                    <div className="font-semibold text-amber-800">Cảnh báo dữ liệu đầu vào:</div>
-                    <ul className="list-disc list-inside text-amber-800/90 space-y-0.5">
-                      {!payslipDetail.hasContract && <li>Nhân sự chưa có hợp đồng lao động hiệu lực.</li>}
-                      {!payslipDetail.attendanceConfirmed && <li>Bảng chấm công tháng chưa được chốt xác nhận đủ.</li>}
-                      {!payslipDetail.procedureConfirmed && <li>Phiếu thủ thuật y tế trong tháng chưa được duyệt hết.</li>}
-                    </ul>
-                  </div>
-                )}
+                    <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1">
+                      <div className="font-semibold text-amber-800">Cảnh báo dữ liệu đầu vào:</div>
+                      <ul className="list-disc list-inside text-amber-800/90 space-y-0.5">
+                        {!payslipDetail.hasContract && <li>Nhân sự chưa có hợp đồng lao động hiệu lực.</li>}
+                        {!payslipDetail.attendanceConfirmed && <li>Bảng chấm công tháng chưa được chốt xác nhận đủ.</li>}
+                        {!payslipDetail.procedureConfirmed && <li>Phiếu thủ thuật y tế trong tháng chưa được duyệt hết.</li>}
+                      </ul>
+                    </div>
+                  )}
 
                 {/* Top 4-Card KPI Summary Strip */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
@@ -1709,8 +1699,8 @@ export default function PayrollPeriodDetailPage() {
                     <strong className="text-sm font-bold text-rose-800 block mt-0.5 tabular-nums">
                       {formatVnd(
                         payslipDetail.insuranceDeduction +
-                          payslipDetail.unionFeeDeduction +
-                          payslipDetail.taxDeduction
+                        payslipDetail.unionFeeDeduction +
+                        payslipDetail.taxDeduction
                       )}
                     </strong>
                     <span className="text-[10px] text-rose-600/90">BHXH, Công đoàn &amp; Thuế</span>
@@ -1768,13 +1758,16 @@ export default function PayrollPeriodDetailPage() {
                     <div className="flex justify-between gap-2">
                       <span
                         className="text-slate-500 whitespace-nowrap shrink-0"
-                        title="Ngày công tính lương (đã bao gồm phép có lương)"
+                        title="Ngày công tính lương (theo ngày đi làm thực tế)"
                       >
                         Ngày công tính lương:
                       </span>
                       <strong className="text-slate-800 text-right whitespace-nowrap">
-                        {payslipDetail.workDays} công ({payslipDetail.paidLeaveDays} phép,{' '}
-                        {payslipDetail.unpaidLeaveDays} không lương)
+                        {payslipDetail.paidLeaveDays > 0
+                          ? `${payslipDetail.workDays} công (${payslipDetail.paidLeaveDays} phép, ${payslipDetail.unpaidLeaveDays} không lương)`
+                          : payslipDetail.unpaidLeaveDays > 0
+                          ? `${payslipDetail.workDays} công (Nghỉ: ${payslipDetail.unpaidLeaveDays} ngày)`
+                          : `${payslipDetail.workDays} công`}
                       </strong>
                     </div>
                     <div className="flex justify-between gap-2">
@@ -1834,7 +1827,9 @@ export default function PayrollPeriodDetailPage() {
                         )}
                         {payslipDetail.allowances.map((a) => (
                           <div key={a.id} className="flex justify-between py-1 border-b border-dashed border-slate-200">
-                            <span className="text-slate-600">PC {a.name}:</span>
+                            <span className="text-slate-600">
+                              {a.name.startsWith('Trợ cấp thai sản') ? `${a.name}:` : `PC ${a.name}:`}
+                            </span>
                             <strong className="text-slate-800 tabular-nums">{formatVnd(a.amount)}</strong>
                           </div>
                         ))}
@@ -1916,8 +1911,8 @@ export default function PayrollPeriodDetailPage() {
                         <span className="text-rose-700 tabular-nums">
                           {formatVnd(
                             payslipDetail.insuranceDeduction +
-                              payslipDetail.unionFeeDeduction +
-                              payslipDetail.taxDeduction
+                            payslipDetail.unionFeeDeduction +
+                            payslipDetail.taxDeduction
                           )}
                         </span>
                       </div>

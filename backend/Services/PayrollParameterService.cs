@@ -607,6 +607,44 @@ public sealed class PayrollParameterService(
         return newSummary;
     }
 
+    public async Task<TaxPolicySummaryDto> UpdateTaxDeductionsAsync(
+        UpdateTaxDeductionsRequest request, CancellationToken ct)
+    {
+        if (request.PersonalDeduction <= 0m)
+        {
+            throw new AppException(400, "Mức giảm trừ bản thân phải lớn hơn 0.");
+        }
+        if (request.DependentDeduction < 0m)
+        {
+            throw new AppException(400, "Mức giảm trừ người phụ thuộc không được âm.");
+        }
+        if (request.TaxFlatThreshold < 0m)
+        {
+            throw new AppException(400, "Ngưỡng khấu trừ vãng lai không được âm.");
+        }
+
+        var oldSummary = await repository.GetTaxPolicySummaryAsync(ct);
+        var oldSnapshot = new
+        {
+            oldSummary.PersonalDeduction,
+            oldSummary.DependentDeduction,
+            oldSummary.TaxFlatThreshold
+        };
+
+        var newSummary = await repository.UpdateTaxDeductionsAsync(request, Guid.Empty, ct);
+        var newSnapshot = new
+        {
+            newSummary.PersonalDeduction,
+            newSummary.DependentDeduction,
+            newSummary.TaxFlatThreshold
+        };
+
+        auditHelper.Log("update", "TaxDeductions", Guid.Empty, oldSnapshot, newSnapshot);
+        await unitOfWork.SaveChangesAsync(ct);
+
+        return newSummary;
+    }
+
     public async Task<TaxCalculationResultDto> PreviewTaxCalculationAsync(TaxCalculationPreviewRequest request, CancellationToken ct)
     {
         var summary = await repository.GetTaxPolicySummaryAsync(ct);

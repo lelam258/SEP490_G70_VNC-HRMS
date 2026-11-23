@@ -17,4 +17,9 @@ public interface IPayrollPeriodService
     Task<PayrollPeriodDetailDto> FinalizePeriodAsync(Guid userId, string payMonth, FinalizePayrollPeriodRequest request, CancellationToken ct);
     Task<PayrollPeriodDetailDto> UpdatePayslipInlineAsync(Guid userId, string payMonth, Guid payslipId, UpdatePayslipInlineRequest request, CancellationToken ct);
     Task DeletePeriodAsync(Guid userId, string payMonth, CancellationToken ct);
+
+    // Self-service My Payslip (SRS 6.13)
+    Task<List<MyPayslipSummaryDto>> ListMyPayslipsAsync(Guid userId, int? year, CancellationToken ct);
+    Task<MyPayslipMonthLookupDto> GetMyPayslipByMonthAsync(Guid userId, string payMonth, CancellationToken ct);
+    Task<PayslipDetailDto> GetMyPayslipDetailAsync(Guid userId, Guid payslipId, CancellationToken ct);
 }

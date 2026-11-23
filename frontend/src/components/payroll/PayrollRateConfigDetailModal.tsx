@@ -1,7 +1,14 @@
 import type { PayrollRateConfig } from '../../types/payroll';
 import Modal from '../ui/Modal';
 import Icon from '../ui/Icon';
-import { formatDate, formatDateOnly, formatVnd, formatPercent } from '../../utils/format';
+import { formatDateOnly, formatVnd, formatPercent } from '../../utils/format';
+
+function formatCreatedAtFull(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 interface PayrollRateConfigDetailModalProps {
   item: PayrollRateConfig | null;
@@ -79,20 +86,20 @@ export default function PayrollRateConfigDetailModal({
   return (
     <Modal
       title="Chi tiết tham số lương"
-      maxWidth="500px"
+      maxWidth="520px"
       onClose={onClose}
     >
-      <div className="space-y-4 pt-1 pb-1 text-slate-800 dark:text-slate-100">
-        {/* Hero Section: Thiết kế sạch, sang trọng, tập trung vào giá trị chính */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-b from-sky-50/50 to-white dark:from-slate-800/60 dark:to-slate-900 border border-slate-200/80 dark:border-slate-800 p-4 sm:p-5">
+      <div className="px-6 py-4 space-y-3.5 text-slate-800 dark:text-slate-100">
+        {/* Hero Section: Căn đều 2 mép, tập trung vào giá trị chính */}
+        <div className="relative overflow-hidden rounded-xl bg-gradient-to-b from-sky-50/60 to-white dark:from-slate-800/60 dark:to-slate-900 border border-slate-200/90 dark:border-slate-800 px-4 py-3">
           <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1.5 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sky-100/70 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300">
+            <div className="space-y-1 min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10.5px] font-semibold bg-sky-100/80 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300">
                   {categoryLabel}
                 </span>
                 <span
-                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${
+                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10.5px] font-semibold ${
                     item.status === 'active'
                       ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400'
                       : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
@@ -107,7 +114,7 @@ export default function PayrollRateConfigDetailModal({
                 </span>
               </div>
 
-              <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
                 {displayName}
               </h3>
             </div>
@@ -115,83 +122,73 @@ export default function PayrollRateConfigDetailModal({
             {/* Khối tiền nổi bật */}
             <div className="text-right shrink-0">
               <div className="flex items-baseline justify-end gap-1">
-                <span className="text-2xl font-bold tracking-tight text-sky-600 dark:text-sky-400 font-[tabular-nums]">
+                <span className="text-xl font-bold tracking-tight text-sky-600 dark:text-sky-400 tabular-nums">
                   {formattedValue}
                 </span>
                 {unitSuffix && (
-                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                  <span className="text-[11.5px] font-medium text-slate-500 dark:text-slate-400">
                     {unitSuffix}
                   </span>
                 )}
               </div>
-              <span className="text-[11px] text-slate-400 dark:text-slate-500 block mt-0.5">
+              <span className="text-[10.5px] text-slate-400 dark:text-slate-500 block mt-0.5">
                 Mức áp dụng hiện hành
               </span>
             </div>
           </div>
         </div>
 
-        {/* Danh sách thuộc tính: Thiết kế phẳng, thanh lịch, chia hàng sạch sẽ */}
-        <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 text-sm">
+        {/* Danh sách thuộc tính: Phẳng, gọn, thẳng hàng */}
+        <div className="rounded-xl border border-slate-200/90 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 text-sm">
           {/* Hàng 1: Phạm vi áp dụng */}
-          <div className="flex items-center justify-between px-4 py-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-            <span className="text-slate-500 dark:text-slate-400 text-xs font-medium">
+          <div className="flex items-center justify-between gap-4 px-4 py-2.5 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+            <span className="text-slate-500 dark:text-slate-400 text-xs font-medium shrink-0">
               Phạm vi áp dụng
             </span>
             <div className="text-right">
-              <span className="font-semibold text-slate-900 dark:text-slate-100 block">
+              <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm block">
                 {scopeDisplay.title}
               </span>
-              <span className="text-xs text-slate-400 dark:text-slate-500 block">
+              <span className="text-[11px] text-slate-400 dark:text-slate-500 block">
                 {scopeDisplay.subtitle}
               </span>
             </div>
           </div>
 
           {/* Hàng 2: Thời hạn hiệu lực */}
-          <div className="flex items-center justify-between px-4 py-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-            <span className="text-slate-500 dark:text-slate-400 text-xs font-medium">
+          <div className="flex items-center justify-between gap-4 px-4 py-2.5 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+            <span className="text-slate-500 dark:text-slate-400 text-xs font-medium shrink-0">
               Thời hạn hiệu lực
             </span>
-            <div className="text-right font-[tabular-nums]">
+            <div className="text-right text-sm tabular-nums">
               <span className="font-semibold text-slate-900 dark:text-slate-100">
                 {formatDateOnly(item.effectiveFrom)}
               </span>
               <span className="text-slate-400 mx-1.5">→</span>
-              <span className={item.effectiveTo ? 'font-semibold text-slate-900 dark:text-slate-100' : 'text-emerald-600 dark:text-emerald-400 font-medium'}>
+              <span className={item.effectiveTo ? 'font-semibold text-slate-900 dark:text-slate-100' : 'text-emerald-600 dark:text-emerald-400 font-semibold'}>
                 {item.effectiveTo ? formatDateOnly(item.effectiveTo) : 'Hiện tại'}
               </span>
             </div>
           </div>
 
-          {/* Hàng 3: Mã tham số hệ thống */}
-          <div className="flex items-center justify-between px-4 py-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-            <span className="text-slate-500 dark:text-slate-400 text-xs font-medium">
-              Mã tham số
-            </span>
-            <code className="text-xs font-mono font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200/60 dark:border-slate-700">
-              {item.code}
-            </code>
-          </div>
-
-          {/* Hàng 4: Thời gian khởi tạo */}
+          {/* Hàng 3: Thời gian khởi tạo */}
           {item.createdAt && (
-            <div className="flex items-center justify-between px-4 py-3 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-              <span className="text-slate-500 dark:text-slate-400 text-xs font-medium">
+            <div className="flex items-center justify-between gap-4 px-4 py-2.5 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+              <span className="text-slate-500 dark:text-slate-400 text-xs font-medium shrink-0">
                 Khởi tạo lúc
               </span>
-              <span className="text-xs text-slate-600 dark:text-slate-300 font-[tabular-nums]">
-                {formatDate(item.createdAt)}
+              <span className="text-xs text-slate-600 dark:text-slate-300 tabular-nums">
+                {formatCreatedAtFull(item.createdAt)}
               </span>
             </div>
           )}
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-end gap-2.5 pt-2">
+        <div className="flex items-center justify-end gap-2.5 pt-1">
           <button
             type="button"
-            className="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 text-sm font-medium transition-colors"
+            className="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 text-sm font-medium transition-colors cursor-pointer"
             onClick={onClose}
           >
             Đóng
@@ -199,7 +196,7 @@ export default function PayrollRateConfigDetailModal({
           {onEdit && (
             <button
               type="button"
-              className="h-9 px-4 rounded-lg bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white text-sm font-medium transition-colors flex items-center gap-1.5 shadow-xs"
+              className="h-9 px-4 rounded-lg bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white text-sm font-medium transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
               onClick={() => {
                 onClose();
                 onEdit(item);

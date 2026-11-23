@@ -74,7 +74,7 @@ export default function AuditLogPage({ history = false }: { history?: boolean })
       {detail.data.sourceUrl && <Link className="button" to={detail.data.sourceUrl}>Mở bản ghi nguồn</Link>}
     </>}<div className="form-actions"><button type="button" className="button" onClick={() => setSelected('')}>Đóng</button></div></div></Modal>}
   </>;
-  return history ? <AttendanceShell layout="list" title="Lịch sử chấm công / ca" description="Tra cứu các lần nhập, điều chỉnh, phân công và thay đổi trạng thái đã ghi nhận."
+  return history ? <AttendanceShell layout="list" title="Lịch sử chấm công / ca" description=""
     actions={canExport && <button type="button" className="button" disabled={exporting || resource.loading || !!resource.error} onClick={() => void exportHistory()}>{exporting ? 'Đang xuất…' : 'Xuất lịch sử'}</button>}>{content}</AttendanceShell>
     : <section className="directory-page operations-page workspace-list-page"><header className="directory-heading"><div><span className="eyebrow">QUẢN TRỊ HỆ THỐNG</span><h1>Nhật ký hệ thống</h1><p>Tra cứu thay đổi tài khoản và nghiệp vụ đã được ghi nhận.</p></div></header>{content}</section>;
 }

@@ -79,6 +79,8 @@ export default function AppLayout() {
     ? 'Duyệt đơn nghỉ phép'
     : location.pathname.startsWith('/me/leave-requests')
     ? 'Đơn nghỉ phép'
+    : location.pathname.startsWith('/me/payslips')
+    ? 'Phiếu lương của tôi'
     : location.pathname === '/change-password'
     ? 'Đổi mật khẩu'
     : 'Trang chủ';
@@ -253,6 +255,10 @@ export default function AppLayout() {
                 <NavLink to="/me/leave-requests" className={navClass}>
                   <Icon name="clock" />
                   Đơn nghỉ phép
+                </NavLink>
+                <NavLink to="/me/payslips" className={navClass}>
+                  <Icon name="fileText" />
+                  Phiếu lương của tôi
                 </NavLink>
               </>
             )}

@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { payrollParameterApi } from '../../services/payrollParameterApi';
-import { employeeApi } from '../../services/employeeApi';
+import { compensationApi } from '../../services/compensationApi';
 import type {
   AllowanceType,
   InsuranceConfig,
   TaxBracket,
   TaxPolicySummary,
   UpdateTaxPolicyFlagsInput,
+  UpdateTaxDeductionsInput,
   PayrollRateConfig,
   CommissionRule,
   CommissionMatrix,
@@ -22,6 +23,7 @@ import { formatVnd, formatPercent, formatDateRange } from '../../utils/format';
 import AllowanceTypeForm from '../../components/payroll/AllowanceTypeForm';
 import InsuranceConfigForm from '../../components/payroll/InsuranceConfigForm';
 import TaxBracketForm from '../../components/payroll/TaxBracketForm';
+import TaxDeductionsForm from '../../components/payroll/TaxDeductionsForm';
 import PayrollRateConfigForm from '../../components/payroll/PayrollRateConfigForm';
 import CommissionRuleForm from '../../components/payroll/CommissionRuleForm';
 import CommissionMatrixView from '../../components/payroll/CommissionMatrixView';
@@ -81,7 +83,7 @@ export default function PayrollParameterPage() {
   // Modals state
   const [viewingRateConfig, setViewingRateConfig] = useState<PayrollRateConfig | null>(null);
   const [modalType, setModalType] = useState<
-    'allowance' | 'insurance' | 'tax' | 'rate' | 'commission' | 'override' | null
+    'allowance' | 'insurance' | 'tax' | 'tax_deductions' | 'rate' | 'commission' | 'override' | null
   >(null);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [saving, setSaving] = useState(false);
@@ -158,10 +160,16 @@ export default function PayrollParameterPage() {
     void loadData();
   }, [loadData]);
 
-  // Load staff list once for rate config & overrides
+  // Tải danh sách nhân viên qua hợp đồng đãi ngộ (kế toán có quyền đọc, dùng cho mức hoa hồng riêng)
   useEffect(() => {
-    void employeeApi.list().then(list => {
-      setStaffList(list.map(e => ({ id: e.id, code: e.code, name: e.name })));
+    void compensationApi.listContracts({}).then(contracts => {
+      const seen = new Map<string, { id: string; code: string; name: string }>();
+      for (const c of contracts) {
+        if (!seen.has(c.staffId)) {
+          seen.set(c.staffId, { id: c.staffId, code: c.staffCode, name: c.staffName });
+        }
+      }
+      setStaffList(Array.from(seen.values()));
     }).catch(() => {});
   }, []);
 
@@ -355,7 +363,22 @@ export default function PayrollParameterPage() {
     }
   }
 
-    async function handleToggleTaxPolicyFlag(key: 'union' | 'other' | 'flat_base', value: any) {
+    async function handleSaveTaxDeductions(input: UpdateTaxDeductionsInput) {
+    setSaving(true);
+    setSaveError('');
+    try {
+      const updated = await payrollParameterApi.updateTaxDeductions(input);
+      setTaxPolicy(updated);
+      setModalType(null);
+      setNotice('Đã cập nhật mức giảm trừ gia cảnh & ngưỡng khấu trừ vãng lai.');
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : 'Lỗi khi cập nhật mức giảm trừ.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleToggleTaxPolicyFlag(key: 'union' | 'other' | 'flat_base', value: any) {
     if (!taxPolicy) return;
     try {
       const payload: UpdateTaxPolicyFlagsInput = {};
@@ -613,24 +636,24 @@ export default function PayrollParameterPage() {
     if (r.code === 'duty_extra_hour_multiplier') {
       return (
         <div className="flex flex-col items-end">
-          <span className="font-[tabular-nums] font-semibold text-slate-900 dark:text-slate-100">150%</span>
+          <span className="tabular-nums font-semibold text-slate-900 dark:text-slate-100">150%</span>
           <span className="text-[11px] text-slate-500 font-normal">Lương giờ = lương ngày ÷ 8</span>
         </div>
       );
     }
     if (r.unit === 'percent') {
-      return <span className="font-[tabular-nums] font-semibold text-slate-900 dark:text-slate-100">{r.value}%</span>;
+      return <span className="tabular-nums font-semibold text-slate-900 dark:text-slate-100">{r.value}%</span>;
     }
     if (r.unit === 'days') {
       return (
-        <span className="font-[tabular-nums] font-semibold text-slate-900 dark:text-slate-100">
+        <span className="tabular-nums font-semibold text-slate-900 dark:text-slate-100">
           {r.value} <span className="text-xs text-slate-500 font-normal">ngày</span>
         </span>
       );
     }
     const unitSuffix = r.code.startsWith('duty_') ? ' / ca' : r.code === 'union_fee' ? ' / tháng' : '';
     return (
-      <span className="font-[tabular-nums] font-semibold text-slate-900 dark:text-slate-100">
+      <span className="tabular-nums font-semibold text-slate-900 dark:text-slate-100">
         {formatVnd(r.value)}
         {unitSuffix && <span className="text-xs text-slate-500 font-normal">{unitSuffix}</span>}
       </span>
@@ -681,14 +704,13 @@ export default function PayrollParameterPage() {
   }, [rateConfigs]);
 
   return (
-    <div className="space-y-3 workspace-content-page">
+    <div className="workspace-list-page payroll-parameters-page">
       {/* 1. Đầu trang */}
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
           Tham số lương
         </h1>
       </div>
-      <div className="workspace-section-body">
 
       {notice && <Alert variant="success">{notice}</Alert>}
 
@@ -789,9 +811,9 @@ export default function PayrollParameterPage() {
       </div>
 
       {/* 3. Khung nội dung của mỗi Tab: Card nền trắng, viền mảnh, header 1 hàng chuẩn desktop */}
-      <div className="panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden">
-        {/* Header của card: 1 hàng tinh giản chuẩn desktop, không thanh cuộn */}
-        <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap xl:flex-nowrap items-center justify-between gap-3">
+      <div className="panel workspace-list-panel payroll-parameters-panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden">
+        {/* Header của card: 1 hàng tinh giản chuẩn desktop, đứng yên */}
+        <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap xl:flex-nowrap items-center justify-between gap-3 shrink-0">
           {/* Trái: Nếu là tab Hoa hồng hoặc Đơn giá thì hiện cụm nút chuyển nhanh; các tab khác hiện Tiêu đề + Badge */}
           {activeTab === 'commission' ? (
             <div className="inline-flex p-1 rounded-lg bg-slate-100/90 border border-slate-200/80 shrink-0">
@@ -1010,7 +1032,7 @@ export default function PayrollParameterPage() {
             ))}
           </div>
         ) : (
-          <div>
+          <div className="payroll-parameters-body">
             {/* ================= TAB 1: PHỤ CẤP ================= */}
             {activeTab === 'allowances' && (
               filteredAllowances.length === 0 ? (
@@ -1022,7 +1044,7 @@ export default function PayrollParameterPage() {
                   </button>
                 </div>
               ) : (
-                <div className="overflow-x-auto workspace-table-region">
+                <div className="min-w-full">
                   <table className="w-full text-left text-sm table-fixed">
                     <colgroup>
                       <col style={{ width: '25%' }} />
@@ -1088,7 +1110,7 @@ export default function PayrollParameterPage() {
                             <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
                               {methodMap[a.defaultCalcMethod] || a.defaultCalcMethod}
                             </td>
-                            <td className="px-4 py-3 font-[tabular-nums] text-slate-900 dark:text-slate-100">
+                            <td className="px-4 py-3 tabular-nums text-slate-900 dark:text-slate-100">
                               {valDisplay}
                             </td>
                             <td className="px-4 py-3">
@@ -1151,7 +1173,7 @@ export default function PayrollParameterPage() {
                   </button>
                 </div>
               ) : (
-                <div className="overflow-x-auto workspace-table-region">
+                <div className="min-w-full">
                   <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
                       <tr>
@@ -1182,10 +1204,10 @@ export default function PayrollParameterPage() {
                             <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
                               {i.payer === 'employee' ? 'Người lao động' : 'Người sử dụng LĐ'}
                             </td>
-                            <td className="px-4 py-3 text-right font-[tabular-nums] text-slate-900 dark:text-slate-100">
+                            <td className="px-4 py-3 text-right tabular-nums text-slate-900 dark:text-slate-100">
                               {formatPercent(i.ratePercent)}
                             </td>
-                            <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs font-[tabular-nums]">
+                            <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs tabular-nums">
                               {formatDateRange(i.effectiveFrom, i.effectiveTo)}
                             </td>
                             <td className="px-4 py-3">
@@ -1250,7 +1272,7 @@ export default function PayrollParameterPage() {
                     </button>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto border-b border-slate-200 dark:border-slate-800 workspace-table-region">
+                  <div className="min-w-full border-b border-slate-200 dark:border-slate-800">
                     <table className="w-full text-left text-sm">
                       <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
                         <tr>
@@ -1270,13 +1292,13 @@ export default function PayrollParameterPage() {
                                 Bậc {idx + 1}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-right font-[tabular-nums] text-slate-900 dark:text-slate-100">
+                            <td className="px-4 py-3 text-right tabular-nums text-slate-900 dark:text-slate-100">
                               {t.incomeTo ? `${formatVnd(t.incomeFrom)} → ${formatVnd(t.incomeTo)}` : `Trên ${formatVnd(t.incomeFrom)}`}
                             </td>
-                            <td className="px-4 py-3 text-right font-[tabular-nums] text-slate-900 dark:text-slate-100">
+                            <td className="px-4 py-3 text-right tabular-nums text-slate-900 dark:text-slate-100">
                               {formatPercent(t.taxRatePercent)}
                             </td>
-                            <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs font-[tabular-nums]">
+                            <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs tabular-nums">
                               {formatDateRange(t.effectiveFrom, t.effectiveTo)}
                             </td>
                             <td className="px-4 py-3">
@@ -1339,52 +1361,57 @@ export default function PayrollParameterPage() {
                           Căn cứ giảm trừ thu nhập trước khi tính thuế TNCN theo quy chế phòng khám
                         </p>
                       </div>
+                      {taxPolicy && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSaveError('');
+                            setModalType('tax_deductions');
+                          }}
+                          className="h-8 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold inline-flex items-center gap-1.5 self-start sm:self-auto shadow-2xs transition-colors cursor-pointer shrink-0"
+                        >
+                          <Icon name="edit" size={13} />
+                          <span>Chỉnh sửa</span>
+                        </button>
+                      )}
                     </div>
 
                     {/* 3 Thẻ chỉ số mức giảm trừ */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="bg-white dark:bg-slate-800 p-3.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
                         <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Giảm trừ bản thân</span>
-                        <div className="text-lg font-bold text-sky-700 dark:text-sky-400 mt-1">
+                        <div className="text-lg font-bold text-sky-700 dark:text-sky-400 mt-1 tabular-nums">
                           {taxPolicy ? formatVnd(taxPolicy.personalDeduction) : '15.500.000 ₫'}
                           <span className="text-xs font-normal text-slate-400 ml-1">/tháng</span>
                         </div>
-                        <span className="text-[11px] text-slate-400 mt-1 block">Áp dụng cho mọi nhân viên có ký HĐLĐ</span>
                       </div>
 
                       <div className="bg-white dark:bg-slate-800 p-3.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
                         <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Giảm trừ người phụ thuộc</span>
-                        <div className="text-lg font-bold text-sky-700 dark:text-sky-400 mt-1">
+                        <div className="text-lg font-bold text-sky-700 dark:text-sky-400 mt-1 tabular-nums">
                           {taxPolicy ? formatVnd(taxPolicy.dependentDeduction) : '6.200.000 ₫'}
                           <span className="text-xs font-normal text-slate-400 ml-1">/người/tháng</span>
                         </div>
-                        <span className="text-[11px] text-slate-400 mt-1 block">Đăng ký người phụ thuộc hợp lệ</span>
                       </div>
 
                       <div className="bg-white dark:bg-slate-800 p-3.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
                         <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Ngưỡng khấu trừ vãng lai</span>
-                        <div className="text-lg font-bold text-amber-600 dark:text-amber-400 mt-1">
+                        <div className="text-lg font-bold text-amber-600 dark:text-amber-400 mt-1 tabular-nums">
                           {taxPolicy ? formatVnd(taxPolicy.taxFlatThreshold) : '5.000.000 ₫'}
                           <span className="text-xs font-normal text-slate-400 ml-1">/lần chi trả</span>
                         </div>
-                        <span className="text-[11px] text-slate-400 mt-1 block">Khấu trừ cố định 10% nếu từ 5M trở lên</span>
                       </div>
                     </div>
 
                     {/* Chính sách khấu trừ đoàn phí công đoàn */}
                     <div className="pt-3 border-t border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3.5 rounded-lg border border-sky-100 dark:border-sky-900/60 bg-white dark:bg-slate-800">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-                            Khấu trừ Đoàn phí công đoàn trước thuế
-                          </span>
-                          <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded font-medium">
-                            Quy chế nội bộ VNC
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                          Đoàn phí 100.000 ₫/tháng của công đoàn viên được trừ vào thu nhập trước khi tính thuế TNCN
-                        </p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                          Khấu trừ Đoàn phí công đoàn trước thuế
+                        </span>
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-2 py-0.5 rounded font-medium">
+                          Quy chế nội bộ VNC
+                        </span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <button
@@ -1460,7 +1487,7 @@ export default function PayrollParameterPage() {
                       </button>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto border border-slate-200 rounded-lg bg-white workspace-table-region">
+                    <div className="min-w-full border border-slate-200 rounded-lg bg-white">
                       <table className="w-full text-left text-sm border-collapse">
                         <thead className="bg-slate-50/90 text-slate-500 text-[11px] font-semibold uppercase tracking-wider border-b border-slate-200">
                           <tr>
@@ -1506,10 +1533,10 @@ export default function PayrollParameterPage() {
                                     </span>
                                   )}
                                 </td>
-                                <td className="px-4 py-2.5 text-right font-[tabular-nums] text-[13px] font-semibold text-slate-800">
+                                <td className="px-4 py-2.5 text-right tabular-nums text-[13px] font-semibold text-slate-800">
                                   {valStr}
                                 </td>
-                                <td className="px-4 py-2.5 text-slate-500 text-xs font-[tabular-nums]">
+                                <td className="px-4 py-2.5 text-slate-500 text-xs tabular-nums">
                                   {formatDateRange(c.effectiveFrom, c.effectiveTo)}
                                 </td>
                                 <td className="px-4 py-2.5">
@@ -1578,7 +1605,7 @@ export default function PayrollParameterPage() {
                       </button>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto border border-slate-200 rounded-lg bg-white workspace-table-region">
+                    <div className="min-w-full border border-slate-200 rounded-lg bg-white">
                       <table className="w-full text-left text-sm border-collapse">
                         <thead className="bg-slate-50/90 text-slate-500 text-[11px] font-semibold uppercase tracking-wider border-b border-slate-200">
                           <tr>
@@ -1603,15 +1630,20 @@ export default function PayrollParameterPage() {
                               <td className="px-4 py-2.5 text-slate-700 text-[13px]">
                                 {o.serviceName || `[Nhóm] ${o.serviceCategory}`}
                               </td>
-                              <td className="px-4 py-2.5 text-slate-700 text-[13px]">
-                                {o.role}
-                              </td>
-                              <td className="px-4 py-2.5 text-right font-[tabular-nums] text-[13px] font-semibold text-slate-800">
+                                <td className="px-4 py-2.5 text-slate-700 text-[13px]">
+                                  {({
+                                    indicating: 'Bác sĩ chỉ định',
+                                    performing: 'Bác sĩ thực hiện',
+                                    assisting: 'Phụ thủ thuật',
+                                    lab: 'KTV xét nghiệm',
+                                  } as Record<string, string>)[o.role] || o.role}
+                                </td>
+                              <td className="px-4 py-2.5 text-right tabular-nums text-[13px] font-semibold text-slate-800">
                                 {o.valueType === 'fixed' || o.valueType === 'per_hour'
                                   ? formatVnd(o.commissionValue)
                                   : `${o.commissionValue}%`}
                               </td>
-                              <td className="px-4 py-2.5 text-slate-500 text-xs font-[tabular-nums]">
+                              <td className="px-4 py-2.5 text-slate-500 text-xs tabular-nums">
                                 {formatDateRange(o.effectiveFrom, o.effectiveTo)}
                               </td>
                               <td className="px-4 py-2.5">
@@ -1675,7 +1707,7 @@ export default function PayrollParameterPage() {
                   </button>
                 </div>
               ) : (
-                <div className="overflow-x-auto workspace-table-region">
+                <div className="min-w-full">
                   <table className="w-full text-left text-sm">
                     <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
                       <tr>
@@ -1718,7 +1750,7 @@ export default function PayrollParameterPage() {
                           <td className="px-4 py-3 text-right">
                             {renderRateValue(r)}
                           </td>
-                          <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs font-[tabular-nums]">
+                          <td className="px-4 py-3 text-slate-600 dark:text-slate-400 text-xs tabular-nums">
                             {formatDateRange(r.effectiveFrom, r.effectiveTo)}
                           </td>
                           <td className="px-4 py-3">
@@ -1750,10 +1782,13 @@ export default function PayrollParameterPage() {
                                   className="text-button text-xs font-medium text-rose-600 hover:underline"
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    const scopeText = r.staffName
+                                      ? `${r.staffName}${r.staffCode ? ` (${r.staffCode})` : ''}`
+                                      : r.positionName || 'Toàn phòng khám';
                                     setDeactivatingItem({
                                       type: 'rate',
                                       id: r.id,
-                                      name: `${renderRateParamName(r)} (${renderAppliesTo(r)})`,
+                                      name: `${renderRateParamName(r)} — ${scopeText}`,
                                       effectiveFrom: r.effectiveFrom,
                                     });
                                     setDeactivateError('');
@@ -1890,6 +1925,24 @@ export default function PayrollParameterPage() {
         </Modal>
       )}
 
+      {modalType === 'tax_deductions' && taxPolicy && (
+        <Modal
+          title="Chỉnh sửa mức giảm trừ thuế TNCN"
+          maxWidth="520px"
+          onClose={() => setModalType(null)}
+          hasUnsavedChanges={isModalDirty}
+        >
+          <TaxDeductionsForm
+            initial={taxPolicy}
+            onSave={handleSaveTaxDeductions}
+            onClose={() => setModalType(null)}
+            busy={saving}
+            error={saveError}
+            onDirtyChange={setIsModalDirty}
+          />
+        </Modal>
+      )}
+
       {viewingRateConfig && (
         <PayrollRateConfigDetailModal
           item={viewingRateConfig}
@@ -1915,7 +1968,6 @@ export default function PayrollParameterPage() {
           error={deactivateError}
         />
       )}
-      </div>
     </div>
   );
 }

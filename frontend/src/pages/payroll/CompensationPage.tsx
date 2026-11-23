@@ -14,6 +14,7 @@ import type {
 import Alert from '../../components/ui/Alert';
 import Icon from '../../components/ui/Icon';
 import DataTable from '../../components/ui/DataTable';
+import Pagination from '../../components/ui/Pagination';
 import Modal from '../../components/ui/Modal';
 import { formatVnd, formatDate, formatDateOnly, todayVn } from '../../utils/format';
 import ContractCompensationForm from '../../components/payroll/ContractCompensationForm';
@@ -27,6 +28,8 @@ export default function CompensationPage() {
   const defaultWorkingDays = useStandardWorkingDays();
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -101,6 +104,19 @@ export default function CompensationPage() {
     }
     return list;
   }, [allContracts, statusFilter, searchTerm]);
+
+  // Quay về trang 1 khi thay đổi bộ lọc hoặc từ khóa tìm kiếm
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredContracts.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+
+  const paginatedContracts = useMemo<ContractSummary[]>(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredContracts.slice(start, start + pageSize);
+  }, [filteredContracts, currentPage, pageSize]);
 
   // Load allowance types & sites once
   useEffect(() => {
@@ -285,21 +301,17 @@ export default function CompensationPage() {
   }
 
   return (
-    <section className="workspace-list-page">
+    <section className="workspace-list-page compensation-page">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">QUẢN LÝ LƯƠNG & ĐÃI NGỘ</span>
           <h1>Đãi ngộ hợp đồng & Phụ cấp nhân viên</h1>
-          <p className="muted">
-            Quản lý kiểu lương (theo ngày/theo tháng), đơn giá lương, công chuẩn, căn cứ đóng BHXH, cơ sở và các phụ cấp gắn liền với hợp đồng nhân viên.
-          </p>
         </div>
       </div>
 
-      {error && <div className="mb-4"><Alert>{error}</Alert></div>}
-      {notice && <div className="mb-4"><Alert variant="success">{notice}</Alert></div>}
+      {error && <div className="mb-2"><Alert>{error}</Alert></div>}
+      {notice && <div className="mb-2"><Alert variant="success">{notice}</Alert></div>}
       {affectedWarning && affectedWarning.length > 0 && (
-        <div className="mb-4">
+        <div className="mb-2">
           <Alert variant="warning">
             <strong>Cảnh báo:</strong> Thay đổi đãi ngộ ảnh hưởng đến các kỳ lương chưa chốt: <strong>{affectedWarning.join(', ')}</strong>. Cần tính toán lại lương cho các kỳ này.
           </Alert>
@@ -308,7 +320,7 @@ export default function CompensationPage() {
 
       <section className="panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-sm overflow-hidden workspace-list-panel">
         {/* Card Header 1 hàng đồng bộ chuẩn SaaS */}
-        <div className="p-3.5 sm:p-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap xl:flex-nowrap items-center justify-between gap-3">
+        <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap xl:flex-nowrap items-center justify-between gap-2.5">
           {/* Trái: Tiêu đề + Quick Filter Tabs 1 chạm */}
           <div className="flex items-center gap-3.5 flex-wrap">
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">
@@ -321,14 +333,14 @@ export default function CompensationPage() {
                 type="button"
                 onClick={() => setStatusFilter('all')}
                 className={`px-3 py-1 rounded-md font-medium transition-all flex items-center gap-1.5 cursor-pointer ${statusFilter === 'all'
-                    ? 'bg-white dark:bg-slate-700 text-sky-700 dark:text-sky-300 shadow-xs font-semibold'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-slate-700 text-sky-700 dark:text-sky-300 shadow-xs font-semibold'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                   }`}
               >
                 <span>Tất cả</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-semibold ${statusFilter === 'all'
-                    ? 'bg-sky-100 dark:bg-sky-900/60 text-sky-700 dark:text-sky-200'
-                    : 'bg-slate-200/80 dark:bg-slate-600/60 text-slate-600 dark:text-slate-300'
+                  ? 'bg-sky-100 dark:bg-sky-900/60 text-sky-700 dark:text-sky-200'
+                  : 'bg-slate-200/80 dark:bg-slate-600/60 text-slate-600 dark:text-slate-300'
                   }`}>
                   {counts.total}
                 </span>
@@ -338,14 +350,14 @@ export default function CompensationPage() {
                 type="button"
                 onClick={() => setStatusFilter('active')}
                 className={`px-3 py-1 rounded-md font-medium transition-all flex items-center gap-1.5 cursor-pointer ${statusFilter === 'active'
-                    ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-xs font-semibold'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-xs font-semibold'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                   }`}
               >
                 <span>Đang hoạt động</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-semibold ${statusFilter === 'active'
-                    ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200'
-                    : 'bg-slate-200/80 dark:bg-slate-600/60 text-slate-600 dark:text-slate-300'
+                  ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-200'
+                  : 'bg-slate-200/80 dark:bg-slate-600/60 text-slate-600 dark:text-slate-300'
                   }`}>
                   {counts.active}
                 </span>
@@ -355,14 +367,14 @@ export default function CompensationPage() {
                 type="button"
                 onClick={() => setStatusFilter('inactive')}
                 className={`px-3 py-1 rounded-md font-medium transition-all flex items-center gap-1.5 cursor-pointer ${statusFilter === 'inactive'
-                    ? 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 shadow-xs font-semibold'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+                  ? 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 shadow-xs font-semibold'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
                   }`}
               >
                 <span>Đã kết thúc</span>
                 <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-semibold ${statusFilter === 'inactive'
-                    ? 'bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200'
-                    : 'bg-slate-200/80 dark:bg-slate-600/60 text-slate-500 dark:text-slate-400'
+                  ? 'bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200'
+                  : 'bg-slate-200/80 dark:bg-slate-600/60 text-slate-500 dark:text-slate-400'
                   }`}>
                   {counts.inactive}
                 </span>
@@ -440,9 +452,10 @@ export default function CompensationPage() {
         {loading ? (
           <p className="loading-state">Đang tải dữ liệu…</p>
         ) : (
-          <DataTable<ContractSummary>
-            rows={filteredContracts}
-            rowKey={c => c.contractId}
+          <>
+            <DataTable<ContractSummary>
+              rows={paginatedContracts}
+              rowKey={c => c.contractId}
             emptyMessage={
               searchTerm || statusFilter !== 'all'
                 ? 'Không tìm thấy hợp đồng nào phù hợp với bộ lọc.'
@@ -599,13 +612,15 @@ export default function CompensationPage() {
                 render: c => (
                   <div className="flex flex-col gap-1 items-start">
                     <button
-                      className="button text-button font-medium text-sky-700 hover:underline"
+                      type="button"
+                      className="text-button text-xs font-medium text-sky-700 hover:underline cursor-pointer"
                       onClick={() => void openDetails(c.contractId)}
                     >
                       Đãi ngộ & Phụ cấp
                     </button>
                     <button
-                      className="button text-button font-medium text-slate-600 hover:text-slate-900"
+                      type="button"
+                      className="text-button text-xs font-medium text-slate-600 hover:text-slate-900 cursor-pointer"
                       onClick={() => void openSalaryHistory(c)}
                     >
                       🕒 Lịch sử lương
@@ -615,6 +630,22 @@ export default function CompensationPage() {
               },
             ]}
           />
+          {filteredContracts.length > 0 && (
+            <Pagination
+              total={filteredContracts.length}
+              page={currentPage}
+              pageSize={pageSize}
+              pageSizeOptions={[10, 20, 50]}
+              label="hợp đồng"
+              disabled={loading}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
+            />
+          )}
+          </>
         )}
       </section>
 

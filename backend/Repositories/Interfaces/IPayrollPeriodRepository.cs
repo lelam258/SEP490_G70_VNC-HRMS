@@ -57,4 +57,10 @@ public interface IPayrollPeriodRepository
     Task<List<PayslipAllowance>> GetPayslipAllowancesAsync(Guid payslipId, CancellationToken ct);
     Task<bool> HasPayslipComplaintsAsync(string payMonth, CancellationToken ct);
     Task DeleteDraftPeriodCascadeAsync(PayrollLock period, CancellationToken ct);
+
+    // Self-service My Payslip (SRS 6.13)
+    Task<Guid?> FindStaffIdByUserIdAsync(Guid userId, CancellationToken ct);
+    Task<List<MyPayslipSummaryDto>> ListFinalizedPayslipsByStaffAsync(Guid staffId, int? year, CancellationToken ct);
+    Task<Payslip?> FindPayslipByIdAsync(Guid payslipId, CancellationToken ct);
+    Task<Payslip?> FindPayslipByMonthAndStaffAsync(string payMonth, Guid staffId, CancellationToken ct);
 }
