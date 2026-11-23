@@ -19,6 +19,9 @@ export default function AppLayout() {
   const [error, setError] = useState('');
   const location = useLocation();
   useEffect(() => {
+    if (window.matchMedia('(max-width: 600px)').matches && useAppStore.getState().sidebarOpen) {
+      useAppStore.getState().toggleSidebar();
+    }
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.querySelector('.workspace-main')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.querySelector('.page-content')?.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -312,6 +315,7 @@ export default function AppLayout() {
           </button>
         </aside>
       )}
+      {sidebarOpen && <button type="button" className="workspace-sidebar-backdrop" aria-label="Đóng menu điều hướng" onClick={toggleSidebar} />}
       <div className="workspace-main">
         <header className="topbar">
           <div className="flex items-center gap-4">

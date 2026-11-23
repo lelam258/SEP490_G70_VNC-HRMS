@@ -243,7 +243,7 @@ export default function MonthlyAttendancePage() {
                 </button>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <div className="attendance-monthly-filters" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <input
                   id="monthly-month-input"
                   aria-label="Kỳ chấm công tháng"
