@@ -943,15 +943,8 @@ public sealed class AttendanceRecordService(
                 .Sum(x => Math.Round((decimal)(x.ShiftEnd!.Value - x.ShiftStart!.Value).TotalHours, 2, MidpointRounding.AwayFromZero));
 
             var totalConfirmedHours = Math.Round(confirmedRecordHours + standaloneDutyHours, 2, MidpointRounding.AwayFromZero);
-            var overtimeHours = Math.Round(
-                personRecords.Where(x => x.ValidationStatus == "confirmed" && x.ShiftType == "main").Sum(x => {
-                    var stdHours = StandardMainHours(x.WorkDate);
-                    var act = x.ActualHours ?? 0m;
-                    return act > stdHours + 0.05m ? act - stdHours : 0m;
-                })
-                + standaloneDutyHours
-                + personRecords.Where(x => x.ValidationStatus == "confirmed" && x.ShiftType is "noon" or "evening").Sum(x => x.ActualHours ?? 0m),
-                2, MidpointRounding.AwayFromZero);
+            var overtimeHours = OvertimeRules.ConfirmedHours(personRecords, personDuties,
+                plans.Where(x => x.StaffId == person.StaffId && x.Shift == "evening").Select(x => x.Date));
 
             var machineCount = personRecords.Count(x => x.Source is "machine" or "fingerprint");
             var manualCount = personRecords.Count(x => x.Source == "manual");
@@ -1132,13 +1125,6 @@ public sealed class AttendanceRecordService(
     {
         if (!user.IsInRole("hr_staff"))
             throw new AppException(403, "Bạn không có quyền truy cập chức năng hoặc thực hiện nghiệp vụ chấm công này.");
-    }
-
-    private static decimal StandardMainHours(DateOnly date)
-    {
-        var (mStart, mEnd) = ScheduleRules.Hours(date, "morning");
-        var (aStart, aEnd) = ScheduleRules.Hours(date, "afternoon");
-        return Math.Round((decimal)((mEnd - mStart) + (aEnd - aStart)).TotalHours, 2, MidpointRounding.AwayFromZero);
     }
 
     private async Task MarkTimesheetReopenedIfModified(string month, DateTime now, CancellationToken ct)

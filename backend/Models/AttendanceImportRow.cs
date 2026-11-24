@@ -2,6 +2,10 @@ namespace Vnc.HRMS.Models;
 
 public sealed class AttendanceImportRow
 {
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public decimal PotentialOvertimeHours { get; set; }
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public bool HasNightOnCall { get; set; }
     public Guid Id { get; set; }
     public Guid ImportId { get; set; }
     public string SheetName { get; set; } = "";
