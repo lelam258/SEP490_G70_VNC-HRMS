@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { payrollParameterApi } from '../../services/payrollParameterApi';
 import { employeeApi } from '../../services/employeeApi';
+import { procedureSlipApi } from '../../services/procedureSlipApi';
 import type {
   AllowanceType,
   InsuranceConfig,
@@ -158,11 +159,27 @@ export default function PayrollParameterPage() {
     void loadData();
   }, [loadData]);
 
-  // Load staff list once for rate config & overrides
+  // Load staff list once for rate config & overrides (fallback to procedure lookups for Accountant role)
   useEffect(() => {
-    void employeeApi.list().then(list => {
-      setStaffList(list.map(e => ({ id: e.id, code: e.code, name: e.name })));
-    }).catch(() => {});
+    void employeeApi
+      .list()
+      .then((list) => {
+        setStaffList(list.map((e) => ({ id: e.id, code: e.code, name: e.name })));
+      })
+      .catch(() =>
+        procedureSlipApi
+          .getLookups()
+          .then((lookups) => {
+            setStaffList(
+              (lookups.staff || []).map((s) => ({
+                id: s.staffId,
+                code: s.staffCode,
+                name: s.fullName,
+              }))
+            );
+          })
+          .catch(() => {})
+      );
   }, []);
 
   // Compute active counts for tab chips (only counting currently active records)
@@ -1592,25 +1609,43 @@ export default function PayrollParameterPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200/70 bg-white">
-                          {filteredOverrides.map(o => (
-                            <tr key={o.id} className="h-13 hover:bg-slate-50/60 transition-colors">
-                              <td className="px-4 py-2.5">
-                                <span className="text-[13px] font-medium text-slate-800">
-                                  {o.staffName}
-                                </span>
-                                <div className="text-xs text-slate-400 font-mono">{o.staffCode}</div>
-                              </td>
-                              <td className="px-4 py-2.5 text-slate-700 text-[13px]">
-                                {o.serviceName || `[Nhóm] ${o.serviceCategory}`}
-                              </td>
-                              <td className="px-4 py-2.5 text-slate-700 text-[13px]">
-                                {o.role}
-                              </td>
-                              <td className="px-4 py-2.5 text-right font-[tabular-nums] text-[13px] font-semibold text-slate-800">
-                                {o.valueType === 'fixed' || o.valueType === 'per_hour'
-                                  ? formatVnd(o.commissionValue)
-                                  : `${o.commissionValue}%`}
-                              </td>
+                          {filteredOverrides.map(o => {
+                            const overrideRoleMap: Record<string, string> = {
+                              indicating: 'BS Chỉ định',
+                              performing: 'BS Thực hiện',
+                              assisting: 'Phụ tá / KTV',
+                              lab: 'KTV Lab / Xét nghiệm',
+                              typist: 'Nhập kết quả',
+                            };
+                            const overrideValStr =
+                              o.valueType === 'fixed'
+                                ? formatVnd(o.commissionValue)
+                                : o.valueType === 'per_hour'
+                                ? `${formatVnd(o.commissionValue)}/h`
+                                : formatPercent(o.commissionValue);
+
+                            return (
+                              <tr key={o.id} className="h-13 hover:bg-slate-50/60 transition-colors">
+                                <td className="px-4 py-2.5">
+                                  <span className="text-[13px] font-medium text-slate-800">
+                                    {o.staffName}
+                                  </span>
+                                  <div className="text-xs text-slate-400 font-mono">{o.staffCode}</div>
+                                </td>
+                                <td className="px-4 py-2.5 text-slate-700 text-[13px]">
+                                  {o.serviceName || `[Nhóm] ${o.serviceCategory}`}
+                                </td>
+                                <td className="px-4 py-2.5 text-slate-700 text-[13px]">
+                                  <span>{overrideRoleMap[o.role] || o.role}</span>
+                                  {o.timeCondition && o.timeCondition !== 'all' && (
+                                    <span className="ml-1.5 text-[11px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-medium">
+                                      {o.timeCondition === 'after_hours' ? 'Ngoài giờ' : 'Hành chính'}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-2.5 text-right font-[tabular-nums] text-[13px] font-semibold text-slate-800">
+                                  {overrideValStr}
+                                </td>
                               <td className="px-4 py-2.5 text-slate-500 text-xs font-[tabular-nums]">
                                 {formatDateRange(o.effectiveFrom, o.effectiveTo)}
                               </td>
@@ -1656,7 +1691,8 @@ export default function PayrollParameterPage() {
                                 </div>
                               </td>
                             </tr>
-                          ))}
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -1827,6 +1863,7 @@ export default function PayrollParameterPage() {
           <StaffCommissionOverrideForm
             initial={editingItem}
             services={services}
+            staffList={staffList}
             onSave={handleSaveOverride}
             onClose={() => setModalType(null)}
             busy={saving}

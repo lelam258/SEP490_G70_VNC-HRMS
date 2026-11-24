@@ -219,7 +219,13 @@ export const procedureSlipApi = {
 
   completeSlip: async (
     slipId: string,
-    input: { note?: string | null; actualDurationHours?: number | null } = {}
+    input: {
+      note?: string | null;
+      actualDurationHours?: number | null;
+      actualDurationMinutes?: number | null;
+      actualStartTime?: string | null;
+      actualEndTime?: string | null;
+    } = {}
   ): Promise<ProcedureSlipDetail> => {
     const res = await axiosClient.post<ProcedureSlipDetail>(
       `/procedure-slips/${slipId}/complete`,

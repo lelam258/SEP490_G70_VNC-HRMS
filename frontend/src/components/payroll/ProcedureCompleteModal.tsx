@@ -3,7 +3,12 @@ import Modal from '../ui/Modal';
 import Alert from '../ui/Alert';
 import { procedureSlipApi } from '../../services/procedureSlipApi';
 import type { ProcedureSlipDetail, ProcedureSlipListItem } from '../../types/procedureSlip';
-import { formatDateOnly } from '../../utils/format';
+import { formatDateOnly, todayVn } from '../../utils/format';
+import {
+  formatMinutesVn,
+  formatTimeRangeVn,
+  parseTimePointToMinutes,
+} from '../../utils/procedureHelpers';
 
 interface ProcedureCompleteModalProps {
   open: boolean;
@@ -35,8 +40,33 @@ export default function ProcedureCompleteModal({
 
   if (!open || !slip) return null;
 
+  const isFutureProcedure = Boolean(
+    slip.procedureDate && slip.procedureDate.slice(0, 10) > todayVn()
+  );
+
+  const plannedStartMin = parseTimePointToMinutes(slip.startTime);
+  const plannedEndMin = parseTimePointToMinutes(slip.endTime);
+  const plannedRangeLabel =
+    plannedStartMin !== null && plannedEndMin !== null && plannedEndMin > plannedStartMin
+      ? formatTimeRangeVn(slip.startTime, slip.endTime)
+      : null;
+  const computedActualEndMin =
+    plannedStartMin !== null && actualMinutes > 0
+      ? Math.min(23 * 60 + 59, plannedStartMin + actualMinutes)
+      : null;
+  const computedActualRangeLabel =
+    plannedStartMin !== null &&
+    computedActualEndMin !== null &&
+    computedActualEndMin > plannedStartMin
+      ? `${formatMinutesVn(plannedStartMin)}-${formatMinutesVn(computedActualEndMin)}`
+      : null;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isFutureProcedure) {
+      setError('Chưa đến ngày thực hiện ca thủ thuật, không thể xác nhận hoàn thành sớm.');
+      return;
+    }
     setError('');
     setSubmitting(true);
     try {
@@ -44,6 +74,7 @@ export default function ProcedureCompleteModal({
       const updated = await procedureSlipApi.completeSlip(slip.slipId, {
         note: note.trim() || undefined,
         actualDurationHours,
+        actualDurationMinutes: actualMinutes > 0 ? actualMinutes : undefined,
       });
       const message = `Bác sĩ đã xác nhận hoàn thành ca thủ thuật ${slip.slipNumber} thành công!`;
       setNote('');
@@ -88,6 +119,11 @@ export default function ProcedureCompleteModal({
           </div>
         </div>
 
+        {isFutureProcedure && (
+          <Alert variant="error">
+            Ca thủ thuật có ngày thực hiện trong tương lai ({formatDateOnly(slip.procedureDate)}). Chỉ có thể xác nhận hoàn thành từ ngày thực hiện trở đi.
+          </Alert>
+        )}
         {error && <Alert variant="error">{error}</Alert>}
 
         <div>
@@ -123,6 +159,15 @@ export default function ProcedureCompleteModal({
               </button>
             ))}
           </div>
+          {computedActualRangeLabel && (
+            <div className="mt-2.5 rounded-lg border border-sky-200 bg-sky-50/80 px-3 py-2 text-xs text-sky-900">
+              <span>⏱ Khung giờ bận thực tế của bác sĩ sẽ cập nhật thành: </span>
+              <strong className="font-bold text-sky-950">{computedActualRangeLabel}</strong>
+              {plannedRangeLabel && plannedRangeLabel !== computedActualRangeLabel && (
+                <span className="text-sky-700"> (Dự kiến ban đầu: {plannedRangeLabel})</span>
+              )}
+            </div>
+          )}
         </div>
 
         <div>
@@ -149,7 +194,7 @@ export default function ProcedureCompleteModal({
           </button>
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || isFutureProcedure}
             className="button primary bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
           >
             {submitting ? 'Đang xác nhận...' : 'Xác nhận hoàn thành ca'}

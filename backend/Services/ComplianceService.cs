@@ -450,7 +450,7 @@ public sealed class ComplianceService(
         foreach (var item in targetItems)
         {
             var statusVi = FormatStatusLabelVi(item.Status);
-            if (staffUsers.TryGetValue(item.StaffId, out var recipientUserId))
+            if (staffUsers.TryGetValue(item.StaffId, out var recipientUserId) && recipientUserId != Guid.Empty)
             {
                 var recipientActionUrl = string.Equals(item.ItemType, "cme_cycle", StringComparison.OrdinalIgnoreCase)
                     ? "/me/cme-records"

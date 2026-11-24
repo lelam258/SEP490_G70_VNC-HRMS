@@ -17,6 +17,7 @@ import ReportFilterBar, {
 } from '../../components/compliance/ReportFilterBar';
 import Alert from '../../components/ui/Alert';
 import Icon from '../../components/ui/Icon';
+import { todayVn } from '../../utils/format';
 
 const EMPTY_KPIS: ComplianceKpiSummary = {
   totalStaff: 0,
@@ -457,7 +458,7 @@ export default function ComplianceDashboardPage() {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    const dateStr = new Date().toISOString().slice(0, 10);
+    const dateStr = todayVn();
     link.href = url;
     link.setAttribute('download', `bao-cao-tuan-thu-${dateStr}.csv`);
     document.body.appendChild(link);

@@ -78,9 +78,9 @@ public sealed class CmeRecordsController(ICmeRecordService cmeRecords) : Control
     }
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    public async Task<IActionResult> Delete(Guid id, [FromQuery] string? reason = null, CancellationToken ct = default)
     {
-        await cmeRecords.DeleteAsync(id, ct);
+        await cmeRecords.DeleteAsync(id, ct, reason ?? string.Empty);
         return NoContent();
     }
 }

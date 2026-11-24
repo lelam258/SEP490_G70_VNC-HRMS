@@ -87,9 +87,15 @@ export default function MyCmeListPage() {
       }
     }
 
-    // 2. From certificates (in case a certificate has no cycle yet)
+    // 2. From certificates (in case a certificate has no cycle yet, excluding unapproved/revoked/suspended)
+    const ineligibleStatuses = ['pending', 'unverified', 'rejected', 'revoked', 'suspended'];
     for (const cert of certificates) {
-      if ((cert.category === 'certificate' || !cert.category) && !map.has(cert.certificateId)) {
+      const certStatus = (cert.status || 'active').trim().toLowerCase();
+      if (
+        (cert.category === 'certificate' || !cert.category) &&
+        !ineligibleStatuses.includes(certStatus) &&
+        !map.has(cert.certificateId)
+      ) {
         map.set(cert.certificateId, {
           certificateId: cert.certificateId,
           certificateType: cert.certificateType,
@@ -124,8 +130,13 @@ export default function MyCmeListPage() {
         if (prev) return prev;
         if (safeCycles.length > 0) return safeCycles[0].certificateId;
         if (safeCerts.length > 0) {
-          const firstEligible = safeCerts.find((c) => c.category === 'certificate') || safeCerts[0];
-          return firstEligible.certificateId;
+          const ineligible = ['pending', 'unverified', 'rejected', 'revoked', 'suspended'];
+          const firstEligible = safeCerts.find(
+            (c) =>
+              (c.category === 'certificate' || !c.category) &&
+              !ineligible.includes((c.status || 'active').trim().toLowerCase())
+          );
+          return firstEligible?.certificateId || '';
         }
         return '';
       });

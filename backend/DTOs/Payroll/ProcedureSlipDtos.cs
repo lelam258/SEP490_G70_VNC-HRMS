@@ -217,7 +217,9 @@ public sealed record StaffProcedureBookingDto(
     string ServiceName,
     string StartTime,
     string EndTime,
-    string TimeRangeLabel);
+    string TimeRangeLabel,
+    string Status = "pending",
+    string? PlannedTimeRangeLabel = null);
 
 public sealed record ProcedureStaffAvailabilityDto(
     Guid StaffId,
@@ -243,7 +245,10 @@ public sealed record ReviewProcedureSlipRequest(
 
 public sealed record CompleteProcedureSlipRequest(
     string? Note = null,
-    decimal? ActualDurationHours = null);
+    decimal? ActualDurationHours = null,
+    int? ActualDurationMinutes = null,
+    string? ActualStartTime = null,
+    string? ActualEndTime = null);
 
 public sealed record CancelProcedureSlipRequest(
     string Reason);

@@ -117,6 +117,8 @@ export default function CertificateListPage() {
   const [viewingCert, setViewingCert] = useState<Certificate | null>(null);
   const [editingCert, setEditingCert] = useState<Certificate | null>(null);
   const [creatingForStaff, setCreatingForStaff] = useState<StaffCertificateSummary | null>(null);
+  const [deletingCert, setDeletingCert] = useState<Certificate | null>(null);
+  const [deleteCertError, setDeleteCertError] = useState('');
   const [rejectingCert, setRejectingCert] = useState<Certificate | null>(null);
   const [quickRejectReason, setQuickRejectReason] = useState('');
   const [quickRejectError, setQuickRejectError] = useState('');
@@ -350,6 +352,42 @@ export default function CertificateListPage() {
       const label = (created.categoryLabel?.toLowerCase() || 'hồ sơ');
       setNotice(`Đã thêm ${label} "${created.certificateType}" thành công.`);
       setCreatingForStaff(null);
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handleConfirmDeleteCertificate() {
+    if (!deletingCert || actionBusy) return;
+    setActionBusy(true);
+    setDeleteCertError('');
+    setError('');
+    setNotice('');
+    try {
+      await certificateApi.delete(deletingCert.certificateId);
+      const deletedId = deletingCert.certificateId;
+      const deletedStaffId = deletingCert.staffId;
+      const deletedName = deletingCert.certificateType;
+      const label = deletingCert.categoryLabel?.toLowerCase() || 'hồ sơ';
+
+      setStaffCertificates(prev => prev.filter(c => c.certificateId !== deletedId));
+      setPendingCerts(prev => prev.filter(c => c.certificateId !== deletedId));
+      setStaffList(prev =>
+        prev.map(s =>
+          s.staffId === deletedStaffId
+            ? { ...s, certificateCount: Math.max(0, s.certificateCount - 1) }
+            : s
+        )
+      );
+      if (selectedStaff && selectedStaff.staffId === deletedStaffId) {
+        setSelectedStaff(prev =>
+          prev ? { ...prev, certificateCount: Math.max(0, prev.certificateCount - 1) } : null
+        );
+      }
+      setDeletingCert(null);
+      setNotice(`Đã xóa ${label} "${deletedName}" thành công.`);
+    } catch (cause) {
+      setDeleteCertError(cause instanceof Error ? cause.message : 'Không xóa được hồ sơ chuyên môn.');
     } finally {
       setActionBusy(false);
     }
@@ -989,6 +1027,18 @@ export default function CertificateListPage() {
                               >
                                 <Icon name="edit" size={18} />
                               </button>
+                              <button
+                                className="icon-button text-red-500 hover:text-red-700"
+                                title="Xóa hồ sơ"
+                                aria-label={`Xóa ${cert.certificateType}`}
+                                onClick={() => {
+                                  setDeleteCertError('');
+                                  setDeletingCert(cert);
+                                }}
+                                disabled={actionBusy}
+                              >
+                                <Icon name="trash" size={17} />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -1040,9 +1090,53 @@ export default function CertificateListPage() {
           certificate={viewingCert}
           onClose={() => setViewingCert(null)}
           onEdit={cert => setEditingCert(cert)}
+          onDelete={cert => {
+            setDeleteCertError('');
+            setDeletingCert(cert);
+          }}
           onReview={handleReviewCertificate}
           busyReview={actionBusy}
         />
+      )}
+
+      {deletingCert && (
+        <Modal
+          title="Xác nhận xóa hồ sơ chuyên môn"
+          onClose={() => !actionBusy && setDeletingCert(null)}
+          busy={actionBusy}
+        >
+          <div className="p-5 space-y-4 text-xs">
+            <p className="text-slate-600 leading-relaxed">
+              Bạn có chắc chắn muốn xóa {deletingCert.category === 'degree' ? 'bằng cấp' : 'chứng chỉ'}{' '}
+              <strong className="text-slate-900">{deletingCert.certificateType}</strong> của nhân viên{' '}
+              <strong className="text-slate-900">{deletingCert.staffName}</strong>?
+              {deletingCert.category === 'certificate' && (
+                <span className="block mt-1.5 text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
+                  Lưu ý: Nếu chứng chỉ đã có chu kỳ CME đã khóa (lịch sử hoàn thành), hệ thống sẽ chặn xóa để bảo toàn dữ liệu tuân thủ.
+                </span>
+              )}
+            </p>
+            {deleteCertError && <Alert variant="error">{deleteCertError}</Alert>}
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                className="button secondary text-xs"
+                onClick={() => setDeletingCert(null)}
+                disabled={actionBusy}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                className="button danger text-xs"
+                onClick={() => void handleConfirmDeleteCertificate()}
+                disabled={actionBusy}
+              >
+                {actionBusy ? 'Đang xóa...' : 'Xác nhận xóa'}
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {editingCert && (

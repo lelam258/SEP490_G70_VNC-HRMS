@@ -107,13 +107,30 @@ export default function MyCertificateCreateModal({ onClose, onSave, busy = false
         payload.cmeCycleMonths = null;
         payload.cmeRequiredCredits = null;
       } else {
+        let parsedMonths: number | null = null;
+        let parsedCredits: number | null = null;
+        if (cmeCycleMonths.trim() !== '') {
+          parsedMonths = parseInt(cmeCycleMonths, 10);
+          if (isNaN(parsedMonths) || parsedMonths <= 0) {
+            setError('Chu kỳ CME (tháng) phải lớn hơn 0 hoặc để trống.');
+            return;
+          }
+        }
+        if (cmeRequiredCredits.trim() !== '') {
+          parsedCredits = parseFloat(cmeRequiredCredits);
+          if (isNaN(parsedCredits) || parsedCredits <= 0) {
+            setError('Định mức tín chỉ CME phải lớn hơn 0 hoặc để trống.');
+            return;
+          }
+        }
+
         const trimmedDegree = professionalDegree.trim() || null;
         payload.professionalDegree = trimmedDegree;
         payload.issuanceMethod = issuanceMethod.trim() || null;
         payload.scopeOfPractice = trimmedDegree;
         payload.expiryDate = hasExpiry && expiryDate ? expiryDate : null;
-        payload.cmeCycleMonths = cmeCycleMonths ? parseInt(cmeCycleMonths, 10) : 60;
-        payload.cmeRequiredCredits = cmeRequiredCredits ? parseFloat(cmeRequiredCredits) : 120;
+        payload.cmeCycleMonths = parsedMonths;
+        payload.cmeRequiredCredits = parsedCredits;
       }
 
       await onSave(payload);
@@ -341,7 +358,7 @@ export default function MyCertificateCreateModal({ onClose, onSave, busy = false
                   value={cmeRequiredCredits}
                   onChange={(e) => setCmeRequiredCredits(e.target.value)}
                   placeholder="120"
-                  min="0"
+                  min="0.5"
                 />
               </div>
             </div>
@@ -373,6 +390,7 @@ export default function MyCertificateCreateModal({ onClose, onSave, busy = false
             </label>
             <input
               type="date"
+              max={todayVn()}
               className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20"
               value={issueDate}
               onChange={(e) => setIssueDate(e.target.value)}

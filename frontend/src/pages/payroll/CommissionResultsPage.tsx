@@ -14,7 +14,7 @@ import type {
   StaffMonthlyCommissionItem,
 } from '../../types/procedureSlip';
 import { exportCommissionDetailsExcel } from '../../utils/commissionExcelExport';
-import { formatDateOnly, formatVnd } from '../../utils/format';
+import { formatDateOnly, formatVnd, todayVn } from '../../utils/format';
 import { PROCEDURE_ROLE_LABELS } from '../../utils/procedureHelpers';
 
 export default function CommissionResultsPage() {
@@ -24,11 +24,7 @@ export default function CommissionResultsPage() {
   const isAccountant = role === 'accountant';
   const isDeptHead = role === 'department_head';
 
-  const now = useMemo(() => new Date(), []);
-  const defaultMonth = useMemo(
-    () => `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
-    [now]
-  );
+  const defaultMonth = useMemo(() => todayVn().slice(0, 7), []);
 
   // Filters state
   const [payMonth, setPayMonth] = useState<string>(defaultMonth);

@@ -188,6 +188,8 @@ export interface StaffProcedureBooking {
   startTime: string;
   endTime: string;
   timeRangeLabel: string;
+  status?: ProcedureSlipStatus | string;
+  plannedTimeRangeLabel?: string | null;
 }
 
 export interface ProcedureStaffAvailability {

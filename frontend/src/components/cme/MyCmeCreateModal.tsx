@@ -24,9 +24,12 @@ export default function MyCmeCreateModal({
   onSave,
   busy = false,
 }: Props) {
-  // Only certificates eligible for CME (category == 'certificate')
+  // Only active/approved certificates eligible for CME (category == 'certificate')
+  const ineligibleStatuses = ['pending', 'unverified', 'rejected', 'revoked', 'suspended'];
   const cmeEligibleCerts = certificates.filter(
-    (c) => c.category === 'certificate' || !c.category
+    (c) =>
+      (c.category === 'certificate' || !c.category) &&
+      !ineligibleStatuses.includes((c.status || 'active').trim().toLowerCase())
   );
 
   const [certificateId, setCertificateId] = useState<string>(
@@ -42,6 +45,7 @@ export default function MyCmeCreateModal({
   const [error, setError] = useState('');
 
   const selectedCert = cmeEligibleCerts.find((c) => c.certificateId === certificateId);
+  const hasCmeCredits = !selectedCert || (selectedCert.cmeRequiredCredits ?? 0) > 0;
 
   const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -101,15 +105,17 @@ export default function MyCmeCreateModal({
       return;
     }
 
-    const numCredits = parseFloat(credits);
-    if (isNaN(numCredits) || numCredits <= 0) {
-      setError('Số tín chỉ phải lớn hơn 0.');
-      return;
-    }
+    const numCredits = hasCmeCredits ? parseFloat(credits) : 1;
+    if (hasCmeCredits) {
+      if (isNaN(numCredits) || numCredits <= 0) {
+        setError('Số tín chỉ phải lớn hơn 0.');
+        return;
+      }
 
-    if (numCredits * 2 !== Math.floor(numCredits * 2)) {
-      setError('Số tín chỉ phải có bước nhảy 0.5 (ví dụ: 1.0, 1.5, 2.0).');
-      return;
+      if (numCredits * 2 !== Math.floor(numCredits * 2)) {
+        setError('Số tín chỉ phải có bước nhảy 0.5 (ví dụ: 1.0, 1.5, 2.0).');
+        return;
+      }
     }
 
     try {
@@ -218,31 +224,40 @@ export default function MyCmeCreateModal({
               className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 bg-white"
               value={completedDate}
               onChange={(e) => setCompletedDate(e.target.value)}
-              max={new Date().toISOString().slice(0, 10)}
+              max={todayVn()}
               disabled={busy}
               required
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Số tín chỉ tích lũy <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              step="0.5"
-              min="0.5"
-              max="999.5"
-              className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-              value={credits}
-              onChange={(e) => setCredits(e.target.value)}
-              disabled={busy}
-              required
-            />
-            <span className="text-[10px] text-slate-400 block mt-0.5">
-              Bước nhảy 0.5 (ví dụ: 1.0, 2.5, 4.0...)
-            </span>
-          </div>
+          {hasCmeCredits ? (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Số tín chỉ tích lũy <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                step="0.5"
+                min="0.5"
+                max="999.5"
+                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                value={credits}
+                onChange={(e) => setCredits(e.target.value)}
+                disabled={busy}
+                required
+              />
+              <span className="text-[10px] text-slate-400 block mt-0.5">
+                Bước nhảy 0.5 (ví dụ: 1.0, 2.5, 4.0...)
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-col justify-center bg-slate-50 rounded-lg border border-slate-200 px-3 py-2">
+              <span className="text-xs font-semibold text-slate-700">Chỉ tiêu đào tạo</span>
+              <span className="text-[11px] text-slate-500 mt-0.5">
+                Chứng chỉ này tính hoàn thành theo khóa học (không yêu cầu nhập số giờ tín chỉ).
+              </span>
+            </div>
+          )}
         </div>
 
         {/* File upload proof */}

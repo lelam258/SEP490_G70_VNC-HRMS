@@ -9,6 +9,7 @@ interface Props {
   certificate: Certificate;
   onClose: () => void;
   onEdit?: (cert: Certificate) => void;
+  onDelete?: (cert: Certificate) => void;
   onReview?: (cert: Certificate, action: 'approve' | 'reject', reason?: string) => Promise<void>;
   busyReview?: boolean;
 }
@@ -41,6 +42,7 @@ export default function CertificateDetailModal({
   certificate,
   onClose,
   onEdit,
+  onDelete,
   onReview,
   busyReview = false,
 }: Props) {
@@ -323,6 +325,19 @@ export default function CertificateDetailModal({
             )}
 
             <div className="flex gap-2">
+              {onDelete && (
+                <button
+                  type="button"
+                  className="button danger text-xs"
+                  onClick={() => {
+                    onClose();
+                    onDelete(certificate);
+                  }}
+                  disabled={busyReview}
+                >
+                  Xóa hồ sơ
+                </button>
+              )}
               <button type="button" className="button text-xs" onClick={onClose} disabled={busyReview}>
                 Đóng
               </button>

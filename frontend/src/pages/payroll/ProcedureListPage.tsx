@@ -14,7 +14,7 @@ import type {
   ProcedureSlipListItem,
   ProcedureSlipListResponse,
 } from '../../types/procedureSlip';
-import { formatDateOnly, formatVnd } from '../../utils/format';
+import { formatDateOnly, formatVnd, todayVn } from '../../utils/format';
 import {
   formatTimeRangeVn,
   getProcedureStatusBadgeClass,
@@ -107,7 +107,7 @@ export default function ProcedureListPage() {
           periodType: 'all',
           scope: 'all',
           page: 1,
-          pageSize: 200,
+          pageSize: 1000,
         });
         setData(res);
         setAllReviewerItems(res.items);
@@ -344,7 +344,7 @@ export default function ProcedureListPage() {
               {r.recordedByName || r.indicatingStaffName || 'Nhân viên y tế'}
             </span>
           </div>
-          {isAccountant && (
+          {isAccountant && (r.hrCheckedByName || r.status === 'hr_checked') && (
             <div className="text-emerald-700 font-medium">
               → HR kiểm tra: {r.hrCheckedByName || 'Nhân sự (HR)'}
             </div>
@@ -649,7 +649,10 @@ export default function ProcedureListPage() {
       render: (r) => (
         <div className="proc-actions-group">
           {/* Nút Hoàn thành ca chỉ xuất hiện khi xem Thủ thuật được giao làm cho mình và kỳ chưa khóa */}
-          {viewScope === 'assigned' && r.status === 'verified' && !r.isPeriodLocked && (
+          {viewScope === 'assigned' &&
+            r.status === 'verified' &&
+            !r.isPeriodLocked &&
+            r.procedureDate.slice(0, 10) <= todayVn() && (
             <button
               type="button"
               onClick={() => setCompleteModalSlip(r)}

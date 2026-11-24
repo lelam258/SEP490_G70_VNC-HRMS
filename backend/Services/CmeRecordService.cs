@@ -41,7 +41,8 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
                 c.StaffId,
                 c.CertificateType,
                 c.CmeRequiredCredits,
-                c.CmeCycleMonths
+                c.CmeCycleMonths,
+                c.Status
             })
             .ToArrayAsync(ct);
 
@@ -62,6 +63,15 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         {
             var staffCerts = certByStaff[s.StaffId]
                 .Where(c => CertificateCategoryHelper.Parse(c.CertificateType).Category == "certificate")
+                .Where(c =>
+                {
+                    var st = c.Status?.Trim().ToLowerInvariant();
+                    if (st is "pending" or "unverified" or "rejected")
+                        return false;
+                    if (st is "revoked" or "suspended")
+                        return recordsByCert[c.CertificateId].Any();
+                    return true;
+                })
                 .ToArray();
 
             var cmeCerts = staffCerts
@@ -107,6 +117,11 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
 
         var certs = rawCerts
             .Where(c => CertificateCategoryHelper.Parse(c.CertificateType).Category == "certificate")
+            .Where(c =>
+            {
+                var st = c.Status?.Trim().ToLowerInvariant();
+                return st is not ("pending" or "unverified" or "rejected");
+            })
             .ToArray();
 
         if (certs.Length == 0)
@@ -135,6 +150,12 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
                 .OrderByDescending(cy => cy.CycleNumber)
                 .ToArray();
             var certRecords = recordsByCert[cert.CertificateId].ToArray();
+
+            var certStatus = cert.Status?.Trim().ToLowerInvariant();
+            if (certStatus is "revoked" or "suspended" && certCycles.Length == 0 && certRecords.Length == 0)
+            {
+                continue;
+            }
 
             if (certCycles.Length == 0)
             {
@@ -310,6 +331,13 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
                 .Where(r => r.CertificateId == certificateId && r.CmeCycleId == null)
                 .ToListAsync(ct);
 
+            if (unlinkedRecords.Any(r => r.Verified == false))
+            {
+                throw new AppException(
+                    400,
+                    "Đang có bản ghi CME chờ xác minh trong bảng tiến độ này. Vui lòng duyệt hoặc từ chối trước khi xác nhận khóa.");
+            }
+
             var earned = hasCmeCredits
                 ? unlinkedRecords.Where(r => r.Verified ?? true).Sum(r => r.Credits)
                 : (unlinkedRecords.Any(r => r.Verified ?? true) ? 1m : 0m);
@@ -355,6 +383,13 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
             var existingRecs = await db.CmeRecords.AsNoTracking()
                 .Where(r => r.CmeCycleId == cycle.CycleId)
                 .ToListAsync(ct);
+
+            if (existingRecs.Any(r => r.Verified == false))
+            {
+                throw new AppException(
+                    400,
+                    "Đang có bản ghi CME chờ xác minh trong bảng tiến độ này. Vui lòng duyệt hoặc từ chối trước khi xác nhận khóa.");
+            }
 
             var earned = hasCmeCredits
                 ? existingRecs.Where(r => r.Verified ?? true).Sum(r => r.Credits)
@@ -416,6 +451,21 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         var unlinkedRecords = await db.CmeRecords
             .Where(r => r.CertificateId == certificateId && r.CmeCycleId == null)
             .ToListAsync(ct);
+
+        var existingCycleIds = existingCycles.Select(c => c.CycleId).ToArray();
+        var hasPendingInExisting = unlinkedRecords.Any(r => r.Verified == false) ||
+            (existingCycleIds.Length > 0 && await db.CmeRecords.AnyAsync(
+                r => r.CertificateId == certificateId &&
+                     r.CmeCycleId != null &&
+                     existingCycleIds.Contains(r.CmeCycleId.Value) &&
+                     r.Verified == false,
+                ct));
+        if (hasPendingInExisting)
+        {
+            throw new AppException(
+                400,
+                "Chứng chỉ đang có bản ghi CME chờ xác minh ở chu kỳ hiện tại. Vui lòng duyệt hoặc từ chối trước khi tạo bảng tiến độ mới.");
+        }
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
 
@@ -923,22 +973,52 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
             ?? throw new AppException(404, "Không tìm thấy bản ghi CME.");
         await EnsureCycleEditableAsync(entity.CmeCycleId, ct);
 
+        var cert = await db.Certificates.AsNoTracking()
+            .SingleOrDefaultAsync(c => c.CertificateId == entity.CertificateId, ct)
+            ?? throw new AppException(400, "Chứng chỉ không tồn tại trong hệ thống.");
+
         if (verified)
         {
-            var cert = await db.Certificates.AsNoTracking()
-                .SingleOrDefaultAsync(c => c.CertificateId == entity.CertificateId, ct)
-                ?? throw new AppException(400, "Chứng chỉ không tồn tại trong hệ thống.");
             CmeCycle? cycle = entity.CmeCycleId.HasValue
                 ? await db.CmeCycles.AsNoTracking().SingleOrDefaultAsync(c => c.CycleId == entity.CmeCycleId.Value, ct)
                 : null;
             await EnsureCreditsNotExceedRequiredAsync(cert, cycle, entity.Credits, entity.CmeId, ct);
         }
 
+        var wasVerified = entity.Verified ?? true;
         entity.Verified = verified;
         if (verified)
         {
             entity.VerifiedBy = currentUserId;
             entity.VerifiedAt = DateTime.UtcNow;
+
+            if (!wasVerified)
+            {
+                var staffUserId = await db.Staff.AsNoTracking()
+                    .Where(s => s.StaffId == cert.StaffId)
+                    .Select(s => s.UserId)
+                    .SingleOrDefaultAsync(ct);
+                if (staffUserId != Guid.Empty)
+                {
+                    var (_, _, cleanCertName) = CertificateCategoryHelper.Parse(cert.CertificateType);
+                    var displayCert = string.IsNullOrWhiteSpace(cleanCertName) ? cert.CertificateType : cleanCertName;
+                    db.Notifications.Add(new Notification
+                    {
+                        NotificationId = Guid.NewGuid(),
+                        RecipientId = staffUserId,
+                        SenderService = "cme",
+                        Type = "cme_verified",
+                        Title = $"Đã xác minh CME: {entity.CourseName}",
+                        Body = $"Bản ghi đào tạo liên tục \"{entity.CourseName}\" ({entity.Credits:0.##} tín chỉ) cho chứng chỉ \"{displayCert}\" đã được Phòng Nhân sự xác minh.",
+                        ActionUrl = "/me/cme-records",
+                        EntityType = "cme_record",
+                        EntityId = entity.CmeId,
+                        Channel = "in_app",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+            }
         }
         else
         {
@@ -955,7 +1035,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
         return await GetAsync(id, ct);
     }
 
-    public async Task DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task DeleteAsync(Guid id, CancellationToken ct = default, string? rejectionReason = null)
     {
         await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var entity = await db.CmeRecords.SingleOrDefaultAsync(r => r.CmeId == id, ct)
@@ -967,6 +1047,44 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
             if (cycle is { Status: "locked" })
             {
                 throw new AppException(400, "Bảng tiến độ này đã được xác nhận khóa, không thể xóa bản ghi.");
+            }
+        }
+
+        if (entity.Verified == false && rejectionReason != null)
+        {
+            var cert = await db.Certificates.AsNoTracking()
+                .SingleOrDefaultAsync(c => c.CertificateId == entity.CertificateId, ct);
+            if (cert != null)
+            {
+                var staffUserId = await db.Staff.AsNoTracking()
+                    .Where(s => s.StaffId == cert.StaffId)
+                    .Select(s => s.UserId)
+                    .SingleOrDefaultAsync(ct);
+                if (staffUserId != Guid.Empty)
+                {
+                    var (_, _, cleanCertName) = CertificateCategoryHelper.Parse(cert.CertificateType);
+                    var displayCert = string.IsNullOrWhiteSpace(cleanCertName) ? cert.CertificateType : cleanCertName;
+                    var trimmedReason = rejectionReason?.Trim();
+                    var reasonSuffix = string.IsNullOrWhiteSpace(trimmedReason)
+                        ? " Vui lòng kiểm tra và nộp lại minh chứng hợp lệ."
+                        : $" Lý do: {trimmedReason}";
+
+                    db.Notifications.Add(new Notification
+                    {
+                        NotificationId = Guid.NewGuid(),
+                        RecipientId = staffUserId,
+                        SenderService = "cme",
+                        Type = "cme_rejected",
+                        Title = $"Từ chối bản ghi CME: {entity.CourseName}",
+                        Body = $"Bản ghi CME \"{entity.CourseName}\" cho chứng chỉ \"{displayCert}\" không được chấp thuận.{reasonSuffix}",
+                        ActionUrl = "/me/cme-records",
+                        EntityType = "certificate",
+                        EntityId = cert.CertificateId,
+                        Channel = "in_app",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
             }
         }
 

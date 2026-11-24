@@ -84,6 +84,12 @@ export default function CmeRecordListPage() {
   const [newCycleError, setNewCycleError] = useState('');
   const [creatingCycle, setCreatingCycle] = useState(false);
 
+  // Reject Unverified CME Record Modal
+  const [rejectingRecord, setRejectingRecord] = useState<CmeRecord | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectError, setRejectError] = useState('');
+  const [rejectingBusy, setRejectingBusy] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const formRef = useRef<HTMLDivElement | null>(null);
 
@@ -354,11 +360,12 @@ export default function CmeRecordListPage() {
 
     let daysLeft: number | null = null;
     if (selectedCycle.cycleEnd) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const end = new Date(`${selectedCycle.cycleEnd.slice(0, 10)}T00:00:00`);
-      if (!isNaN(end.getTime())) {
-        daysLeft = Math.round((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const [ty, tm, td] = todayVn().split('-').map(Number);
+      const [ey, em, ed] = selectedCycle.cycleEnd.slice(0, 10).split('-').map(Number);
+      if (ey && em && ed) {
+        daysLeft = Math.round(
+          (Date.UTC(ey, em - 1, ed) - Date.UTC(ty, tm - 1, td)) / (1000 * 60 * 60 * 24)
+        );
       }
     }
 
@@ -388,9 +395,9 @@ export default function CmeRecordListPage() {
     const end = selectedCycle.cycleEnd?.slice(0, 10);
     if ((start && completedDate < start) || (end && completedDate > end)) {
       setCycleWarning(
-        `Warning (GB-C05): The completion date (${formatDateDdMmYyyy(
+        `Cảnh báo (GB-C05): Ngày hoàn thành (${formatDateDdMmYyyy(
           completedDate
-        )}) is outside the selected cycle (${formatDateDdMmYyyy(start)} - ${formatDateDdMmYyyy(
+        )}) nằm ngoài thời hạn chu kỳ đang chọn (${formatDateDdMmYyyy(start)} - ${formatDateDdMmYyyy(
           end
         )}).`
       );
@@ -439,12 +446,12 @@ export default function CmeRecordListPage() {
 
     setFormError('');
     if (file.size > 10 * 1024 * 1024) {
-      setFormError('GB-C03: File size must not exceed 10 MB.');
+      setFormError('Tệp đính kèm không được vượt quá 10 MB.');
       return;
     }
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
     if (!['pdf', 'jpg', 'jpeg', 'png'].includes(ext)) {
-      setFormError('GB-C03: Upload only accepts PDF, JPG, or PNG files up to 10 MB.');
+      setFormError('Chỉ hỗ trợ tải lên tệp PDF, JPG hoặc PNG (tối đa 10 MB).');
       return;
     }
 
@@ -574,6 +581,7 @@ export default function CmeRecordListPage() {
       }
 
       await loadStaffCme(selectedStaffId, selectedCertificateId);
+      await loadStaffList();
       resetForm();
       setNotice('Đã lưu bản ghi CME thành công.');
     } catch (cause) {
@@ -610,6 +618,42 @@ export default function CmeRecordListPage() {
     }
   }
 
+  function openRejectModal(rec: CmeRecord) {
+    if (isCurrentCycleLocked) return;
+    setRejectingRecord(rec);
+    setRejectReason('');
+    setRejectError('');
+  }
+
+  async function handleConfirmRejectRecord(e: FormEvent) {
+    e.preventDefault();
+    if (!rejectingRecord || rejectingBusy) return;
+    if (!rejectReason.trim()) {
+      setRejectError('Vui lòng nhập lý do từ chối để nhân viên kiểm tra và bổ sung lại.');
+      return;
+    }
+    setRejectingBusy(true);
+    setRejectError('');
+    setError('');
+    setNotice('');
+    try {
+      await cmeApi.delete(rejectingRecord.cmeId, rejectReason.trim());
+      if (editingRecord?.cmeId === rejectingRecord.cmeId) {
+        resetForm();
+      }
+      const rejectedName = rejectingRecord.courseName;
+      setRejectingRecord(null);
+      setRejectReason('');
+      await loadStaffCme(selectedStaffId, selectedCertificateId);
+      await loadStaffList();
+      setNotice(`Đã từ chối bản ghi CME "${rejectedName}" và gửi thông báo cho nhân viên.`);
+    } catch (cause) {
+      setRejectError(cause instanceof Error ? cause.message : 'Không từ chối được bản ghi CME.');
+    } finally {
+      setRejectingBusy(false);
+    }
+  }
+
   async function handleDeleteRecord(rec: CmeRecord) {
     if (isCurrentCycleLocked) return;
     if (
@@ -629,6 +673,7 @@ export default function CmeRecordListPage() {
         resetForm();
       }
       await loadStaffCme(selectedStaffId, selectedCertificateId);
+      await loadStaffList();
       setNotice('Đã xóa bản ghi CME thành công.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Không xóa được bản ghi CME.');
@@ -701,11 +746,15 @@ export default function CmeRecordListPage() {
   function handleOpenNewCycleModal() {
     if (!selectedCycle) return;
     setNewCycleError('');
-    const today = new Date().toISOString().slice(0, 10);
-    const nextYearDate = new Date();
-    nextYearDate.setFullYear(nextYearDate.getFullYear() + 2);
+    const today = todayVn();
+    const [y, m, d] = today.split('-').map(Number);
+    const endDateObj = new Date(Date.UTC(y + 2, m - 1, d));
+    // Handle Feb 29 -> Mar 1 rollover cleanly
+    if (endDateObj.getUTCMonth() !== m - 1) {
+      endDateObj.setUTCDate(0);
+    }
     setNewCycleStartInput(today);
-    setNewCycleEndInput(nextYearDate.toISOString().slice(0, 10));
+    setNewCycleEndInput(endDateObj.toISOString().slice(0, 10));
     setNewCycleOpen(true);
   }
 
@@ -1190,9 +1239,9 @@ export default function CmeRecordListPage() {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => void handleDeleteRecord(rec)}
+                                onClick={() => openRejectModal(rec)}
                                 className="proc-action-btn reject"
-                                title="Từ chối và xóa bản ghi này"
+                                title="Từ chối và thông báo lý do cho nhân viên"
                               >
                                 Từ chối
                               </button>
@@ -1330,7 +1379,7 @@ export default function CmeRecordListPage() {
                       id="cme-completed-input"
                       type="date"
                       required
-                      max={new Date().toISOString().slice(0, 10)}
+                      max={todayVn()}
                       value={completedDate}
                       onChange={e => setCompletedDate(e.target.value)}
                       disabled={saving || uploading}
@@ -1647,6 +1696,50 @@ export default function CmeRecordListPage() {
               </button>
               <button type="submit" className="button primary" disabled={creatingCycle}>
                 {creatingCycle ? 'Đang tạo…' : 'Tạo bảng tiến độ mới'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {rejectingRecord && (
+        <Modal
+          title="Từ chối bản ghi CME chờ xác minh"
+          onClose={() => !rejectingBusy && setRejectingRecord(null)}
+          busy={rejectingBusy}
+        >
+          <form onSubmit={handleConfirmRejectRecord} className="p-6 space-y-4">
+            {rejectError && <Alert variant="error">{rejectError}</Alert>}
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Bạn đang từ chối bản ghi CME <strong>{rejectingRecord.courseName}</strong> của nhân viên{' '}
+              <strong>{rejectingRecord.staffName}</strong>. Hệ thống sẽ xóa bản ghi chờ duyệt này và
+              gửi thông báo kèm lý do từ chối để nhân viên bổ sung lại.
+            </p>
+            <div>
+              <label htmlFor="reject-cme-reason">
+                Lý do từ chối <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                id="reject-cme-reason"
+                rows={3}
+                required
+                placeholder="VD: Ảnh chụp giấy chứng nhận bị mờ, số giờ đào tạo chưa khớp với minh chứng..."
+                value={rejectReason}
+                onChange={e => setRejectReason(e.target.value)}
+                disabled={rejectingBusy}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              <button
+                type="button"
+                className="button"
+                onClick={() => setRejectingRecord(null)}
+                disabled={rejectingBusy}
+              >
+                Hủy
+              </button>
+              <button type="submit" className="button danger" disabled={rejectingBusy}>
+                {rejectingBusy ? 'Đang xử lý…' : 'Xác nhận từ chối'}
               </button>
             </div>
           </form>

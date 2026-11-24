@@ -218,6 +218,76 @@ public sealed partial class ProcedureSlipService(
         }
     }
 
+    private static (string? ActualStartTime, string? ActualEndTime, int? ActualDurationMinutes) ExtractCompleteTimeMetaFromJson(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return (null, null, null);
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            string? actStart = null;
+            string? actEnd = null;
+            int? actMinutes = null;
+            if (doc.RootElement.TryGetProperty("actualStartTime", out var sProp) && sProp.ValueKind == JsonValueKind.String)
+                actStart = sProp.GetString();
+            if (doc.RootElement.TryGetProperty("actualEndTime", out var eProp) && eProp.ValueKind == JsonValueKind.String)
+                actEnd = eProp.GetString();
+            if (doc.RootElement.TryGetProperty("actualDurationMinutes", out var mProp) && mProp.ValueKind == JsonValueKind.Number && mProp.TryGetInt32(out var parsedMin))
+                actMinutes = parsedMin;
+            else if (doc.RootElement.TryGetProperty("actualDurationHours", out var hProp) && hProp.ValueKind == JsonValueKind.Number && hProp.TryGetDecimal(out var parsedHrs) && parsedHrs > 0m)
+                actMinutes = Math.Max(1, (int)Math.Round(parsedHrs * 60m, MidpointRounding.AwayFromZero));
+            return (actStart, actEnd, actMinutes);
+        }
+        catch
+        {
+            return (null, null, null);
+        }
+    }
+
+    private static (string? EffectiveStartTime, string? EffectiveEndTime, string? PlannedRangeLabel) ResolveCompletedTimeRange(
+        string? plannedStartStr,
+        string? plannedEndStr,
+        string? completeLogJson,
+        decimal? slipDurationHours)
+    {
+        string? plannedLabel = null;
+        bool hasPlannedStart = TryParseTimePoint(plannedStartStr, out var pStart);
+        bool hasPlannedEnd = TryParseTimePoint(plannedEndStr, out var pEnd);
+        if (hasPlannedStart && hasPlannedEnd && pEnd > pStart)
+        {
+            plannedLabel = FormatTimeRangeVn(pStart, pEnd);
+        }
+
+        var (actStartStr, actEndStr, actMinutes) = ExtractCompleteTimeMetaFromJson(completeLogJson);
+        if (TryParseTimePoint(actStartStr, out var aStart) && TryParseTimePoint(actEndStr, out var aEnd) && aEnd > aStart)
+        {
+            return (aStart.ToString("HH:mm"), aEnd.ToString("HH:mm"), plannedLabel);
+        }
+
+        var baseStartAvailable = TryParseTimePoint(actStartStr, out var baseStart) || (hasPlannedStart && (baseStart = pStart) != default || hasPlannedStart);
+        if (baseStartAvailable)
+        {
+            if (!TryParseTimePoint(actStartStr, out baseStart))
+                baseStart = pStart;
+
+            var mins = actMinutes ?? (slipDurationHours is > 0m
+                ? Math.Max(1, (int)Math.Round(slipDurationHours.Value * 60m, MidpointRounding.AwayFromZero))
+                : (int?)null);
+
+            if (mins.HasValue)
+            {
+                var startTotalMin = baseStart.Hour * 60 + baseStart.Minute;
+                var endTotalMin = Math.Min(23 * 60 + 59, startTotalMin + mins.Value);
+                if (endTotalMin > startTotalMin)
+                {
+                    var computedEnd = new TimeOnly(endTotalMin / 60, endTotalMin % 60);
+                    return (baseStart.ToString("HH:mm"), computedEnd.ToString("HH:mm"), plannedLabel);
+                }
+            }
+        }
+
+        return (plannedStartStr, plannedEndStr, plannedLabel);
+    }
+
     public async Task<IReadOnlyList<ProcedureStaffAvailabilityDto>> GetStaffAvailabilityAsync(
         DateOnly procedureDate,
         Guid? departmentId,
@@ -392,6 +462,7 @@ public sealed partial class ProcedureSlipService(
                 slip.SlipId,
                 slip.SlipNumber,
                 slip.Status,
+                slip.DurationHours,
                 ServiceName = svc != null ? svc.ServiceName : "Thủ thuật y tế"
             }
         ).ToListAsync(ct);
@@ -426,14 +497,49 @@ public sealed partial class ProcedureSlipService(
                     g => g.Key,
                     g => ExtractSaveMetaFromJson(g.First().NewValue));
 
+            var completeLogsOnDate = await db.AuditLogs.AsNoTracking()
+                .Where(l => l.EntityType == "ProcedureSlip" &&
+                            l.EntityId.HasValue &&
+                            activeSlipIds.Contains(l.EntityId.Value) &&
+                            l.Action == "complete_procedure")
+                .OrderByDescending(l => l.CreatedAt)
+                .Select(l => new { SlipId = l.EntityId!.Value, l.NewValue })
+                .ToListAsync(ct);
+
+            var completeJsonBySlipId = completeLogsOnDate
+                .GroupBy(x => x.SlipId)
+                .ToDictionary(g => g.Key, g => g.First().NewValue);
+
             var slipMetaMap = activeSlipsOnDate.ToDictionary(x => x.SlipId);
 
             foreach (var sa in slipAssignmentsOnDate)
             {
                 if (!slipMetaMap.TryGetValue(sa.SlipId, out var meta)) continue;
                 if (!timeRangeBySlipId.TryGetValue(sa.SlipId, out var tr)) continue;
-                if (!TryParseTimePoint(tr.StartTime, out var sTime) || !TryParseTimePoint(tr.EndTime, out var eTime) || eTime <= sTime)
+
+                var normStatus = NormalizeSlipStatus(meta.Status);
+                var effStartStr = tr.StartTime;
+                var effEndStr = tr.EndTime;
+                string? plannedRangeLabel = null;
+
+                if (normStatus == "completed")
+                {
+                    completeJsonBySlipId.TryGetValue(sa.SlipId, out var compJson);
+                    (effStartStr, effEndStr, plannedRangeLabel) = ResolveCompletedTimeRange(
+                        tr.StartTime,
+                        tr.EndTime,
+                        compJson,
+                        meta.DurationHours);
+                }
+
+                if (!TryParseTimePoint(effStartStr, out var sTime) || !TryParseTimePoint(effEndStr, out var eTime) || eTime <= sTime)
                     continue;
+
+                var actualRangeLabel = FormatTimeRangeVn(sTime, eTime);
+                var changedPlannedLabel = !string.IsNullOrWhiteSpace(plannedRangeLabel) &&
+                                          !string.Equals(plannedRangeLabel, actualRangeLabel, StringComparison.OrdinalIgnoreCase)
+                    ? plannedRangeLabel
+                    : null;
 
                 var list = bookingsByStaff[sa.StaffId];
                 if (list.All(b => b.SlipId != sa.SlipId))
@@ -444,7 +550,9 @@ public sealed partial class ProcedureSlipService(
                         meta.ServiceName,
                         sTime.ToString("HH:mm"),
                         eTime.ToString("HH:mm"),
-                        FormatTimeRangeVn(sTime, eTime)));
+                        actualRangeLabel,
+                        normStatus,
+                        changedPlannedLabel));
                 }
             }
         }
@@ -868,7 +976,7 @@ public sealed partial class ProcedureSlipService(
                 .ToDictionary(g => g.Key, g => ExtractSaveMetaFromJson(g.First().NewValue));
 
         var completeLogs = slipIds.Count == 0
-            ? new Dictionary<Guid, (Guid? UserId, string? ActorName, DateTime? CreatedAt, string? Note)>()
+            ? new Dictionary<Guid, (Guid? UserId, string? ActorName, DateTime? CreatedAt, string? Note, string? RawJson)>()
             : (await (
                 from l in db.AuditLogs.AsNoTracking()
                 where l.EntityType == "ProcedureSlip" && l.EntityId.HasValue && slipIds.Contains(l.EntityId.Value) &&
@@ -889,7 +997,7 @@ public sealed partial class ProcedureSlipService(
                 .ToDictionary(g => g.Key, g =>
                 {
                     var latest = g.First();
-                    return (UserId: latest.UserId, ActorName: (string?)latest.ActorName, CreatedAt: latest.CreatedAt, Note: ExtractNoteFromJson(latest.NewValue));
+                    return (UserId: latest.UserId, ActorName: (string?)latest.ActorName, CreatedAt: latest.CreatedAt, Note: ExtractNoteFromJson(latest.NewValue), RawJson: (string?)latest.NewValue);
                 });
 
         var allMapped = rawRows.Select(r =>
@@ -903,6 +1011,16 @@ public sealed partial class ProcedureSlipService(
             var directCost = r.Slip.DirectCost ?? 0m;
             var normStatus = NormalizeSlipStatus(r.Slip.Status);
             var payMonth = r.Slip.ProcedureDate.ToString("yyyy-MM");
+            var displayStart = saveMeta.StartTime;
+            var displayEnd = saveMeta.EndTime;
+            if (normStatus == "completed")
+            {
+                (displayStart, displayEnd, _) = ResolveCompletedTimeRange(
+                    saveMeta.StartTime,
+                    saveMeta.EndTime,
+                    completeLog.RawJson,
+                    r.Slip.DurationHours);
+            }
 
             return new ProcedureSlipListItemDto(
                 r.Slip.SlipId,
@@ -941,8 +1059,8 @@ public sealed partial class ProcedureSlipService(
                 r.Slip.RejectedReason,
                 r.Slip.CreatedAt,
                 lockedMonthSet.Contains(payMonth),
-                saveMeta.StartTime,
-                saveMeta.EndTime,
+                displayStart,
+                displayEnd,
                 saveMeta.FacilityId,
                 saveMeta.FacilityName,
                 completeLog.UserId,
@@ -1034,7 +1152,7 @@ public sealed partial class ProcedureSlipService(
             .Sum(x => x.TotalCommissionAmount);
 
         var page = Math.Clamp(filter.Page, 1, 10000);
-        var pageSize = Math.Clamp(filter.PageSize, 1, 200);
+        var pageSize = Math.Clamp(filter.PageSize, 1, 1000);
         var pagedItems = filteredItems
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
@@ -1122,23 +1240,54 @@ public sealed partial class ProcedureSlipService(
             }
         ).ToListAsync(ct);
 
+        var timeSlug = row.Slip.IsAfterHours == true ? "after_hours" : "in_hours";
+        var candidateOverrides = rawAssignments.Any(x => x.Rule == null && x.Override == null)
+            ? await db.StaffCommissionOverrides.AsNoTracking()
+                .Where(o => o.Status == "active" &&
+                            o.EffectiveFrom <= row.Slip.ProcedureDate &&
+                            (o.EffectiveTo == null || o.EffectiveTo >= row.Slip.ProcedureDate) &&
+                            (o.ServiceId == row.Slip.ServiceId ||
+                             (o.ServiceId == null && row.ServiceCategory != null && o.ServiceCategory == row.ServiceCategory)))
+                .ToListAsync(ct)
+            : [];
+
         var assignments = rawAssignments.Select(x =>
         {
             string ruleSource = "manual";
             string? valueType = null;
             decimal? ruleValue = null;
+            Guid? effectiveRuleId = x.Assignment.RuleId;
 
             if (x.Override != null)
             {
                 ruleSource = "staff_override";
                 valueType = x.Override.ValueType;
                 ruleValue = x.Override.CommissionValue;
+                effectiveRuleId = x.Override.OverrideId;
             }
             else if (x.Rule != null)
             {
                 ruleSource = x.Rule.ServiceId.HasValue ? "service_rule" : "category_rule";
                 valueType = x.Rule.ValueType;
                 ruleValue = x.Rule.CommissionValue;
+            }
+            else
+            {
+                var matchedOverride = candidateOverrides
+                    .Where(o => o.StaffId == x.Assignment.StaffId &&
+                                string.Equals(o.Role, x.Assignment.Role, StringComparison.OrdinalIgnoreCase) &&
+                                (o.TimeCondition == timeSlug || o.TimeCondition == "all"))
+                    .OrderByDescending(o => o.ServiceId.HasValue)
+                    .ThenByDescending(o => o.TimeCondition == timeSlug)
+                    .FirstOrDefault();
+
+                if (matchedOverride != null)
+                {
+                    ruleSource = "staff_override";
+                    valueType = matchedOverride.ValueType;
+                    ruleValue = matchedOverride.CommissionValue;
+                    effectiveRuleId = matchedOverride.OverrideId;
+                }
             }
 
             return new ProcedureAssignmentDto(
@@ -1150,7 +1299,7 @@ public sealed partial class ProcedureSlipService(
                 x.DepartmentName,
                 x.PositionName,
                 x.Assignment.Role,
-                x.Assignment.RuleId,
+                effectiveRuleId,
                 ruleSource,
                 valueType,
                 ruleValue,
@@ -1261,6 +1410,7 @@ public sealed partial class ProcedureSlipService(
 
         bool canComplete = !isLocked &&
                            normStatus == "verified" &&
+                           row.Slip.ProcedureDate <= PayrollParameterRules.TodayVn() &&
                            isUserInAssignments;
 
         bool isDeptHeadOfSlip = currentUserRole == AccountRoles.DepartmentManager &&
@@ -1279,6 +1429,14 @@ public sealed partial class ProcedureSlipService(
         string? completedByName = latestCompleteLog?.ActorFullName;
         DateTime? completedAt = latestCompleteLog?.Log.CreatedAt;
         string? completeNote = ExtractNoteFromJson(latestCompleteLog?.Log.NewValue);
+        if (normStatus == "completed")
+        {
+            (startTime, endTime, _) = ResolveCompletedTimeRange(
+                startTime,
+                endTime,
+                latestCompleteLog?.Log.NewValue,
+                row.Slip.DurationHours);
+        }
 
         var primaryPerforming = assignments.FirstOrDefault(x => string.Equals(x.Role, "performing", StringComparison.OrdinalIgnoreCase))
             ?? assignments.FirstOrDefault();
@@ -1769,7 +1927,7 @@ public sealed partial class ProcedureSlipService(
                 SlipId = slip.SlipId,
                 StaffId = a.StaffId,
                 Role = a.Role,
-                RuleId = a.RuleId,
+                RuleId = a.RuleSource is "service_rule" or "category_rule" ? a.RuleId : null,
                 CommissionAmount = a.CommissionAmount,
                 Status = "pending"
             });
@@ -1790,7 +1948,7 @@ public sealed partial class ProcedureSlipService(
             startTime = normalizedStart,
             endTime = normalizedEnd,
             slip.Status,
-            note = "Tạo mới phiếu thủ thuật và gửi HR kiểm tra."
+            note = "Tạo mới phiếu thủ thuật và gửi Kế toán xác minh viện phí."
         });
 
         await unitOfWork.SaveChangesAsync(ct);
@@ -1841,9 +1999,24 @@ public sealed partial class ProcedureSlipService(
         await ValidateAndEnsureUnlockedMonthAsync(slip.ProcedureDate, ct);
         await ValidateAndEnsureUnlockedMonthAsync(request.ProcedureDate, ct);
 
+        string? prevFacilityName = null;
+        Guid? prevFacilityId = null;
+        if (isAccountant)
+        {
+            var prevSaveJson = await db.AuditLogs.AsNoTracking()
+                .Where(l => l.EntityType == "ProcedureSlip" &&
+                            l.EntityId == slipId &&
+                            (l.Action == "create" || l.Action == "update" || l.Action == "resubmit" || l.Action == "accountant_adjust_slip"))
+                .OrderByDescending(l => l.CreatedAt)
+                .Select(l => l.NewValue)
+                .FirstOrDefaultAsync(ct);
+            (_, _, prevFacilityId, prevFacilityName) = ExtractSaveMetaFromJson(prevSaveJson);
+        }
+
         // Nếu là Kế toán điều chỉnh: bắt buộc giữ nguyên dịch vụ, khoa phòng, cơ sở, viện phí, chi phí trực tiếp và mã bệnh nhân gốc
         var effectiveServiceId = isAccountant ? slip.ServiceId : request.ServiceId;
         var effectiveDepartmentId = isAccountant ? slip.DepartmentId : request.DepartmentId;
+        var effectiveFacilityId = isAccountant ? (prevFacilityId ?? request.FacilityId) : request.FacilityId;
         decimal effectiveChargedAmount = isAccountant ? (slip.ChargedAmount ?? 0m) : request.ChargedAmount;
         decimal effectiveDirectCost = isAccountant ? (slip.DirectCost ?? 0m) : request.DirectCost;
         var effectivePatientCode = isAccountant ? slip.PatientCode : (string.IsNullOrWhiteSpace(request.PatientCode) ? null : PayrollParameterRules.RequireText(request.PatientCode, "Mã bệnh nhân", 50).ToUpperInvariant());
@@ -1866,6 +2039,7 @@ public sealed partial class ProcedureSlipService(
             {
                 ServiceId = effectiveServiceId,
                 DepartmentId = effectiveDepartmentId,
+                FacilityId = effectiveFacilityId,
                 ChargedAmount = effectiveChargedAmount,
                 DirectCost = effectiveDirectCost,
                 PatientCode = effectivePatientCode
@@ -1970,7 +2144,7 @@ public sealed partial class ProcedureSlipService(
                 SlipId = slip.SlipId,
                 StaffId = a.StaffId,
                 Role = a.Role,
-                RuleId = a.RuleId,
+                RuleId = a.RuleSource is "service_rule" or "category_rule" ? a.RuleId : null,
                 CommissionAmount = a.CommissionAmount,
                 Status = isAccountant ? "verified" : "pending"
             });
@@ -2012,6 +2186,13 @@ public sealed partial class ProcedureSlipService(
             {
                 slip.SlipNumber,
                 slip.ProcedureDate,
+                slip.PatientCode,
+                slip.ServiceId,
+                slip.DepartmentId,
+                facilityId = effectiveFacilityId,
+                facilityName = facilityName ?? prevFacilityName,
+                slip.ChargedAmount,
+                slip.DirectCost,
                 startTime = normalizedStart,
                 endTime = normalizedEnd,
                 slip.IsAfterHours,
@@ -2377,6 +2558,11 @@ public sealed partial class ProcedureSlipService(
             throw new AppException(400, "Chỉ có thể xác nhận hoàn thành cho các ca thủ thuật đã được Kế toán xác minh viện phí.");
         }
 
+        if (slip.ProcedureDate > PayrollParameterRules.TodayVn())
+        {
+            throw new AppException(400, $"Chưa thể xác nhận hoàn thành cho ca thủ thuật có ngày thực hiện trong tương lai ({slip.ProcedureDate:dd/MM/yyyy}).");
+        }
+
         var assignments = await db.ProcedureAssignments.Where(a => a.SlipId == slipId).ToListAsync(ct);
 
         var currentStaff = await db.Staff.AsNoTracking().FirstOrDefaultAsync(s => s.UserId == currentUserId, ct);
@@ -2393,13 +2579,112 @@ public sealed partial class ProcedureSlipService(
             ? "Bác sĩ / Kíp thực hiện đã hoàn thành ca thủ thuật y tế."
             : request.Note.Trim();
 
-        if (request.ActualDurationHours.HasValue)
+        var prevSaveJson = await db.AuditLogs.AsNoTracking()
+            .Where(l => l.EntityType == "ProcedureSlip" &&
+                        l.EntityId == slipId &&
+                        (l.Action == "create" || l.Action == "update" || l.Action == "resubmit" || l.Action == "accountant_adjust_slip"))
+            .OrderByDescending(l => l.CreatedAt)
+            .Select(l => l.NewValue)
+            .FirstOrDefaultAsync(ct);
+        var (plannedStart, plannedEnd, _, _) = ExtractSaveMetaFromJson(prevSaveJson);
+
+        int? actualMinutes = null;
+        string? resolvedActualStart = null;
+        string? resolvedActualEnd = null;
+        decimal? requestedDurationHours = request.ActualDurationHours;
+
+        if (!string.IsNullOrWhiteSpace(request.ActualStartTime) && !string.IsNullOrWhiteSpace(request.ActualEndTime))
+        {
+            if (!TryParseTimePoint(request.ActualStartTime, out var reqS) ||
+                !TryParseTimePoint(request.ActualEndTime, out var reqE) ||
+                reqE <= reqS)
+            {
+                throw new AppException(400, "Khung giờ thực hiện thực tế không hợp lệ (giờ kết thúc phải sau giờ bắt đầu).");
+            }
+            resolvedActualStart = reqS.ToString("HH:mm");
+            resolvedActualEnd = reqE.ToString("HH:mm");
+            actualMinutes = Math.Max(1, (int)Math.Round((reqE - reqS).TotalMinutes, MidpointRounding.AwayFromZero));
+            requestedDurationHours = Math.Round(actualMinutes.Value / 60m, 2, MidpointRounding.AwayFromZero);
+        }
+        else if (request.ActualDurationMinutes.HasValue)
+        {
+            if (request.ActualDurationMinutes.Value <= 0 || request.ActualDurationMinutes.Value > 2880)
+            {
+                throw new AppException(400, "Thời lượng thực hiện thực tế phải từ 1 đến 2880 phút (48 giờ).");
+            }
+            actualMinutes = request.ActualDurationMinutes.Value;
+            requestedDurationHours = Math.Round(actualMinutes.Value / 60m, 2, MidpointRounding.AwayFromZero);
+            if (requestedDurationHours <= 0m) requestedDurationHours = 0.01m;
+        }
+        else if (request.ActualDurationHours.HasValue)
         {
             if (request.ActualDurationHours.Value <= 0 || request.ActualDurationHours.Value > 48m)
             {
                 throw new AppException(400, "Thời lượng thực hiện thực tế phải lớn hơn 0 và không vượt quá 48 giờ.");
             }
-            slip.DurationHours = Math.Round(request.ActualDurationHours.Value, 2, MidpointRounding.AwayFromZero);
+            actualMinutes = Math.Max(1, (int)Math.Round(request.ActualDurationHours.Value * 60m, MidpointRounding.AwayFromZero));
+            requestedDurationHours = Math.Round(request.ActualDurationHours.Value, 2, MidpointRounding.AwayFromZero);
+        }
+
+        if (resolvedActualStart == null && TryParseTimePoint(plannedStart, out var baseStart))
+        {
+            var effectiveMins = actualMinutes ?? (slip.DurationHours is > 0m
+                ? Math.Max(1, (int)Math.Round(slip.DurationHours.Value * 60m, MidpointRounding.AwayFromZero))
+                : (int?)null);
+            if (effectiveMins.HasValue)
+            {
+                var startTotalMin = baseStart.Hour * 60 + baseStart.Minute;
+                var endTotalMin = Math.Min(23 * 60 + 59, startTotalMin + effectiveMins.Value);
+                if (endTotalMin > startTotalMin)
+                {
+                    var computedEnd = new TimeOnly(endTotalMin / 60, endTotalMin % 60);
+                    resolvedActualStart = baseStart.ToString("HH:mm");
+                    resolvedActualEnd = computedEnd.ToString("HH:mm");
+                }
+            }
+        }
+
+        if (requestedDurationHours.HasValue)
+        {
+            var newDuration = requestedDurationHours.Value;
+            var durationChanged = slip.DurationHours != newDuration;
+            slip.DurationHours = newDuration;
+
+            if (durationChanged && assignments.Count > 0)
+            {
+                var service = await db.ProcedureServices.AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.ServiceId == slip.ServiceId, ct);
+                if (service != null)
+                {
+                    var recalcInputs = assignments
+                        .Select(a => new SaveProcedureAssignmentInput(a.StaffId, a.Role, null))
+                        .ToList();
+                    var recalculated = await CalculateAssignmentsCommissionAsync(
+                        service,
+                        slip.ProcedureDate,
+                        slip.ChargedAmount ?? 0m,
+                        slip.DirectCost ?? 0m,
+                        slip.IsAfterHours,
+                        slip.DurationHours,
+                        recalcInputs,
+                        ct);
+
+                    foreach (var a in assignments)
+                    {
+                        var matchedRecalc = recalculated.FirstOrDefault(r =>
+                            r.StaffId == a.StaffId &&
+                            string.Equals(r.Role, a.Role, StringComparison.OrdinalIgnoreCase));
+                        if (matchedRecalc != null &&
+                            string.Equals(matchedRecalc.ValueType, "per_hour", StringComparison.OrdinalIgnoreCase))
+                        {
+                            a.CommissionAmount = matchedRecalc.CommissionAmount;
+                            a.RuleId = matchedRecalc.RuleSource is "service_rule" or "category_rule"
+                                ? matchedRecalc.RuleId
+                                : null;
+                        }
+                    }
+                }
+            }
         }
 
         var oldStatus = slip.Status;
@@ -2416,6 +2701,11 @@ public sealed partial class ProcedureSlipService(
             completedBy = currentUserId,
             completedAt = DateTime.UtcNow,
             actualDurationHours = slip.DurationHours,
+            actualDurationMinutes = actualMinutes,
+            actualStartTime = resolvedActualStart,
+            actualEndTime = resolvedActualEnd,
+            plannedStartTime = plannedStart,
+            plannedEndTime = plannedEnd,
             note
         });
 
@@ -2665,18 +2955,55 @@ public sealed partial class ProcedureSlipService(
             }
         ).ToDictionaryAsync(x => x.StaffId, ct);
 
-        var payslipsInMonth = await db.Payslips
-            .Where(p => p.PayMonth == payMonth && p.IsLocked != true &&
-                        (request.DepartmentId.HasValue ? staffIds.Contains(p.StaffId) : true))
-            .ToDictionaryAsync(p => p.StaffId, ct);
+        Dictionary<Guid, Payslip> payslipsInMonth;
+        if (request.DepartmentId.HasValue)
+        {
+            var deptStaffIds = await db.Staff.AsNoTracking()
+                .Where(s => s.DepartmentId == request.DepartmentId.Value)
+                .Select(s => s.StaffId)
+                .ToListAsync(ct);
 
-        // When filtering by DepartmentId, compute each affected staff's full monthly commission across all departments
+            payslipsInMonth = await db.Payslips
+                .Where(p => p.PayMonth == payMonth && p.IsLocked != true &&
+                            (staffIds.Contains(p.StaffId) || (deptStaffIds.Contains(p.StaffId) && (p.CommissionTotal ?? 0m) > 0m)))
+                .ToDictionaryAsync(p => p.StaffId, ct);
+        }
+        else
+        {
+            payslipsInMonth = await db.Payslips
+                .Where(p => p.PayMonth == payMonth && p.IsLocked != true &&
+                            (staffIds.Contains(p.StaffId) || (p.CommissionTotal ?? 0m) > 0m))
+                .ToDictionaryAsync(p => p.StaffId, ct);
+        }
+
+        // Unlink stale PayslipId on non-completed slips in this period/scope
+        if (payslipsInMonth.Count > 0)
+        {
+            var unlockedPayslipIds = payslipsInMonth.Values.Select(p => p.PayslipId).ToList();
+            var staleAssignments = await (
+                from a in db.ProcedureAssignments
+                where a.PayslipId != null && unlockedPayslipIds.Contains(a.PayslipId.Value)
+                join s in db.ProcedureSlips.AsNoTracking() on a.SlipId equals s.SlipId
+                where s.ProcedureDate >= monthStart && s.ProcedureDate <= monthEnd &&
+                      s.Status != "completed" &&
+                      (!request.DepartmentId.HasValue || s.DepartmentId == request.DepartmentId.Value)
+                select a
+            ).ToListAsync(ct);
+
+            foreach (var stale in staleAssignments)
+            {
+                stale.PayslipId = null;
+            }
+        }
+
+        // Compute full monthly commission across all departments whenever DepartmentId is filtered OR stale payslips need recalculation
+        var allPayslipStaffIds = payslipsInMonth.Keys.Union(staffIds).Distinct().ToList();
         Dictionary<Guid, decimal>? fullMonthCommByStaff = null;
-        if (request.DepartmentId.HasValue && staffIds.Count > 0)
+        if (request.DepartmentId.HasValue && allPayslipStaffIds.Count > 0)
         {
             fullMonthCommByStaff = await (
                 from a in db.ProcedureAssignments.AsNoTracking()
-                where staffIds.Contains(a.StaffId)
+                where allPayslipStaffIds.Contains(a.StaffId)
                 join s in db.ProcedureSlips.AsNoTracking() on a.SlipId equals s.SlipId
                 where s.ProcedureDate >= monthStart && s.ProcedureDate <= monthEnd &&
                       s.Status == "completed"
@@ -2687,13 +3014,15 @@ public sealed partial class ProcedureSlipService(
 
         int updatedPayslipCount = 0;
         var staffSummaries = new List<StaffMonthlyCommissionItemDto>();
+        var handledPayslipStaffIds = new HashSet<Guid>();
 
         foreach (var group in assignments.GroupBy(a => a.StaffId))
         {
             var staffId = group.Key;
+            handledPayslipStaffIds.Add(staffId);
             var totalComm = group.Sum(a => a.CommissionAmount ?? 0m);
-            var payslipCommTotal = fullMonthCommByStaff != null && fullMonthCommByStaff.TryGetValue(staffId, out var fullComm)
-                ? fullComm
+            var payslipCommTotal = fullMonthCommByStaff != null
+                ? (fullMonthCommByStaff.TryGetValue(staffId, out var fullComm) ? fullComm : 0m)
                 : totalComm;
             var distinctSlips = group.Select(a => a.SlipId).Distinct().Count();
             var assignCount = group.Count();
@@ -2738,6 +3067,28 @@ public sealed partial class ProcedureSlipService(
                 totalComm,
                 linkedPayslipId,
                 linked));
+        }
+
+        // Reset or sync unlocked payslips whose staff no longer have any completed slips in this scope
+        foreach (var (staleStaffId, stalePayslip) in payslipsInMonth)
+        {
+            if (handledPayslipStaffIds.Contains(staleStaffId)) continue;
+
+            var refreshedComm = fullMonthCommByStaff != null && fullMonthCommByStaff.TryGetValue(staleStaffId, out var remainingComm)
+                ? remainingComm
+                : 0m;
+            if ((stalePayslip.CommissionTotal ?? 0m) != refreshedComm)
+            {
+                stalePayslip.CommissionTotal = refreshedComm;
+                var basePay = stalePayslip.BasePay ?? 0m;
+                var allowance = stalePayslip.AllowanceTotal ?? 0m;
+                var maternity = stalePayslip.MaternityAllowance ?? 0m;
+                stalePayslip.GrossPay = basePay + allowance + refreshedComm + maternity;
+                var deductions = (stalePayslip.InsuranceDeduction ?? 0m) + (stalePayslip.TaxDeduction ?? 0m) + (stalePayslip.OtherDeduction ?? 0m);
+                stalePayslip.NetPay = Math.Max(0m, (stalePayslip.GrossPay ?? 0m) - deductions);
+                stalePayslip.UpdatedAt = DateTime.UtcNow;
+                updatedPayslipCount++;
+            }
         }
 
         auditHelper.Log("calculate_monthly_commission", "PayrollLock", null, null, new
@@ -2863,6 +3214,7 @@ public sealed partial class ProcedureSlipService(
             var assignCount = group.Count();
 
             payslipsInMonth.TryGetValue(staffId, out var payslip);
+            var isLinked = payslip != null && group.All(a => a.PayslipId == payslip.PayslipId);
 
             staffSummaries.Add(new StaffMonthlyCommissionItemDto(
                 staffId,
@@ -2873,8 +3225,8 @@ public sealed partial class ProcedureSlipService(
                 distinctSlips,
                 assignCount,
                 totalComm,
-                payslip?.PayslipId,
-                payslip != null));
+                isLinked ? payslip!.PayslipId : null,
+                isLinked));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
@@ -3108,7 +3460,7 @@ public sealed partial class ProcedureSlipService(
             }
         }
 
-        var assignmentsWithSlips = await (
+        var rawDetailRows = await (
             from a in db.ProcedureAssignments.AsNoTracking()
             where a.StaffId == staffId
             join slip in db.ProcedureSlips.AsNoTracking() on a.SlipId equals slip.SlipId
@@ -3117,29 +3469,38 @@ public sealed partial class ProcedureSlipService(
                   (!deptHeadTargetDeptId.HasValue || slip.DepartmentId == deptHeadTargetDeptId.Value)
             join svc in db.ProcedureServices.AsNoTracking() on slip.ServiceId equals svc.ServiceId into svcJoin
             from svc in svcJoin.DefaultIfEmpty()
+            join r in db.CommissionRules.AsNoTracking() on a.RuleId equals r.RuleId into ruleJoin
+            from r in ruleJoin.DefaultIfEmpty()
             orderby slip.ProcedureDate descending, slip.SlipNumber descending
-            select new StaffProcedureCommissionDetailItemDto(
-                slip.SlipId,
-                slip.SlipNumber,
-                slip.ProcedureDate,
-                slip.PatientCode,
-                slip.ServiceId,
-                svc != null ? svc.ServiceCode : "N/A",
-                svc != null ? svc.ServiceName : "Dịch vụ thủ thuật",
-                a.Role,
-                slip.ChargedAmount ?? 0m,
-                slip.DirectCost ?? 0m,
-                slip.IsAfterHours,
-                a.CommissionAmount ?? 0m,
-                a.RuleId,
-                null,
-                slip.Status ?? "verified",
-                slip.VerifiedAt
-            )
+            select new
+            {
+                a.PayslipId,
+                Item = new StaffProcedureCommissionDetailItemDto(
+                    slip.SlipId,
+                    slip.SlipNumber,
+                    slip.ProcedureDate,
+                    slip.PatientCode,
+                    slip.ServiceId,
+                    svc != null ? svc.ServiceCode : "N/A",
+                    svc != null ? svc.ServiceName : "Dịch vụ thủ thuật",
+                    a.Role,
+                    slip.ChargedAmount ?? 0m,
+                    slip.DirectCost ?? 0m,
+                    slip.IsAfterHours,
+                    a.CommissionAmount ?? 0m,
+                    a.RuleId,
+                    r != null ? (r.ServiceId.HasValue ? "service_rule" : "category_rule") : null,
+                    slip.Status ?? "completed",
+                    slip.VerifiedAt
+                )
+            }
         ).ToListAsync(ct);
+
+        var assignmentsWithSlips = rawDetailRows.Select(x => x.Item).ToList();
 
         var payslip = await db.Payslips.AsNoTracking()
             .FirstOrDefaultAsync(p => p.PayMonth == payMonth && p.StaffId == staffId, ct);
+        var isLinked = payslip != null && rawDetailRows.Count > 0 && rawDetailRows.All(x => x.PayslipId == payslip.PayslipId);
 
         return new StaffCommissionDetailResponseDto(
             staff.StaffId,
@@ -3150,8 +3511,8 @@ public sealed partial class ProcedureSlipService(
             payMonth,
             assignmentsWithSlips.Select(x => x.SlipId).Distinct().Count(),
             assignmentsWithSlips.Sum(x => x.CommissionAmount),
-            payslip?.PayslipId,
-            payslip != null,
+            isLinked ? payslip!.PayslipId : null,
+            isLinked,
             assignmentsWithSlips);
     }
 }

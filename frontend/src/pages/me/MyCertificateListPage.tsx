@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { myCertificateApi } from '../../services/myCertificateApi';
 import type { Certificate, CertificateCategory } from '../../types/certificates';
-import { formatDate } from '../../utils/format';
+import { formatDate, todayVn } from '../../utils/format';
 import Alert from '../../components/ui/Alert';
 import Icon from '../../components/ui/Icon';
 import Modal from '../../components/ui/Modal';
@@ -90,13 +90,11 @@ function getExpiryInfo(expiryDateStr: string | null | undefined): ExpiryInfo {
     };
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const expiry = new Date(expiryDateStr);
-  expiry.setHours(0, 0, 0, 0);
-
-  const diffTime = expiry.getTime() - today.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const [ty, tm, td] = todayVn().split('-').map(Number);
+  const [ey, em, ed] = expiryDateStr.slice(0, 10).split('-').map(Number);
+  const diffDays = Math.round(
+    (Date.UTC(ey, em - 1, ed) - Date.UTC(ty, tm - 1, td)) / (1000 * 60 * 60 * 24)
+  );
 
   if (diffDays < 0) {
     return {
@@ -508,7 +506,7 @@ export default function MyCertificateListPage() {
           >
             <option value="all">Tất cả trạng thái</option>
             <option value="valid">Còn hiệu lực / Vô thời hạn</option>
-            <option value="expiring_soon">Sắp hết hạn (≤ 60 ngày)</option>
+            <option value="expiring_soon">Sắp hết hạn (≤ 90 ngày)</option>
             <option value="expired">Đã hết hạn</option>
           </select>
         </div>
