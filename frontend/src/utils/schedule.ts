@@ -6,7 +6,7 @@ export function scheduleDepartments(options: ScheduleOptions | undefined, facili
 
 export function scheduleStaff(options: ScheduleOptions | undefined, facilityId: string, departmentId: string) {
   if (!facilityId || !departmentId || !scheduleDepartments(options, facilityId).some(department => department.id === departmentId)) return [];
-  return options?.staff.filter(staff => staff.departmentId === departmentId && staff.facilityId === facilityId) || [];
+  return options?.staff.filter(staff => staff.departmentId === departmentId && (!staff.facilityId || staff.facilityId === facilityId)) || [];
 }
 
 export const shiftNames: Record<string, string> = { morning: 'Sáng', noon: 'Trực trưa', afternoon: 'Chiều', evening: 'Trực tối' };

@@ -16,5 +16,5 @@ public interface ICmeRecordService
     Task<CmeRecordDto> CreateAsync(SaveCmeRecordRequest request, Guid? currentUserId, CancellationToken ct = default);
     Task<CmeRecordDto> UpdateAsync(Guid id, UpdateCmeRecordRequest request, Guid? currentUserId, CancellationToken ct = default);
     Task<CmeRecordDto> VerifyAsync(Guid id, bool verified, Guid? currentUserId, CancellationToken ct = default);
-    Task DeleteAsync(Guid id, CancellationToken ct = default);
+    Task DeleteAsync(Guid id, CancellationToken ct = default, string? rejectionReason = null);
 }

@@ -14,6 +14,7 @@ import type {
 import { formatDateOnly, formatVnd } from '../../utils/format';
 import { formatVietnamDateTime } from '../../utils/leaveRules';
 import {
+  AUDIT_ACTION_LABELS,
   formatRuleFormula,
   formatTimeRangeVn,
   getProcedureStatusBadgeClass,
@@ -186,7 +187,7 @@ export default function ProcedureDetailPage() {
   const isAccountant = role === 'accountant';
   const canShowEditButton =
     (detail.canEdit && !isReviewerRole) ||
-    (isAccountant && detail.status === 'pending' && !detail.isPeriodLocked);
+    (isAccountant && (detail.status === 'pending' || detail.status === 'hr_checked') && !detail.isPeriodLocked);
 
   return (
     <div className="space-y-6 workspace-content-page">
@@ -677,6 +678,39 @@ export default function ProcedureDetailPage() {
           emptyMessage="Chưa có nhân sự nào trong kíp thực hiện."
         />
       </div>
+
+      {/* Nhật ký xử lý & thay đổi phiếu thủ thuật */}
+      {detail.auditHistory && detail.auditHistory.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3">
+          <h2 className="text-base font-bold text-slate-900">
+            Nhật ký xử lý & Luân chuyển phiếu ({detail.auditHistory.length})
+          </h2>
+          <div className="space-y-2.5">
+            {detail.auditHistory.map((item) => (
+              <div
+                key={item.logId}
+                className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 p-3 rounded-lg border border-slate-200 bg-slate-50/50 text-xs"
+              >
+                <div>
+                  <div className="font-semibold text-slate-800">
+                    {AUDIT_ACTION_LABELS[item.action] || item.action}
+                  </div>
+                  {item.detail && <div className="text-slate-600 mt-0.5">{item.detail}</div>}
+                  <div className="text-slate-500 mt-1">
+                    Thực hiện bởi:{' '}
+                    <span className="font-medium text-slate-700">
+                      {item.actorFullName || item.username || 'Hệ thống'}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-slate-500 font-mono whitespace-nowrap">
+                  {item.createdAt ? formatVietnamDateTime(item.createdAt) : '—'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Modal HR Check / Accountant Verify */}
       <ProcedureReviewModal

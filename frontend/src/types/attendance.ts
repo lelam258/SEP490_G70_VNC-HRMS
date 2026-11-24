@@ -115,7 +115,7 @@ export type ImportBatch = { id: string; fileName: string; payMonth: string; faci
 export type ImportRow = {
   id: string; sheetName: string; rowNumber: number; employeeBlock: string; deviceEnrollId: string; staffId: string | null; staffName: string | null;
   rawDate: string; rawValues: string[]; workDate: string | null; shiftType: string; pairs: TimePair[];
-  actualHours: number | null; reportedHours: number | null; sourceHours?: number | null; lateMinutes: number | null; earlyMinutes: number | null; attendanceSymbol: string | null;
+  actualHours: number | null; reportedHours: number | null; sourceHours?: number | null; potentialOvertimeHours?: number; hasNightOnCall?: boolean; lateMinutes: number | null; earlyMinutes: number | null; attendanceSymbol: string | null;
   validationStatus: string; errorCode: string | null; validationNote: string | null; correctionReason: string | null;
   correctedBy: string | null; correctedAt: string | null; attendanceId: string | null; version: string;
 };

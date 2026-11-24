@@ -80,7 +80,8 @@ export const cmeApi = {
     return (await axiosClient.patch<CmeRecord>(`/cme-records/${id}/verify`, { verified })).data;
   },
 
-  async delete(id: string): Promise<void> {
-    await axiosClient.delete(`/cme-records/${id}`);
+  async delete(id: string, reason?: string): Promise<void> {
+    const query = reason && reason.trim() ? `?reason=${encodeURIComponent(reason.trim())}` : '';
+    await axiosClient.delete(`/cme-records/${id}${query}`);
   },
 };

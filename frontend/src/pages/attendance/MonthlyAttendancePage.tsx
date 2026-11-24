@@ -204,50 +204,6 @@ export default function MonthlyAttendancePage() {
             </div>
           ) : null}
 
-          {/* 6-Card Single-Row KPI Strip */}
-          <div className="att-kpi-grid" style={{ marginBottom: 8 }}>
-            <div className="att-kpi">
-              <span>Nhân sự & Công chính</span>
-              <strong>{summary.totals.confirmedMainDays} công</strong>
-              <small>{summary.totals.totalStaff} nhân sự hoạt động</small>
-            </div>
-            <div className="att-kpi">
-              <span>Trực Trưa / Tối xác nhận</span>
-              <strong>
-                {summary.totals.confirmedNoonDuties} / {summary.totals.confirmedEveningDuties}
-              </strong>
-              <small>Ca trực trưa / Ca trực tối</small>
-            </div>
-            <div className="att-kpi">
-              <span>Tổng giờ & Tăng ca (OT)</span>
-              <strong>{summary.totals.confirmedHours.toLocaleString('vi-VN')}h</strong>
-              <small>Tăng ca (OT): {summary.totals.overtimeHours.toLocaleString('vi-VN')}h</small>
-            </div>
-            <div className="att-kpi">
-              <span>Nghỉ phép được duyệt</span>
-              <strong>
-                {summary.totals.paidLeaveDays}P / {summary.totals.unpaidLeaveDays}KL
-              </strong>
-              <small>Có lương / Không lương (ngày)</small>
-            </div>
-            <div className="att-kpi">
-              <span>Nguồn Máy / Thủ công</span>
-              <strong>
-                {summary.totals.machineRecords} / {summary.totals.manualRecords}
-              </strong>
-              <small>Bản ghi máy / Bản ghi giấy</small>
-            </div>
-            <div className="att-kpi">
-              <span>Ngoại lệ chặn khóa</span>
-              <strong style={{ color: totalExceptionsCount > 0 ? '#dc2626' : '#059669' }}>
-                {totalExceptionsCount}
-              </strong>
-              <small>
-                Flagged: {summary.totals.flaggedRecords} · Chờ XN: {summary.totals.unconfirmedRecords}
-              </small>
-            </div>
-          </div>
-
           {/* Bounded Single-Viewport Card */}
           <section className="att-card operations-panel" style={{ margin: 0, padding: 12 }}>
             <div
@@ -287,7 +243,7 @@ export default function MonthlyAttendancePage() {
                 </button>
               </div>
 
-              <div className="attendance-monthly-filters" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <div className="attendance-monthly-filters" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <input
                   id="monthly-month-input"
                   aria-label="Kỳ chấm công tháng"
@@ -295,7 +251,11 @@ export default function MonthlyAttendancePage() {
                   value={month}
                   onChange={e => handleMonthChange(e.target.value)}
                   style={{
-                    padding: '5px 8px',
+                    width: 155,
+                    height: 34,
+                    minHeight: 34,
+                    margin: 0,
+                    padding: '4px 10px',
                     borderRadius: 8,
                     border: '1px solid #cbd5e1',
                     fontSize: 12.5,
@@ -308,7 +268,11 @@ export default function MonthlyAttendancePage() {
                     value={deptFilter}
                     onChange={e => setDeptFilter(e.target.value)}
                     style={{
-                      padding: '5px 8px',
+                      width: 185,
+                      height: 34,
+                      minHeight: 34,
+                      margin: 0,
+                      padding: '4px 10px',
                       borderRadius: 8,
                       border: '1px solid #cbd5e1',
                       fontSize: 12.5,
@@ -329,11 +293,14 @@ export default function MonthlyAttendancePage() {
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   style={{
-                    padding: '5px 10px',
+                    width: 220,
+                    height: 34,
+                    minHeight: 34,
+                    margin: 0,
+                    padding: '4px 10px',
                     borderRadius: 8,
                     border: '1px solid #cbd5e1',
                     fontSize: 12.5,
-                    width: 190,
                   }}
                 />
               </div>

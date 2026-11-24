@@ -30,6 +30,8 @@ internal static class AttendanceWorkbookReview
         var rows = new AttendanceWorkbookParser().Parse(bytes, month);
         var hardTimeErrors = 0; var noPunches = 0; var incomplete = 0; var overlaps = 0; var repeated = 0; var hoursMismatch = 0; var repeatedPairWarnings = 0;
         var weekdayChecks = 0; var weekdayMismatches = 0;
+        var spansLunchRows = 0; var potentialOtRows = 0; decimal potentialOtHours = 0;
+        var examples = new List<object>();
         var weekdays = new Dictionary<string, DayOfWeek> { ["cn"] = DayOfWeek.Sunday, ["hai"] = DayOfWeek.Monday, ["ba"] = DayOfWeek.Tuesday,
             ["tu"] = DayOfWeek.Wednesday, ["nam"] = DayOfWeek.Thursday, ["sau"] = DayOfWeek.Friday, ["bay"] = DayOfWeek.Saturday };
         foreach (var row in rows) {
@@ -44,7 +46,17 @@ internal static class AttendanceWorkbookReview
                     weekdayChecks++; if (row.WorkDate.Value.DayOfWeek != weekday) weekdayMismatches++;
                 }
                 try { var calculation = AttendanceRules.ImportHours(pairs, row.WorkDate.Value); if (calculation.RepeatedPairs) repeatedPairWarnings++;
-                    if (row.ReportedHours.HasValue && Math.Abs(calculation.Hours - row.ReportedHours.Value) > .05m) hoursMismatch++; }
+                    if (row.ReportedHours.HasValue && Math.Abs(calculation.Hours - row.ReportedHours.Value) > .05m) {
+                        hoursMismatch++;
+                        if (examples.Count < 4) examples.Add(new { row.RowNumber, row.WorkDate,
+                            punches = pairs.Select(p => new { @in = p.In?.ToString("HH:mm"), @out = p.Out?.ToString("HH:mm") }),
+                            elapsedHours = calculation.Hours, machineHours = row.ReportedHours });
+                    }
+                    if (pairs.Any(p => p.In < row.WorkDate.Value.ToDateTime(new(12, 0)) && p.Out > row.WorkDate.Value.ToDateTime(new(13, 30)))) spansLunchRows++;
+                    var ot = OvertimeRules.Hours(row.WorkDate.Value, pairs, false);
+                    if (ot > 0) potentialOtRows++;
+                    potentialOtHours += ot;
+                }
                 catch (Vnc.HRMS.Common.Exceptions.AppException) { hardTimeErrors++; }
             }
         }
@@ -55,6 +67,7 @@ internal static class AttendanceWorkbookReview
             firstDate = rows.Min(row => row.WorkDate), lastDate = rows.Max(row => row.WorkDate),
             pairs = rows.GroupBy(row => JsonSerializer.Deserialize<AttendanceTimePair[]>(row.TimePairsJson)!.Length).ToDictionary(group => group.Key, group => group.Count()),
             hardTimeErrors, noPunches, incomplete, overlaps, repeated, hoursMismatch, repeatedPairWarnings, weekdayChecks, weekdayMismatches,
+            spansLunchRows, potentialOtRows, potentialOtHoursBeforeRosterAndHrVerification = potentialOtHours, examples,
             nonzeroLateRows = rows.Count(row => row.LateMinutes > 0), nonzeroEarlyRows = rows.Count(row => row.EarlyMinutes > 0),
             symbols = rows.GroupBy(row => row.AttendanceSymbol).ToDictionary(group => group.Key ?? "", group => group.Count()), headers
         };

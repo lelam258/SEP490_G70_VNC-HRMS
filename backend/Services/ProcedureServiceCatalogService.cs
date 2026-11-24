@@ -161,11 +161,15 @@ public sealed class ProcedureServiceCatalogService(
             {
                 case "pending": pendingSlips++; break;
                 case "hr_checked": hrCheckedSlips++; break;
-                case "verified": verifiedSlips++; break;
+                case "verified":
+                case "completed": verifiedSlips++; break;
                 case "rejected": rejectedSlips++; break;
             }
-            totalChargedAmount += s.ChargedAmount;
-            totalCommissionAmount += commissionBySlip.GetValueOrDefault(s.SlipId, 0m);
+            if (st != "rejected" && st != "cancelled")
+            {
+                totalChargedAmount += s.ChargedAmount;
+                totalCommissionAmount += commissionBySlip.GetValueOrDefault(s.SlipId, 0m);
+            }
         }
 
         var recentSlips = allSlips

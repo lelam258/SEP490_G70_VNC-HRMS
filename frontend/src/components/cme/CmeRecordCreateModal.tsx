@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import Modal from '../ui/Modal';
 import Alert from '../ui/Alert';
+import { todayVn } from '../../utils/format';
 import type { Certificate } from '../../types/certificates';
 import type { SaveCmeRecordInput, StaffCmeSummary } from '../../types/cme';
 
@@ -21,15 +22,19 @@ export default function CmeRecordCreateModal({
   onSave,
   busy = false,
 }: Props) {
-  const onlyCerts = certificates.filter(c => c.category === 'certificate');
+  const ineligibleStatuses = ['pending', 'unverified', 'rejected', 'revoked', 'suspended'];
+  const onlyCerts = certificates.filter(
+    c =>
+      c.category === 'certificate' &&
+      !ineligibleStatuses.includes((c.status || 'active').trim().toLowerCase())
+  );
   const [certificateId, setCertificateId] = useState(
     defaultCertificateId || onlyCerts[0]?.certificateId || ''
   );
   const [courseName, setCourseName] = useState('');
   const [provider, setProvider] = useState('');
-  const [completedDate, setCompletedDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
+  const todayStr = todayVn();
+  const [completedDate, setCompletedDate] = useState(todayStr);
   const [credits, setCredits] = useState('');
   const [fileUrl, setFileUrl] = useState('');
   const [verified, setVerified] = useState(true);
@@ -147,6 +152,7 @@ export default function CmeRecordCreateModal({
               <input
                 id="cme-completed-date"
                 type="date"
+                max={todayStr}
                 required
                 value={completedDate}
                 onChange={e => setCompletedDate(e.target.value)}

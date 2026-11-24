@@ -110,6 +110,12 @@ public sealed class MyCmeRecordsController(
             throw new AppException(403, "Bạn không có quyền nộp CME cho chứng chỉ này.");
         }
 
+        var certStatus = cert.Status?.Trim().ToLowerInvariant();
+        if (certStatus is "pending" or "unverified" or "rejected" or "revoked" or "suspended")
+        {
+            throw new AppException(400, "Chỉ có thể nộp CME cho chứng chỉ đã được phòng Nhân sự phê duyệt.");
+        }
+
         // Staff submissions are always pending (Verified = false)
         var staffRequest = request with { Verified = false };
         var created = await cmeRecordService.CreateAsync(staffRequest, userId, ct);

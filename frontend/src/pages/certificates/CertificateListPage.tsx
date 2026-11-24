@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { certificateApi } from '../../services/certificateApi';
 import { departmentApi, type Department } from '../../services/departmentApi';
@@ -9,7 +9,7 @@ import type {
   StaffCertificateSummary,
   UpdateCertificateInput,
 } from '../../types/certificates';
-import { initials, formatDate } from '../../utils/format';
+import { initials, formatDate, todayVn } from '../../utils/format';
 import Alert from '../../components/ui/Alert';
 import Icon from '../../components/ui/Icon';
 import Modal from '../../components/ui/Modal';
@@ -42,7 +42,7 @@ function normalizeCertificate(raw: Partial<Certificate>): Certificate {
     cat = 'certificate';
     catLabel = 'Chứng chỉ';
     cleanType = cleanType.slice(11).trim();
-  } else {
+  } else if (raw.category !== 'degree' && raw.category !== 'certificate') {
     const lower = cleanType.toLowerCase();
     if (lower.includes('bằng') || lower.includes('cử nhân') || lower.includes('thạc sĩ') || lower.includes('tiến sĩ') || lower.includes('bác sĩ')) {
       cat = 'degree';
@@ -84,8 +84,8 @@ function normalizeCertificate(raw: Partial<Certificate>): Certificate {
   };
 }
 
-const STAFF_PER_PAGE = 4;
-const CERTS_PER_PAGE = 3;
+const STAFF_PAGE_SIZES = [10, 20, 50] as const;
+const CERTS_PER_PAGE = 6;
 
 export default function CertificateListPage() {
   const [searchParams] = useSearchParams();
@@ -102,8 +102,9 @@ export default function CertificateListPage() {
   const [staffCertificates, setStaffCertificates] = useState<Certificate[]>([]);
   const [loadingCertificates, setLoadingCertificates] = useState(false);
 
-  // Pagination states (4 nhân viên/trang, 3 chứng chỉ/trang khi chia đôi)
+  // Pagination states
   const [staffPage, setStaffPage] = useState(1);
+  const [staffPageSize, setStaffPageSize] = useState<number>(10);
   const [certPage, setCertPage] = useState(1);
 
   // Filter states
@@ -116,6 +117,8 @@ export default function CertificateListPage() {
   const [viewingCert, setViewingCert] = useState<Certificate | null>(null);
   const [editingCert, setEditingCert] = useState<Certificate | null>(null);
   const [creatingForStaff, setCreatingForStaff] = useState<StaffCertificateSummary | null>(null);
+  const [deletingCert, setDeletingCert] = useState<Certificate | null>(null);
+  const [deleteCertError, setDeleteCertError] = useState('');
   const [rejectingCert, setRejectingCert] = useState<Certificate | null>(null);
   const [quickRejectReason, setQuickRejectReason] = useState('');
   const [quickRejectError, setQuickRejectError] = useState('');
@@ -137,6 +140,8 @@ export default function CertificateListPage() {
     }
   }, []);
 
+  const initialStaffIdAppliedRef = useRef(false);
+
   // Load staff summaries, departments & pending certificates
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -151,11 +156,10 @@ export default function CertificateListPage() {
       setDepartments(depts);
       setPendingCerts(pending.map(normalizeCertificate));
 
-      // If a staff is already selected or passed via ?staffId=, select them and load certificates
-      const targetId = selectedStaff?.staffId || staffIdParam;
-      if (targetId) {
-        const found = summaries.find(s => s.staffId === targetId);
+      if (!initialStaffIdAppliedRef.current && staffIdParam) {
+        const found = summaries.find(s => s.staffId === staffIdParam);
         if (found) {
+          initialStaffIdAppliedRef.current = true;
           setSelectedStaff(found);
           void loadCertificates(found.staffId);
         }
@@ -165,7 +169,7 @@ export default function CertificateListPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedStaff?.staffId, staffIdParam, loadCertificates]);
+  }, [staffIdParam, loadCertificates]);
 
   useEffect(() => {
     void loadData();
@@ -265,29 +269,39 @@ export default function CertificateListPage() {
     return { degrees, certs, pending, total: staffCertificates.length };
   }, [staffCertificates]);
 
-  // Reset staffPage when staff filters change
+  // Reset staffPage when staff filters or page size change
   useEffect(() => {
     setStaffPage(1);
-  }, [search, departmentId, certFilter]);
+  }, [search, departmentId, certFilter, staffPageSize]);
 
   // Reset certPage when selected staff or category tab changes
   useEffect(() => {
     setCertPage(1);
   }, [selectedStaff?.staffId, selectedCategoryTab]);
 
-  // Staff pagination (4 staff per page)
-  const totalStaffPages = Math.max(1, Math.ceil(filteredStaff.length / STAFF_PER_PAGE));
-  const paginatedStaff = useMemo(() => {
-    const start = (staffPage - 1) * STAFF_PER_PAGE;
-    return filteredStaff.slice(start, start + STAFF_PER_PAGE);
-  }, [filteredStaff, staffPage]);
+  // Staff pagination
+  const totalStaffPages = Math.max(1, Math.ceil(filteredStaff.length / staffPageSize));
+  useEffect(() => {
+    if (staffPage > totalStaffPages) setStaffPage(totalStaffPages);
+  }, [staffPage, totalStaffPages]);
 
-  // Certificate pagination (3 certs per page when split)
+  const paginatedStaff = useMemo(() => {
+    const safePage = Math.min(staffPage, totalStaffPages);
+    const start = (safePage - 1) * staffPageSize;
+    return filteredStaff.slice(start, start + staffPageSize);
+  }, [filteredStaff, staffPage, totalStaffPages, staffPageSize]);
+
+  // Certificate pagination
   const totalCertPages = Math.max(1, Math.ceil(filteredCertificates.length / CERTS_PER_PAGE));
+  useEffect(() => {
+    if (certPage > totalCertPages) setCertPage(totalCertPages);
+  }, [certPage, totalCertPages]);
+
   const paginatedCertificates = useMemo(() => {
-    const start = (certPage - 1) * CERTS_PER_PAGE;
+    const safePage = Math.min(certPage, totalCertPages);
+    const start = (safePage - 1) * CERTS_PER_PAGE;
     return filteredCertificates.slice(start, start + CERTS_PER_PAGE);
-  }, [filteredCertificates, certPage]);
+  }, [filteredCertificates, certPage, totalCertPages]);
 
   // Overall statistics
   const stats = useMemo(() => {
@@ -305,6 +319,7 @@ export default function CertificateListPage() {
       const updatedRaw = await certificateApi.update(id, input);
       const updated = normalizeCertificate(updatedRaw);
       setStaffCertificates(prev => prev.map(c => (c.certificateId === id ? updated : c)));
+      certificateApi.listPending().then(list => setPendingCerts(list.map(normalizeCertificate))).catch(() => {});
       const label = (updated.categoryLabel?.toLowerCase() || 'hồ sơ');
       setNotice(`Đã cập nhật ${label} "${updated.certificateType}" thành công.`);
       setEditingCert(null);
@@ -320,6 +335,7 @@ export default function CertificateListPage() {
       const createdRaw = await certificateApi.create(input);
       const created = normalizeCertificate(createdRaw);
       setStaffCertificates(prev => [created, ...prev]);
+      certificateApi.listPending().then(list => setPendingCerts(list.map(normalizeCertificate))).catch(() => {});
       // Increment count in staff list
       setStaffList(prev =>
         prev.map(s =>
@@ -336,6 +352,42 @@ export default function CertificateListPage() {
       const label = (created.categoryLabel?.toLowerCase() || 'hồ sơ');
       setNotice(`Đã thêm ${label} "${created.certificateType}" thành công.`);
       setCreatingForStaff(null);
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handleConfirmDeleteCertificate() {
+    if (!deletingCert || actionBusy) return;
+    setActionBusy(true);
+    setDeleteCertError('');
+    setError('');
+    setNotice('');
+    try {
+      await certificateApi.delete(deletingCert.certificateId);
+      const deletedId = deletingCert.certificateId;
+      const deletedStaffId = deletingCert.staffId;
+      const deletedName = deletingCert.certificateType;
+      const label = deletingCert.categoryLabel?.toLowerCase() || 'hồ sơ';
+
+      setStaffCertificates(prev => prev.filter(c => c.certificateId !== deletedId));
+      setPendingCerts(prev => prev.filter(c => c.certificateId !== deletedId));
+      setStaffList(prev =>
+        prev.map(s =>
+          s.staffId === deletedStaffId
+            ? { ...s, certificateCount: Math.max(0, s.certificateCount - 1) }
+            : s
+        )
+      );
+      if (selectedStaff && selectedStaff.staffId === deletedStaffId) {
+        setSelectedStaff(prev =>
+          prev ? { ...prev, certificateCount: Math.max(0, prev.certificateCount - 1) } : null
+        );
+      }
+      setDeletingCert(null);
+      setNotice(`Đã xóa ${label} "${deletedName}" thành công.`);
+    } catch (cause) {
+      setDeleteCertError(cause instanceof Error ? cause.message : 'Không xóa được hồ sơ chuyên môn.');
     } finally {
       setActionBusy(false);
     }
@@ -533,7 +585,8 @@ export default function CertificateListPage() {
               </p>
             </div>
           ) : (
-            <div className="cert-table-wrapper workspace-table-viewport">
+            <div className="cert-table-wrapper">
+              <div className="cert-table-scroll workspace-table-viewport">
               <table>
                 <thead>
                   <tr>
@@ -575,7 +628,9 @@ export default function CertificateListPage() {
                                   </span>
                                 )}
                               </div>
-                              <small className="text-slate-400 block text-[10px] truncate">{staff.departmentName}</small>
+                              {selectedStaff && (
+                                <small className="text-slate-400 block text-[10px] truncate">{staff.departmentName}</small>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -605,12 +660,31 @@ export default function CertificateListPage() {
                   })}
                 </tbody>
               </table>
+              </div>
 
-              {/* Staff Pagination Bar (4 staff/page - luôn ghim ở đáy) */}
+              {/* Staff Pagination Bar */}
               <div className="cert-pagination-bar">
-                <span>
-                  Trang <strong>{staffPage}</strong> / <strong>{totalStaffPages}</strong> ({filteredStaff.length} NV)
-                </span>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <span>
+                    Trang <strong>{staffPage}</strong> / <strong>{totalStaffPages}</strong> ({filteredStaff.length} NV)
+                  </span>
+                  <label className="inline-flex items-center gap-1 text-[11px] text-slate-500">
+                    <span>Hiển thị</span>
+                    <select
+                      aria-label="Số nhân viên mỗi trang"
+                      value={staffPageSize}
+                      onChange={e => setStaffPageSize(Number(e.target.value))}
+                      className="border border-slate-300 rounded bg-white text-slate-700 px-1.5 py-0.5 text-[11px]"
+                      style={{ minHeight: 24, width: 'auto' }}
+                    >
+                      {STAFF_PAGE_SIZES.map(size => (
+                        <option key={size} value={size}>
+                          {size} / trang
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
                 {totalStaffPages > 1 ? (
                   <div className="flex items-center gap-1">
                     <button
@@ -776,7 +850,8 @@ export default function CertificateListPage() {
                 </p>
               </div>
             ) : (
-              <div className="cert-table-wrapper workspace-table-viewport">
+              <div className="cert-table-wrapper">
+                <div className="cert-table-scroll workspace-table-viewport">
                 <table>
                   <thead>
                     <tr>
@@ -790,17 +865,13 @@ export default function CertificateListPage() {
                     {paginatedCertificates.map(cert => {
                       const isDegree = cert.category === 'degree';
                       const isExpired = cert.expiryDate
-                        ? new Date(cert.expiryDate) < new Date()
+                        ? cert.expiryDate.slice(0, 10) < todayVn()
                         : false;
 
                       const isPending =
                         cert.status === 'unverified' ||
                         cert.status === 'pending' ||
                         cert.verificationStatus === 'unverified';
-
-                      const isRejected =
-                        cert.status === 'rejected' ||
-                        cert.verificationStatus === 'rejected';
 
                       // Verification status label for Degree
                       const verStatus = cert.verificationStatus || cert.status;
@@ -820,9 +891,11 @@ export default function CertificateListPage() {
 
                       // Status label for Certificate
                       const certStatusClass =
-                        cert.status === 'active' && !isExpired
+                        isPending
+                          ? 'pending'
+                          : cert.status === 'active' && !isExpired
                           ? 'active'
-                          : cert.status === 'expired' || isExpired || cert.status === 'rejected'
+                          : cert.status === 'expired' || isExpired || cert.status === 'rejected' || cert.status === 'revoked'
                           ? 'inactive'
                           : 'pending';
 
@@ -839,6 +912,8 @@ export default function CertificateListPage() {
                           ? 'Hết hạn'
                           : cert.status === 'suspended'
                           ? 'Tạm đình chỉ'
+                          : cert.status === 'revoked'
+                          ? 'Bị thu hồi'
                           : cert.status || 'Chưa xác định';
 
                       const categoryBadge = isDegree ? (
@@ -891,7 +966,7 @@ export default function CertificateListPage() {
                                 <span className="text-slate-600">Cấp: {formatDate(cert.issueDate)}</span>
                                 {!isDegree && (
                                   <span className={`block ${isExpired ? 'text-red-600 font-medium' : 'text-slate-600'}`}>
-                                    Hạn: {formatDate(cert.expiryDate) || 'Vô thời hạn'}
+                                    Hạn: {cert.expiryDate ? formatDate(cert.expiryDate) : 'Vô thời hạn'}
                                   </span>
                                 )}
                               </div>
@@ -952,6 +1027,18 @@ export default function CertificateListPage() {
                               >
                                 <Icon name="edit" size={18} />
                               </button>
+                              <button
+                                className="icon-button text-red-500 hover:text-red-700"
+                                title="Xóa hồ sơ"
+                                aria-label={`Xóa ${cert.certificateType}`}
+                                onClick={() => {
+                                  setDeleteCertError('');
+                                  setDeletingCert(cert);
+                                }}
+                                disabled={actionBusy}
+                              >
+                                <Icon name="trash" size={17} />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -959,8 +1046,9 @@ export default function CertificateListPage() {
                     })}
                   </tbody>
                 </table>
+                </div>
 
-                {/* Certificate Pagination Bar (3 certs/page - luôn ghim ở đáy để cân bằng 2 bảng) */}
+                {/* Certificate Pagination Bar */}
                 <div className="cert-pagination-bar">
                   <span>
                     Trang <strong>{certPage}</strong> / <strong>{totalCertPages}</strong> ({filteredCertificates.length} hồ sơ)
@@ -1002,9 +1090,53 @@ export default function CertificateListPage() {
           certificate={viewingCert}
           onClose={() => setViewingCert(null)}
           onEdit={cert => setEditingCert(cert)}
+          onDelete={cert => {
+            setDeleteCertError('');
+            setDeletingCert(cert);
+          }}
           onReview={handleReviewCertificate}
           busyReview={actionBusy}
         />
+      )}
+
+      {deletingCert && (
+        <Modal
+          title="Xác nhận xóa hồ sơ chuyên môn"
+          onClose={() => !actionBusy && setDeletingCert(null)}
+          busy={actionBusy}
+        >
+          <div className="p-5 space-y-4 text-xs">
+            <p className="text-slate-600 leading-relaxed">
+              Bạn có chắc chắn muốn xóa {deletingCert.category === 'degree' ? 'bằng cấp' : 'chứng chỉ'}{' '}
+              <strong className="text-slate-900">{deletingCert.certificateType}</strong> của nhân viên{' '}
+              <strong className="text-slate-900">{deletingCert.staffName}</strong>?
+              {deletingCert.category === 'certificate' && (
+                <span className="block mt-1.5 text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
+                  Lưu ý: Nếu chứng chỉ đã có chu kỳ CME đã khóa (lịch sử hoàn thành), hệ thống sẽ chặn xóa để bảo toàn dữ liệu tuân thủ.
+                </span>
+              )}
+            </p>
+            {deleteCertError && <Alert variant="error">{deleteCertError}</Alert>}
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                className="button secondary text-xs"
+                onClick={() => setDeletingCert(null)}
+                disabled={actionBusy}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                className="button danger text-xs"
+                onClick={() => void handleConfirmDeleteCertificate()}
+                disabled={actionBusy}
+              >
+                {actionBusy ? 'Đang xóa...' : 'Xác nhận xóa'}
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {editingCert && (

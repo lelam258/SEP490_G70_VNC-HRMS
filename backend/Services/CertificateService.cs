@@ -459,6 +459,30 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
 
         db.Certificates.Add(entity);
         await unitOfWork.SaveChangesAsync(ct);
+
+        if (!isDegree &&
+            string.Equals(status, "active", StringComparison.OrdinalIgnoreCase) &&
+            ((entity.CmeRequiredCredits ?? 0) > 0 || (entity.CmeCycleMonths ?? 0) > 0))
+        {
+            var start = entity.IssueDate ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+            var months = entity.CmeCycleMonths is > 0 ? entity.CmeCycleMonths.Value : 24;
+            var end = start.AddMonths(months);
+            var reqCredits = entity.CmeRequiredCredits is > 0 ? entity.CmeRequiredCredits.Value : 24m;
+
+            db.CmeCycles.Add(new CmeCycle
+            {
+                CycleId = Guid.NewGuid(),
+                CertificateId = entity.CertificateId,
+                CycleNumber = 1,
+                CycleStart = start,
+                CycleEnd = end,
+                RequiredCredits = reqCredits,
+                EarnedCredits = 0,
+                Status = "active"
+            });
+            await unitOfWork.SaveChangesAsync(ct);
+        }
+
         await tx.CommitAsync(ct);
 
         return await GetAsync(entity.CertificateId, ct);
@@ -490,6 +514,16 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
                 throw new AppException(400, $"Số hiệu '{certNumber}' đã được sử dụng.");
         }
 
+        var status = isDegree
+            ? (string.IsNullOrWhiteSpace(request.VerificationStatus) ? (request.Status ?? entity.Status ?? "unverified") : request.VerificationStatus.Trim().ToLowerInvariant())
+            : (string.IsNullOrWhiteSpace(request.Status) ? entity.Status ?? "active" : request.Status.Trim().ToLowerInvariant());
+
+        var (_, _, _, _, _, _, _, existingRejectionReason) =
+            ExtractMetadata(cat, entity.ScopeOfPractice, entity.Status);
+        var preservedRejectionReason = string.Equals(status, "rejected", StringComparison.OrdinalIgnoreCase)
+            ? existingRejectionReason
+            : null;
+
         var formattedType = CertificateCategoryHelper.Format(cat, request.CertificateType);
         var scopeOfPractice = BuildScopeOfPractice(
             cat,
@@ -498,12 +532,9 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
             request.Notes,
             request.ProfessionalDegree,
             request.IssuanceMethod,
-            request.ScopeOfPractice
+            request.ScopeOfPractice,
+            preservedRejectionReason
         );
-
-        var status = isDegree
-            ? (string.IsNullOrWhiteSpace(request.VerificationStatus) ? (request.Status ?? entity.Status ?? "unverified") : request.VerificationStatus.Trim().ToLowerInvariant())
-            : (string.IsNullOrWhiteSpace(request.Status) ? entity.Status ?? "active" : request.Status.Trim().ToLowerInvariant());
 
         ValidateFields(cat, status, request.IssueDate, request.CmeCycleMonths, request.CmeRequiredCredits,
             request.IssuingAuthority, request.FileUrl, scopeOfPractice);
@@ -529,6 +560,40 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
         if (request.DepartmentId.HasValue)
             entity.DepartmentId = request.DepartmentId;
         entity.UpdatedAt = DateTime.UtcNow;
+
+        if (!isDegree)
+        {
+            var activeCycles = await db.CmeCycles
+                .Where(c => c.CertificateId == id && c.Status != "locked")
+                .ToListAsync(ct);
+            var syncedRequired = entity.CmeRequiredCredits is > 0 ? entity.CmeRequiredCredits.Value : 1m;
+            foreach (var cy in activeCycles)
+            {
+                cy.RequiredCredits = syncedRequired;
+            }
+
+            if (string.Equals(status, "active", StringComparison.OrdinalIgnoreCase) &&
+                ((entity.CmeRequiredCredits ?? 0) > 0 || (entity.CmeCycleMonths ?? 0) > 0) &&
+                !await db.CmeCycles.AnyAsync(c => c.CertificateId == id, ct))
+            {
+                var start = entity.IssueDate ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+                var months = entity.CmeCycleMonths is > 0 ? entity.CmeCycleMonths.Value : 24;
+                var end = start.AddMonths(months);
+                var reqCredits = entity.CmeRequiredCredits is > 0 ? entity.CmeRequiredCredits.Value : 24m;
+
+                db.CmeCycles.Add(new CmeCycle
+                {
+                    CycleId = Guid.NewGuid(),
+                    CertificateId = entity.CertificateId,
+                    CycleNumber = 1,
+                    CycleStart = start,
+                    CycleEnd = end,
+                    RequiredCredits = reqCredits,
+                    EarnedCredits = 0,
+                    Status = "active"
+                });
+            }
+        }
 
         await unitOfWork.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
@@ -698,6 +763,39 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
         entity.UpdatedAt = DateTime.UtcNow;
         if (entity.ScopeOfPractice?.Length > 200)
             throw new AppException(400, "Lý do từ chối và thông tin chuyên môn vượt quá giới hạn lưu trữ 200 ký tự.", "rejectionReason");
+
+        var staffRecipientUserId = await db.Staff.AsNoTracking()
+            .Where(s => s.StaffId == entity.StaffId)
+            .Select(s => s.UserId)
+            .SingleOrDefaultAsync(ct);
+        if (staffRecipientUserId != Guid.Empty)
+        {
+            var (_, catLabel, cleanCertName) = CertificateCategoryHelper.Parse(entity.CertificateType);
+            var displayTitle = string.IsNullOrWhiteSpace(cleanCertName) ? entity.CertificateType : cleanCertName;
+            var isApproved = action == "approve";
+            var trimmedReason = request.RejectionReason?.Trim();
+
+            db.Notifications.Add(new Notification
+            {
+                NotificationId = Guid.NewGuid(),
+                RecipientId = staffRecipientUserId,
+                SenderService = "compliance",
+                Type = isApproved ? "certificate_approved" : "certificate_rejected",
+                Title = isApproved
+                    ? $"Đã duyệt {catLabel.ToLowerInvariant()}: {displayTitle}"
+                    : $"Từ chối {catLabel.ToLowerInvariant()}: {displayTitle}",
+                Body = isApproved
+                    ? $"Hồ sơ {catLabel.ToLowerInvariant()} \"{displayTitle}\" của bạn đã được Phòng Nhân sự thẩm định và phê duyệt."
+                    : $"Hồ sơ {catLabel.ToLowerInvariant()} \"{displayTitle}\" chưa được phê duyệt. Lý do: {trimmedReason}",
+                ActionUrl = "/me/certificates",
+                EntityType = "certificate",
+                EntityId = entity.CertificateId,
+                Channel = "in_app",
+                IsRead = false,
+                CreatedAt = entity.UpdatedAt
+            });
+        }
+
         await unitOfWork.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
@@ -716,9 +814,12 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
         string[] statuses = category == "degree" ? ["unverified", "verified", "rejected", "pending"]
             : ["active", "expired", "suspended", "revoked", "pending", "unverified", "rejected"];
         if (!statuses.Contains(status)) throw new AppException(400, "Trạng thái văn bằng/chứng chỉ không hợp lệ.", "status");
+        var todayVn = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        if (issueDate.HasValue && issueDate.Value > todayVn)
+            throw new AppException(400, "Ngày cấp không được vượt quá ngày hiện tại.", "issueDate");
         if (category != "degree")
         {
-            var start = issueDate ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+            var start = issueDate ?? todayVn;
             var maxMonths = (9999 - start.Year) * 12 + 12 - start.Month;
             if (months.HasValue && (months.Value <= 0 || months.Value > maxMonths))
                 throw new AppException(400, "Số tháng chu kỳ CME phải dương và tạo được ngày kết thúc hợp lệ.", "cmeCycleMonths");

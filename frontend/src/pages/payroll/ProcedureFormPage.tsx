@@ -302,12 +302,7 @@ export default function ProcedureFormPage() {
     setLoading(true);
     setError('');
     try {
-      const rawLookupData = await procedureSlipApi.getLookups();
-      const sampleServices = rawLookupData.services.slice(0, 3);
-      const lookupData: ProcedureLookups = {
-        ...rawLookupData,
-        services: sampleServices,
-      };
+      const lookupData = await procedureSlipApi.getLookups();
       setLookups(lookupData);
 
       const matchedCreatorStaff =
@@ -358,8 +353,8 @@ export default function ProcedureFormPage() {
           setFacilityId(defaultFacilityId);
         }
 
-        if (sampleServices.length > 0) {
-          const firstService = sampleServices[0];
+        if (lookupData.services.length > 0) {
+          const firstService = lookupData.services[0];
           setServiceId(firstService.id);
           setChargedAmount(firstService.basePrice ?? 0);
         }
@@ -406,7 +401,7 @@ export default function ProcedureFormPage() {
     void loadInitialData();
   }, [loadInitialData]);
 
-  // Load staff schedule & procedure bookings whenever procedureDate, departmentId, or facilityId changes
+  // Load staff schedule & procedure bookings whenever procedureDate, departmentId, or facilityId changes (and on window focus)
   useEffect(() => {
     if (!procedureDate || !departmentId) {
       setStaffAvailabilityList([]);
@@ -414,33 +409,41 @@ export default function ProcedureFormPage() {
     }
 
     let cancelled = false;
-    setAvailabilityLoading(true);
 
-    procedureSlipApi
-      .getStaffAvailability({
-        procedureDate,
-        departmentId: departmentId || null,
-        facilityId: facilityId || null,
-        excludeSlipId: id || null,
-      })
-      .then((res) => {
-        if (!cancelled) {
-          setStaffAvailabilityList(res);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setStaffAvailabilityList([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setAvailabilityLoading(false);
-        }
-      });
+    const fetchAvailability = (showSpinner: boolean) => {
+      if (showSpinner) setAvailabilityLoading(true);
+      procedureSlipApi
+        .getStaffAvailability({
+          procedureDate,
+          departmentId: departmentId || null,
+          facilityId: facilityId || null,
+          excludeSlipId: id || null,
+        })
+        .then((res) => {
+          if (!cancelled) {
+            setStaffAvailabilityList(res);
+          }
+        })
+        .catch(() => {
+          if (!cancelled && showSpinner) {
+            setStaffAvailabilityList([]);
+          }
+        })
+        .finally(() => {
+          if (!cancelled && showSpinner) {
+            setAvailabilityLoading(false);
+          }
+        });
+    };
+
+    fetchAvailability(true);
+
+    const handleWindowFocus = () => fetchAvailability(false);
+    window.addEventListener('focus', handleWindowFocus);
 
     return () => {
       cancelled = true;
+      window.removeEventListener('focus', handleWindowFocus);
     };
   }, [procedureDate, departmentId, facilityId, id]);
 
@@ -473,7 +476,7 @@ export default function ProcedureFormPage() {
       ).join(', ');
 
       const timelineSegments = merged.isWorkingToday
-        ? buildDayTimelineSegments(merged.shiftsToday, merged.bookingsToday)
+        ? buildDayTimelineSegments(merged.shiftsToday, merged.bookingsToday, 7 * 60, 17 * 60, procedureDate)
         : [];
 
       if (!merged.isWorkingToday) {
@@ -483,7 +486,8 @@ export default function ProcedureFormPage() {
             merged.shiftsToday,
             merged.bookingsToday,
             parsedTimeRange ? parsedTimeRange.startMinutes : null,
-            true
+            true,
+            procedureDate
           );
           return {
             ...merged,
@@ -510,13 +514,14 @@ export default function ProcedureFormPage() {
         };
       }
 
-      // Tính khoảng giờ rảnh thực tế dựa trên ca làm việc (Sáng 8h-12h, Chiều 13h-17h, tách nghỉ trưa)
-      const shiftIntervals = getStaffShiftIntervals(merged.shiftsToday, isAfterHours);
+      // Tính khoảng giờ rảnh thực tế dựa trên ca làm việc theo mùa (tách nghỉ trưa)
+      const shiftIntervals = getStaffShiftIntervals(merged.shiftsToday, isAfterHours, procedureDate);
       const freeIntervals = computeStaffFreeIntervals(
         merged.shiftsToday,
         merged.bookingsToday,
         null,
-        isAfterHours
+        isAfterHours,
+        procedureDate
       );
 
       const freeLabels = freeIntervals.map(formatIntervalLabel);
@@ -589,7 +594,7 @@ export default function ProcedureFormPage() {
       if (a.isWorkingToday !== b.isWorkingToday) return a.isWorkingToday ? -1 : 1;
       return a.staffCode.localeCompare(b.staffCode);
     });
-  }, [departmentId, staffAvailabilityList, parsedTimeRange, isAfterHours]);
+  }, [departmentId, staffAvailabilityList, parsedTimeRange, isAfterHours, procedureDate]);
 
   const departmentStaffMap = useMemo(() => {
     const map = new Map<string, EvaluatedDepartmentStaff>();
@@ -1269,7 +1274,7 @@ export default function ProcedureFormPage() {
                   </option>
                   {availableDepartments.map((d) => (
                     <option key={d.departmentId} value={d.departmentId}>
-                      {d.name} ({d.deptCode}){d.facilityLabel ? ` • ${d.facilityLabel}` : ''}
+                      {d.name} ({d.deptCode})
                     </option>
                   ))}
                 </select>
@@ -1481,9 +1486,16 @@ export default function ProcedureFormPage() {
                                 : `Bận (${st.busyTimeRangeText})`
                               : 'Nghỉ hôm nay';
 
-                          const bookingSummaryText =
-                            st.bookingsToday.length > 0
-                              ? st.bookingsToday
+                          const scheduledBookings = st.bookingsToday.filter(
+                            (b) => (b.status || '').toLowerCase() !== 'completed'
+                          );
+                          const completedBookings = st.bookingsToday.filter(
+                            (b) => (b.status || '').toLowerCase() === 'completed'
+                          );
+
+                          const scheduledSummaryText =
+                            scheduledBookings.length > 0
+                              ? scheduledBookings
                                   .map(
                                     (b) =>
                                       `${b.timeRangeLabel}${
@@ -1492,6 +1504,41 @@ export default function ProcedureFormPage() {
                                   )
                                   .join(' • ')
                               : null;
+
+                          const completedSummaryText =
+                            completedBookings.length > 0
+                              ? completedBookings
+                                  .map(
+                                    (b) =>
+                                      `${b.timeRangeLabel}${
+                                        b.serviceName ? ` (${b.serviceName})` : ''
+                                      }`
+                                  )
+                                  .join(' • ')
+                              : null;
+
+                          const completedTooltipText =
+                            completedBookings.length > 0
+                              ? completedBookings
+                                  .map(
+                                    (b) =>
+                                      `${b.timeRangeLabel}${
+                                        b.serviceName ? ` (${b.serviceName})` : ''
+                                      }${
+                                        b.plannedTimeRangeLabel
+                                          ? ` [Dự kiến: ${b.plannedTimeRangeLabel}]`
+                                          : ''
+                                      }`
+                                  )
+                                  .join(' • ')
+                              : null;
+
+                          const bookingSummaryText = [
+                            scheduledSummaryText ? `Đã đặt: ${scheduledSummaryText}` : null,
+                            completedTooltipText ? `Bận thực tế: ${completedTooltipText}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(' | ');
 
                           return (
                             <button
@@ -1503,7 +1550,7 @@ export default function ProcedureFormPage() {
                                 st.canSelect
                                   ? `Bấm để chọn ${st.staffCode} - ${st.fullName} xuống phần phân công${
                                       bookingSummaryText
-                                        ? `\nCác ca đã đặt hôm nay: ${bookingSummaryText}`
+                                        ? `\n${bookingSummaryText}`
                                         : '\nChưa có ca thủ thuật nào trong ngày'
                                     }`
                                   : `Không thể chọn (${st.statusText})`
@@ -1542,12 +1589,21 @@ export default function ProcedureFormPage() {
                                     </div>
                                   )}
 
-                                  {bookingSummaryText && (
+                                  {scheduledSummaryText && (
                                     <div
                                       className="text-[10px] text-amber-800 font-medium truncate"
-                                      title={`Đã đặt: ${bookingSummaryText}`}
+                                      title={`Đã đặt: ${scheduledSummaryText}`}
                                     >
-                                      Đã đặt: {bookingSummaryText}
+                                      Đã đặt: {scheduledSummaryText}
+                                    </div>
+                                  )}
+
+                                  {completedSummaryText && (
+                                    <div
+                                      className="text-[10px] text-amber-800 font-medium truncate"
+                                      title={`Bận (đã thực hiện): ${completedTooltipText || completedSummaryText}`}
+                                    >
+                                      Bận: {completedSummaryText}
                                     </div>
                                   )}
 
@@ -1570,9 +1626,9 @@ export default function ProcedureFormPage() {
                                         ))}
                                       </div>
                                       <div className="flex justify-between text-[9px] text-slate-400 leading-none mt-0.5">
-                                        <span>8h</span>
-                                        <span>12h</span>
-                                        <span>13h</span>
+                                        <span>7h</span>
+                                        <span>11h30</span>
+                                        <span>13h30</span>
                                         <span>17h</span>
                                       </div>
                                     </div>

@@ -69,6 +69,9 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   hr_check_reject: 'HR kiểm tra: Từ chối',
   accountant_verify_approve: 'Kế toán: Xác minh hợp lệ',
   accountant_verify_reject: 'Kế toán: Từ chối xác minh',
+  accountant_adjust_slip: 'Kế toán: Điều chỉnh & Duyệt ca',
+  complete_procedure: 'Bác sĩ: Xác nhận hoàn thành ca',
+  cancel_procedure: 'Hủy ca thủ thuật',
 };
 
 export function formatRuleFormula(valueType?: string | null, ruleValue?: number | null): string {
@@ -309,16 +312,22 @@ export function intersectMinuteIntervalLists(
 
 /**
  * Xác định các khung giờ làm việc trong ngày của nhân sự dựa theo danh sách ca (shiftsToday).
- * Ca Sáng: 08:00 - 12:00, Trực trưa: 12:00 - 13:30, Ca Chiều: 13:00 - 17:00, Trực tối: 17:00 - 19:00.
- * Tự động tách khung nghỉ trưa 12:00 - 13:00 nếu nhân sự không có ca Trực trưa.
+ * Ca Sáng: 07:00 - 11:30, Trực trưa: 11:30 - 13:30, Ca Chiều: 13:30 - 17:00, Trực tối: 17:00 - 19:00.
+ * Tự động tách khung nghỉ trưa 11:30 - 13:30 nếu nhân sự không có ca Trực trưa.
  */
 export function getStaffShiftIntervals(
   shiftsToday: string[],
-  isAfterHours: boolean = false
+  isAfterHours: boolean = false,
+  procedureDate?: string | null
 ): TimeMinuteInterval[] {
   if (isAfterHours) {
     return [{ start: 7 * 60, end: 22 * 60 }];
   }
+
+  const monthDay = procedureDate && procedureDate.length >= 10 ? procedureDate.slice(5, 10) : '06-01';
+  const isSummer = monthDay >= '04-15' && monthDay < '12-01';
+  const morningStart = isSummer ? 7 * 60 : 7 * 60 + 10;
+  const morningEnd = isSummer ? 11 * 60 + 30 : 11 * 60 + 45;
 
   const normalized = shiftsToday.map((s) => s.toLowerCase());
   const intervals: TimeMinuteInterval[] = [];
@@ -332,20 +341,20 @@ export function getStaffShiftIntervals(
   );
 
   if (hasMorning) {
-    intervals.push({ start: 8 * 60, end: 12 * 60 });
+    intervals.push({ start: morningStart, end: morningEnd });
   }
   if (hasNoon) {
-    intervals.push({ start: 12 * 60, end: 13 * 60 + 30 });
+    intervals.push({ start: morningEnd, end: 13 * 60 + 30 });
   }
   if (hasAfternoon) {
-    intervals.push({ start: 13 * 60, end: 17 * 60 });
+    intervals.push({ start: 13 * 60 + 30, end: 17 * 60 });
   }
   if (hasEvening) {
     intervals.push({ start: 17 * 60, end: 19 * 60 });
   }
 
   if (intervals.length === 0 && (hasOnCallOrFull || shiftsToday.length > 0)) {
-    intervals.push({ start: 8 * 60, end: 12 * 60 }, { start: 13 * 60, end: 17 * 60 });
+    intervals.push({ start: morningStart, end: morningEnd }, { start: 13 * 60 + 30, end: 17 * 60 });
   }
 
   return mergeMinuteIntervals(intervals);
@@ -355,9 +364,10 @@ export function computeStaffFreeIntervals(
   shiftsToday: string[],
   bookings: { startTime: string; endTime: string }[],
   minWindowStartMinutes?: number | null,
-  isAfterHours: boolean = false
+  isAfterHours: boolean = false,
+  procedureDate?: string | null
 ): TimeMinuteInterval[] {
-  let base = getStaffShiftIntervals(shiftsToday, isAfterHours);
+  let base = getStaffShiftIntervals(shiftsToday, isAfterHours, procedureDate);
   if (minWindowStartMinutes != null && minWindowStartMinutes > 0) {
     base = base
       .map((seg) => ({
@@ -392,19 +402,27 @@ export interface TimelineSegment {
 }
 
 /**
- * Tạo dữ liệu thanh timeline mini (08:00 -> 17:00) cho thẻ nhân sự để bác sĩ nhìn trực quan
+ * Tạo dữ liệu thanh timeline mini (07:00 -> 17:00) cho thẻ nhân sự để bác sĩ nhìn trực quan
  * đoạn nào đang rảnh (xanh), đã có ca thủ thuật (cam), hay nghỉ trưa / ngoài ca (xám).
  */
 export function buildDayTimelineSegments(
   shiftsToday: string[],
-  bookings: { startTime: string; endTime: string; serviceName?: string; slipNumber?: string }[],
-  dayStart: number = 8 * 60,
-  dayEnd: number = 17 * 60
+  bookings: {
+    startTime: string;
+    endTime: string;
+    serviceName?: string;
+    slipNumber?: string;
+    status?: string;
+    plannedTimeRangeLabel?: string | null;
+  }[],
+  dayStart: number = 7 * 60,
+  dayEnd: number = 17 * 60,
+  procedureDate?: string | null
 ): TimelineSegment[] {
   const totalMinutes = dayEnd - dayStart;
   if (totalMinutes <= 0) return [];
 
-  const shiftIntervals = getStaffShiftIntervals(shiftsToday, false);
+  const shiftIntervals = getStaffShiftIntervals(shiftsToday, false, procedureDate);
   const busyIntervals: { start: number; end: number; title: string }[] = [];
 
   for (const b of bookings) {
@@ -415,9 +433,16 @@ export function buildDayTimelineSegments(
     const clampedEnd = Math.min(dayEnd, bEnd);
     if (clampedEnd > clampedStart) {
       const rangeStr = `${formatMinutesVn(bStart)}-${formatMinutesVn(bEnd)}`;
+      const isCompleted = (b.status || '').toLowerCase() === 'completed';
+      const plannedHint =
+        isCompleted && b.plannedTimeRangeLabel && b.plannedTimeRangeLabel !== rangeStr
+          ? ` [Đã xong • Dự kiến ${b.plannedTimeRangeLabel}]`
+          : isCompleted
+          ? ' [Đã hoàn thành]'
+          : '';
       const detail = b.serviceName
-        ? `${rangeStr}: ${b.serviceName}${b.slipNumber ? ` (${b.slipNumber})` : ''}`
-        : `Bận ${rangeStr}`;
+        ? `${rangeStr}: ${b.serviceName}${b.slipNumber ? ` (${b.slipNumber})` : ''}${plannedHint}`
+        : `Bận ${rangeStr}${plannedHint}`;
       busyIntervals.push({ start: clampedStart, end: clampedEnd, title: detail });
     }
   }
@@ -462,7 +487,7 @@ export function buildDayTimelineSegments(
         label: `Rảnh ${formatMinutesVn(segStart)}-${formatMinutesVn(segEnd)}`,
       });
     } else {
-      const isLunch = segStart >= 12 * 60 && segEnd <= 13 * 60 + 30;
+      const isLunch = segStart >= 11 * 60 + 30 && segEnd <= 13 * 60 + 30;
       rawSegments.push({
         start: segStart,
         end: segEnd,

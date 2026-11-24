@@ -253,6 +253,12 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
         var leave = await db.LeaveRequests.AsNoTracking().Where(x => x.Status == "approved" && x.StartDate <= end && x.EndDate >= start).ToArrayAsync(ct);
         var plans = await PublishedPlans(start, end, ct);
         var plansByDay = plans.ToLookup(x => (x.StaffId, x.Date));
+        var nightDuties = await db.OnCallShifts.AsNoTracking()
+            .Where(x => x.ShiftDate >= start && x.ShiftDate <= end && x.ShiftCategory == "evening" && x.Status != "cancelled" && x.Status != "rejected")
+            .Select(x => new { x.StaffId, x.ShiftDate }).ToArrayAsync(ct);
+        var nightDays = plans.Where(x => x.Shift == "evening").Select(x => (x.StaffId, x.Date))
+            .Concat(nightDuties.Select(x => (x.StaffId, Date: x.ShiftDate)))
+            .Concat(records.Where(x => x.ShiftType == "evening").Select(x => (x.StaffId, Date: x.WorkDate))).ToHashSet();
         var leaveByStaff = leave.ToLookup(x => x.StaffId);
         var facilityActive = await db.ScheduleFacilities.AnyAsync(x => x.Id == batch.FacilityId && x.Status == "active", ct);
         var pending = rows.Where(x => x.AttendanceId is null && x.ValidationStatus != "excluded").ToArray();
@@ -263,6 +269,9 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
         var duplicates = pending.Where(x => x.StaffId.HasValue && x.WorkDate.HasValue)
             .GroupBy(x => (x.StaffId!.Value, x.WorkDate!.Value, x.ShiftType)).Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet();
         foreach (var row in rows) {
+            row.HasNightOnCall = row.StaffId.HasValue && row.WorkDate.HasValue && nightDays.Contains((row.StaffId.Value, row.WorkDate.Value));
+            row.PotentialOvertimeHours = row.WorkDate.HasValue && row.ShiftType == "main"
+                ? OvertimeRules.Hours(row.WorkDate.Value, JsonSerializer.Deserialize<AttendanceTimePair[]>(row.TimePairsJson) ?? [], row.HasNightOnCall) : 0m;
             if (row.AttendanceId.HasValue || row.ValidationStatus == "excluded") continue;
             row.ValidationStatus = "valid"; row.ErrorCode = null; row.ValidationNote = null; row.ActualHours = null;
             if (row.CorrectedBy is null) {
@@ -309,19 +318,8 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
         }
     }
 
-    internal async Task<(Guid Id, Guid StaffId, Guid FacilityId, DateOnly Date, string Shift)[]> PublishedPlans(DateOnly start, DateOnly end, CancellationToken ct)
-    {
-        var live = await (from a in db.ScheduleAssignments.AsNoTracking() join w in db.ScheduleWeeks on a.WeekId equals w.Id
-            join c in db.ScheduleCoverage on a.CoverageId equals c.Id
-            where w.Published && !a.Cancelled && a.Date >= start && a.Date <= end
-            select new { a.Id, a.StaffId, c.FacilityId, a.Date, a.Shift }).ToArrayAsync(ct);
-        var snapshots = await db.ScheduleWeeks.AsNoTracking().Where(w => !w.Published && w.PublishedSnapshot != null
-            && w.Monday <= end && w.Monday >= start.AddDays(-6)).Select(w => w.PublishedSnapshot!).ToArrayAsync(ct);
-        return live.Select(a => (a.Id, a.StaffId, a.FacilityId, a.Date, a.Shift)).Concat(snapshots
-            .SelectMany(json => JsonSerializer.Deserialize<ScheduleRosterRow[]>(json) ?? [])
-            .Where(x => !x.Assignment.Cancelled && x.Assignment.Date >= start && x.Assignment.Date <= end)
-            .Select(x => (x.Assignment.Id, x.Assignment.StaffId, x.FacilityId, x.Assignment.Date, x.Assignment.Shift))).ToArray();
-    }
+    internal Task<(Guid Id, Guid StaffId, Guid FacilityId, DateOnly Date, string Shift)[]> PublishedPlans(DateOnly start, DateOnly end, CancellationToken ct)
+        => PublishedAttendancePlans.Load(db, start, end, ct);
     private static object Summary(AttendanceImport batch) => new { id = batch.ImportId, batch.FileName, batch.PayMonth, batch.FacilityId,
         batch.DeviceSource, batch.ImportedBy, batch.ImportDate, batch.TotalRows, batch.SuccessRows, batch.ErrorRows, batch.Status, dateOrder = ConfiguredDateOrder(batch.ColumnMapping) };
     private static string WorkbookName(string fileName)
@@ -336,6 +334,7 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
         staffName = row.StaffId.HasValue ? names.GetValueOrDefault(row.StaffId.Value) : null,
         row.RawDate, rawValues = JsonSerializer.Deserialize<string[]>(row.RawValuesJson), row.WorkDate, row.ShiftType,
         pairs = JsonSerializer.Deserialize<AttendanceTimePair[]>(row.TimePairsJson), row.ActualHours, row.ReportedHours, sourceHours,
+        row.PotentialOvertimeHours, row.HasNightOnCall,
         row.LateMinutes, row.EarlyMinutes, row.AttendanceSymbol, row.ValidationStatus, row.ErrorCode, row.ValidationNote,
         row.CorrectionReason, row.CorrectedBy, row.CorrectedAt, row.AttendanceId, version = Convert.ToBase64String(row.Version)
     };
@@ -372,7 +371,7 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
     private static string BatchVersion(AttendanceImport batch, IEnumerable<AttendanceImportRow> rows)
         => AttendanceRules.Version(new { batch.ImportId, batch.Status, rows = rows.OrderBy(x => x.Id).Select(x => new {
             x.Id, version = Convert.ToBase64String(x.Version), x.StaffId, x.WorkDate, x.ShiftType, x.TimePairsJson,
-            x.ActualHours, x.ValidationStatus, x.ErrorCode, x.ValidationNote, x.AttendanceId }) });
+            x.ActualHours, x.PotentialOvertimeHours, x.HasNightOnCall, x.ValidationStatus, x.ErrorCode, x.ValidationNote, x.AttendanceId }) });
     private static void Totals(AttendanceImport batch, AttendanceImportRow[] rows)
     {
         batch.TotalRows = rows.Length; batch.SuccessRows = rows.Count(x => x.AttendanceId != null);

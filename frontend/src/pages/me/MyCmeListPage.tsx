@@ -46,9 +46,19 @@ export default function MyCmeListPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'verified' | 'pending'>('all');
 
-  // Pagination (4 items per page to prevent page overflow and scrolling)
-  const PAGE_SIZE = 4;
+  // Dynamic page size: shrink table to fit rows, and paginate once rows reach available viewport height (no vertical scroll)
+  const computePageSize = () => {
+    if (typeof window === 'undefined') return 6;
+    return Math.max(4, Math.min(10, Math.floor((window.innerHeight - 405) / 52)));
+  };
+  const [pageSize, setPageSize] = useState<number>(computePageSize);
   const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    const handleResize = () => setPageSize(computePageSize());
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Modals
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -77,9 +87,15 @@ export default function MyCmeListPage() {
       }
     }
 
-    // 2. From certificates (in case a certificate has no cycle yet)
+    // 2. From certificates (in case a certificate has no cycle yet, excluding unapproved/revoked/suspended)
+    const ineligibleStatuses = ['pending', 'unverified', 'rejected', 'revoked', 'suspended'];
     for (const cert of certificates) {
-      if ((cert.category === 'certificate' || !cert.category) && !map.has(cert.certificateId)) {
+      const certStatus = (cert.status || 'active').trim().toLowerCase();
+      if (
+        (cert.category === 'certificate' || !cert.category) &&
+        !ineligibleStatuses.includes(certStatus) &&
+        !map.has(cert.certificateId)
+      ) {
         map.set(cert.certificateId, {
           certificateId: cert.certificateId,
           certificateType: cert.certificateType,
@@ -96,9 +112,9 @@ export default function MyCmeListPage() {
     setError('');
     try {
       const [fetchedCycles, fetchedRecords, fetchedCerts] = await Promise.all([
-        myCmeApi.listCycles().catch(() => []),
-        myCmeApi.listRecords().catch(() => []),
-        myCertificateApi.list().catch(() => []),
+        myCmeApi.listCycles(),
+        myCmeApi.listRecords(),
+        myCertificateApi.list(),
       ]);
 
       const safeCycles = fetchedCycles || [];
@@ -110,20 +126,26 @@ export default function MyCmeListPage() {
       setCertificates(safeCerts);
 
       // Auto-select first certificate if not set
-      if (!selectedCycleCertId) {
-        if (safeCycles.length > 0) {
-          setSelectedCycleCertId(safeCycles[0].certificateId);
-        } else if (safeCerts.length > 0) {
-          const firstEligible = safeCerts.find((c) => c.category === 'certificate') || safeCerts[0];
-          setSelectedCycleCertId(firstEligible.certificateId);
+      setSelectedCycleCertId((prev) => {
+        if (prev) return prev;
+        if (safeCycles.length > 0) return safeCycles[0].certificateId;
+        if (safeCerts.length > 0) {
+          const ineligible = ['pending', 'unverified', 'rejected', 'revoked', 'suspended'];
+          const firstEligible = safeCerts.find(
+            (c) =>
+              (c.category === 'certificate' || !c.category) &&
+              !ineligible.includes((c.status || 'active').trim().toLowerCase())
+          );
+          return firstEligible?.certificateId || '';
         }
-      }
+        return '';
+      });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Không tải được hồ sơ đào tạo liên tục CME.');
     } finally {
       setLoading(false);
     }
-  }, [selectedCycleCertId]);
+  }, []);
 
   useEffect(() => {
     void loadData();
@@ -225,11 +247,30 @@ export default function MyCmeListPage() {
   }, [records, selectedCycleCertId, selectedCycleId, activeCycle, statusFilter, searchTerm]);
 
   // Total pages and paginated records for the table
-  const totalPages = Math.ceil(filteredRecords.length / PAGE_SIZE) || 1;
+  const totalPages = Math.ceil(filteredRecords.length / pageSize) || 1;
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const isSelectedCycleLocked = activeCycle?.cycleStatus === 'locked';
+  const isRecordInLockedCycle = useCallback(
+    (rec: CmeRecord) =>
+      cycles.some(
+        (cy) =>
+          cy.certificateId === rec.certificateId &&
+          cy.cycleStatus === 'locked' &&
+          isRecordInCycle(rec, cy)
+      ),
+    [cycles]
+  );
+
   const paginatedRecords = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredRecords.slice(start, start + PAGE_SIZE);
-  }, [filteredRecords, currentPage]);
+    const safePage = Math.min(currentPage, totalPages);
+    const start = (safePage - 1) * pageSize;
+    return filteredRecords.slice(start, start + pageSize);
+  }, [filteredRecords, currentPage, totalPages, pageSize]);
 
   // Statistics scoped to the currently selected certificate & cycle
   const stats = useMemo(() => {
@@ -305,7 +346,7 @@ export default function MyCmeListPage() {
   };
 
   return (
-    <div className="space-y-2.5 workspace-list-page">
+    <div className="space-y-2.5 workspace-content-page">
       {/* Top Header - Compact */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b border-slate-200">
         <div className="flex items-center gap-2">
@@ -334,7 +375,8 @@ export default function MyCmeListPage() {
             type="button"
             className="button primary text-xs py-1 px-2.5 flex items-center gap-1.5"
             onClick={() => setCreateModalOpen(true)}
-            disabled={loading}
+            disabled={loading || isSelectedCycleLocked}
+            title={isSelectedCycleLocked ? 'Chu kỳ đang xem đã khóa, không thể khai báo thêm.' : undefined}
           >
             <Icon name="plus" size={12} />
             <span>Khai báo CME mới</span>
@@ -714,9 +756,9 @@ export default function MyCmeListPage() {
             )}
           </div>
         ) : (
-          /* Sleek Table (table-fixed 100% width, No Horizontal Scrollbar) */
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs workspace-list-panel">
-            <div className="w-full workspace-table-viewport">
+          /* Sleek Table (shrink-to-fit height, auto-paginates before viewport scroll) */
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+            <div className="w-full overflow-x-auto">
               <table className="cme-table w-full text-left text-xs text-slate-700">
                 <colgroup>
                   <col className="w-[32%]" />
@@ -840,7 +882,7 @@ export default function MyCmeListPage() {
                             <Icon name="eye" size={13} />
                           </button>
 
-                          {!rec.verified && (
+                          {!rec.verified && !isRecordInLockedCycle(rec) && (
                             <button
                               type="button"
                               className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
@@ -858,12 +900,12 @@ export default function MyCmeListPage() {
               </table>
             </div>
 
-            {/* Pagination Controls - Only shown when > 4 records */}
-            {filteredRecords.length > PAGE_SIZE && (
+            {/* Pagination Controls - Shown when records exceed viewport-fit pageSize */}
+            {filteredRecords.length > pageSize && (
               <div className="border-t border-slate-100 px-3 py-2 flex items-center justify-between text-xs text-slate-500 bg-slate-50/50">
                 <span>
-                  Hiển thị {(currentPage - 1) * PAGE_SIZE + 1} -{' '}
-                  {Math.min(currentPage * PAGE_SIZE, filteredRecords.length)} trên tổng số{' '}
+                  Hiển thị {(currentPage - 1) * pageSize + 1} -{' '}
+                  {Math.min(currentPage * pageSize, filteredRecords.length)} trên tổng số{' '}
                   {filteredRecords.length} khóa học
                 </span>
 
@@ -912,7 +954,11 @@ export default function MyCmeListPage() {
         <MyCmeCreateModal
           certificates={certificates}
           initialCertificateId={selectedCycleCertId}
-          initialCmeCycleId={activeCycle?.cycleId || undefined}
+          initialCmeCycleId={
+            activeCycle && activeCycle.cycleStatus !== 'locked'
+              ? activeCycle.cycleId || undefined
+              : undefined
+          }
           onClose={() => setCreateModalOpen(false)}
           onSave={handleSaveCreate}
           busy={savingCreate}

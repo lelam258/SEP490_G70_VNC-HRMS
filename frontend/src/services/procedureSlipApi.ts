@@ -7,6 +7,7 @@ import {
 import type {
   CalculateMonthlyCommissionInput,
   CalculateMonthlyCommissionResult,
+  CommissionExportDetailRow,
   CommissionResultsFilter,
   CommissionResultsResponse,
   PreviewAssignmentCommissionItem,
@@ -218,7 +219,13 @@ export const procedureSlipApi = {
 
   completeSlip: async (
     slipId: string,
-    input: { note?: string | null; actualDurationHours?: number | null } = {}
+    input: {
+      note?: string | null;
+      actualDurationHours?: number | null;
+      actualDurationMinutes?: number | null;
+      actualStartTime?: string | null;
+      actualEndTime?: string | null;
+    } = {}
   ): Promise<ProcedureSlipDetail> => {
     const res = await axiosClient.post<ProcedureSlipDetail>(
       `/procedure-slips/${slipId}/complete`,
@@ -264,6 +271,22 @@ export const procedureSlipApi = {
       { params }
     );
     return res.data;
+  },
+
+  getCommissionExportDetails: async (
+    filter: Pick<CommissionResultsFilter, 'payMonth' | 'departmentId' | 'search'>
+  ): Promise<CommissionExportDetailRow[]> => {
+    const params: Record<string, string> = {
+      payMonth: filter.payMonth,
+    };
+    if (filter.departmentId) params.departmentId = filter.departmentId;
+    if (filter.search?.trim()) params.search = filter.search.trim();
+
+    const res = await axiosClient.get<CommissionExportDetailRow[]>(
+      '/procedure-slips/commission-results/export-details',
+      { params }
+    );
+    return res.data ?? [];
   },
 
   getStaffCommissionDetail: async (

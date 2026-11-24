@@ -188,6 +188,8 @@ export interface StaffProcedureBooking {
   startTime: string;
   endTime: string;
   timeRangeLabel: string;
+  status?: ProcedureSlipStatus | string;
+  plannedTimeRangeLabel?: string | null;
 }
 
 export interface ProcedureStaffAvailability {
@@ -322,6 +324,19 @@ export interface CommissionResultsSummary {
   isPayrollLocked: boolean;
 }
 
+export interface DepartmentCommissionBreakdown {
+  departmentId?: string | null;
+  departmentCode: string;
+  departmentName: string;
+  completedSlipCount: number;
+  staffCount: number;
+  totalChargedAmount: number;
+  totalDirectCost: number;
+  totalNetRevenue: number;
+  totalCommissionAmount: number;
+  commissionRatePercent: number;
+}
+
 export interface CommissionResultsResponse {
   payMonth: string;
   summary: CommissionResultsSummary;
@@ -329,6 +344,23 @@ export interface CommissionResultsResponse {
   page: number;
   pageSize: number;
   items: StaffMonthlyCommissionItem[];
+  departmentBreakdown?: DepartmentCommissionBreakdown[];
+}
+
+export interface CommissionExportDetailRow {
+  slipNumber: string;
+  procedureDate: string;
+  departmentName: string;
+  patientCode?: string | null;
+  serviceCode: string;
+  serviceName: string;
+  staffCode: string;
+  staffName: string;
+  role: ProcedureCommissionRole;
+  isAfterHours: boolean;
+  chargedAmount: number;
+  directCost: number;
+  commissionAmount: number;
 }
 
 export interface StaffProcedureCommissionDetailItem {

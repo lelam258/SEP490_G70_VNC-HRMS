@@ -14,7 +14,7 @@ import type {
   ProcedureSlipListItem,
   ProcedureSlipListResponse,
 } from '../../types/procedureSlip';
-import { formatDateOnly, formatVnd } from '../../utils/format';
+import { formatDateOnly, formatVnd, todayVn } from '../../utils/format';
 import {
   formatTimeRangeVn,
   getProcedureStatusBadgeClass,
@@ -107,7 +107,7 @@ export default function ProcedureListPage() {
           periodType: 'all',
           scope: 'all',
           page: 1,
-          pageSize: 200,
+          pageSize: 1000,
         });
         setData(res);
         setAllReviewerItems(res.items);
@@ -168,18 +168,19 @@ export default function ProcedureListPage() {
     );
   }, [isAccountant, allReviewerItems]);
 
-  // Bảng 2: Lịch sử các phiếu đã xử lý (lọc theo BS chỉ định, Người thực hiện chính, Tháng, Trạng thái)
+  // Bảng 2: Lịch sử / danh sách phiếu (HR Staff xem toàn bộ mọi trạng thái; Kế toán xem các phiếu đã xử lý & đã hủy)
   const filteredHistoryItems = useMemo(() => {
     if (!isReviewerRole) return [];
 
-    // Tập phiếu đã qua xử lý (Đã xác minh, Đã hoàn thành hoặc Đã từ chối)
-    const baseHistory = allReviewerItems.filter((item) => {
-      return (
-        item.status === 'verified' ||
-        item.status === 'completed' ||
-        item.status === 'rejected'
-      );
-    });
+    const baseHistory = isAccountant
+      ? allReviewerItems.filter(
+          (item) =>
+            item.status === 'verified' ||
+            item.status === 'completed' ||
+            item.status === 'rejected' ||
+            item.status === 'cancelled'
+        )
+      : allReviewerItems;
 
     return baseHistory.filter((item) => {
       // 1. Lọc theo Bác sĩ chỉ định (tên hoặc mã)
@@ -343,7 +344,7 @@ export default function ProcedureListPage() {
               {r.recordedByName || r.indicatingStaffName || 'Nhân viên y tế'}
             </span>
           </div>
-          {isAccountant && (
+          {isAccountant && (r.hrCheckedByName || r.status === 'hr_checked') && (
             <div className="text-emerald-700 font-medium">
               → HR kiểm tra: {r.hrCheckedByName || 'Nhân sự (HR)'}
             </div>
@@ -647,8 +648,11 @@ export default function ProcedureListPage() {
       headerClassName: 'col-nowrap text-right',
       render: (r) => (
         <div className="proc-actions-group">
-          {/* Nút Hoàn thành ca chỉ xuất hiện khi xem Thủ thuật được giao làm cho mình */}
-          {viewScope === 'assigned' && r.status === 'verified' && (
+          {/* Nút Hoàn thành ca chỉ xuất hiện khi xem Thủ thuật được giao làm cho mình và kỳ chưa khóa */}
+          {viewScope === 'assigned' &&
+            r.status === 'verified' &&
+            !r.isPeriodLocked &&
+            r.procedureDate.slice(0, 10) <= todayVn() && (
             <button
               type="button"
               onClick={() => setCompleteModalSlip(r)}
@@ -873,10 +877,16 @@ export default function ProcedureListPage() {
                     }}
                     className="w-full h-9 min-h-[36px] rounded-lg border border-slate-300 px-3 py-1.5 text-xs bg-white"
                   >
-                    <option value="all">Tất cả phiếu đã xử lý</option>
+                    <option value="all">
+                      {isAccountant ? 'Tất cả phiếu đã xử lý' : 'Tất cả trạng thái'}
+                    </option>
+                    {!isAccountant && (
+                      <option value="pending">Chờ kế toán duyệt (Pending)</option>
+                    )}
                     <option value="verified">Đã xác minh / Chờ làm (Verified)</option>
                     <option value="completed">Đã hoàn thành thủ thuật (Completed)</option>
                     <option value="rejected">Bị từ chối (Rejected)</option>
+                    <option value="cancelled">Đã hủy ca (Cancelled)</option>
                   </select>
                 </div>
 
@@ -961,8 +971,8 @@ export default function ProcedureListPage() {
             <form onSubmit={handleCalculateMonthlyCommission} className="px-6 py-4 space-y-4">
               <div className="text-xs text-slate-600 bg-sky-50 border border-sky-200 rounded-lg p-3">
                 Hệ thống sẽ tổng hợp toàn bộ các phiếu thủ thuật đã ở trạng thái{' '}
-                <strong className="text-emerald-700">Đã xác minh (Verified)</strong> trong kỳ lương
-                được chọn để cập nhật trường <code>TotalCommissionAmount</code> trên phiếu lương của
+                <strong className="text-emerald-700">Đã hoàn thành (Completed)</strong> trong kỳ lương
+                được chọn để cập nhật tổng hoa hồng (<code>CommissionTotal</code>) trên phiếu lương của
                 từng nhân sự tham gia.
               </div>
 
@@ -1292,16 +1302,27 @@ export default function ProcedureListPage() {
               </strong>
             </div>
             <div className="text-xs text-slate-600 border-l border-sky-200 pl-3 space-y-0.5">
-              <div>
-                Đã hoàn thành / xác minh:{' '}
-                <strong className="text-emerald-700">{data?.verifiedCount ?? 0}</strong>
-              </div>
-              <div>
-                Chờ duyệt:{' '}
-                <strong className="text-amber-700">
-                  {(data?.pendingCount ?? 0) + (data?.hrCheckedCount ?? 0)}
-                </strong>
-              </div>
+              {viewScope === 'assigned' ? (
+                <>
+                  <div>
+                    Đã hoàn thành / Chờ thực hiện:{' '}
+                    <strong className="text-emerald-700">{data?.verifiedCount ?? 0}</strong>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    Đã hoàn thành / xác minh:{' '}
+                    <strong className="text-emerald-700">{data?.verifiedCount ?? 0}</strong>
+                  </div>
+                  <div>
+                    Chờ duyệt:{' '}
+                    <strong className="text-amber-700">
+                      {(data?.pendingCount ?? 0) + (data?.hrCheckedCount ?? 0)}
+                    </strong>
+                  </div>
+                </>
+              )}
               {(data?.rejectedCount ?? 0) > 0 && (
                 <div>
                   Từ chối: <strong className="text-rose-700">{data?.rejectedCount ?? 0}</strong>
