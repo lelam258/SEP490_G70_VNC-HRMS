@@ -32,6 +32,10 @@ export const certificateApi = {
     return (await axiosClient.put<Certificate>(`/certificates/${id}`, input)).data;
   },
 
+  async updateStatus(id: string, status: 'active' | 'inactive'): Promise<Certificate> {
+    return (await axiosClient.patch<Certificate>(`/certificates/${id}/status`, { status })).data;
+  },
+
   async review(id: string, input: ReviewCertificateInput): Promise<Certificate> {
     return (await axiosClient.post<Certificate>(`/certificates/${id}/review`, input)).data;
   },

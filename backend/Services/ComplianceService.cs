@@ -269,7 +269,7 @@ public sealed class ComplianceService(
                 .Where(c =>
                 {
                     var st = c.Status?.Trim().ToLowerInvariant();
-                    return st is not ("revoked" or "suspended" or "pending" or "unverified" or "rejected");
+                    return st is not ("inactive" or "revoked" or "suspended" or "pending" or "unverified" or "rejected");
                 })
                 .ToArray();
 

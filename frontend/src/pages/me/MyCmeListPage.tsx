@@ -88,7 +88,7 @@ export default function MyCmeListPage() {
     }
 
     // 2. From certificates (in case a certificate has no cycle yet, excluding unapproved/revoked/suspended)
-    const ineligibleStatuses = ['pending', 'unverified', 'rejected', 'revoked', 'suspended'];
+    const ineligibleStatuses = ['pending', 'unverified', 'rejected', 'inactive', 'revoked', 'suspended'];
     for (const cert of certificates) {
       const certStatus = (cert.status || 'active').trim().toLowerCase();
       if (
@@ -130,7 +130,7 @@ export default function MyCmeListPage() {
         if (prev) return prev;
         if (safeCycles.length > 0) return safeCycles[0].certificateId;
         if (safeCerts.length > 0) {
-          const ineligible = ['pending', 'unverified', 'rejected', 'revoked', 'suspended'];
+          const ineligible = ['pending', 'unverified', 'rejected', 'inactive', 'revoked', 'suspended'];
           const firstEligible = safeCerts.find(
             (c) =>
               (c.category === 'certificate' || !c.category) &&

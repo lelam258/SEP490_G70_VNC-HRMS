@@ -405,6 +405,7 @@ export default function CertificateCreateModal({ staff, onClose, onSave, busy = 
                 disabled={busy || uploading}
               >
                 <option value="active">Đang hiệu lực (Active)</option>
+                <option value="inactive">Ngừng hoạt động (Inactive)</option>
                 <option value="expired">Đã hết hạn (Expired)</option>
                 <option value="suspended">Tạm đình chỉ (Suspended)</option>
                 <option value="revoked">Bị thu hồi (Revoked)</option>

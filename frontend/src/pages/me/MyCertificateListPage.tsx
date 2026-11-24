@@ -215,6 +215,7 @@ export default function MyCertificateListPage() {
       }
 
       const isNonActive =
+        c.status === 'inactive' ||
         c.status === 'rejected' ||
         c.verificationStatus === 'rejected' ||
         c.status === 'pending' ||
@@ -254,6 +255,7 @@ export default function MyCertificateListPage() {
       // Status filter
       if (statusFilter !== 'all') {
         const isNonActive =
+          c.status === 'inactive' ||
           c.status === 'rejected' ||
           c.verificationStatus === 'rejected' ||
           c.status === 'pending' ||
@@ -624,6 +626,10 @@ export default function MyCertificateListPage() {
                         <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                         Chờ HR duyệt
                       </span>
+                    ) : cert.status === 'inactive' ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                        Ngừng hoạt động
+                      </span>
                     ) : cert.status === 'suspended' ? (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                         Tạm đình chỉ
@@ -833,6 +839,10 @@ export default function MyCertificateListPage() {
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                             Chờ HR duyệt
+                          </span>
+                        ) : cert.status === 'inactive' ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                            Ngừng hoạt động
                           </span>
                         ) : cert.status === 'suspended' ? (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">

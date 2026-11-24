@@ -9,7 +9,7 @@ interface Props {
   certificate: Certificate;
   onClose: () => void;
   onEdit?: (cert: Certificate) => void;
-  onDelete?: (cert: Certificate) => void;
+  onToggleStatus?: (cert: Certificate) => void;
   onReview?: (cert: Certificate, action: 'approve' | 'reject', reason?: string) => Promise<void>;
   busyReview?: boolean;
 }
@@ -42,7 +42,7 @@ export default function CertificateDetailModal({
   certificate,
   onClose,
   onEdit,
-  onDelete,
+  onToggleStatus,
   onReview,
   busyReview = false,
 }: Props) {
@@ -84,6 +84,8 @@ export default function CertificateDetailModal({
       ? isExpired
         ? 'Hết hạn'
         : 'Đang hiệu lực'
+      : certificate.status === 'inactive'
+      ? 'Ngừng hoạt động'
       : certificate.status === 'pending' || certificate.status === 'unverified'
       ? 'Chờ HR duyệt'
       : certificate.status === 'rejected'
@@ -99,7 +101,7 @@ export default function CertificateDetailModal({
   const certStatusClass =
     certificate.status === 'active' && !isExpired
       ? 'active'
-      : certificate.status === 'expired' || isExpired || certificate.status === 'rejected'
+      : certificate.status === 'inactive' || certificate.status === 'expired' || isExpired || certificate.status === 'rejected' || certificate.status === 'revoked'
       ? 'inactive'
       : 'pending';
 
@@ -325,17 +327,22 @@ export default function CertificateDetailModal({
             )}
 
             <div className="flex gap-2">
-              {onDelete && (
+              {!isDegree && !isPendingReview && !isRejected && onToggleStatus && (
                 <button
                   type="button"
-                  className="button danger text-xs"
+                  className={`button text-xs flex items-center gap-1.5 ${
+                    certificate.status === 'inactive'
+                      ? 'secondary text-teal-700'
+                      : 'danger'
+                  }`}
                   onClick={() => {
                     onClose();
-                    onDelete(certificate);
+                    onToggleStatus(certificate);
                   }}
                   disabled={busyReview}
                 >
-                  Xóa hồ sơ
+                  <Icon name="power" size={14} />
+                  {certificate.status === 'inactive' ? 'Kích hoạt lại' : 'Ngừng hoạt động'}
                 </button>
               )}
               <button type="button" className="button text-xs" onClick={onClose} disabled={busyReview}>

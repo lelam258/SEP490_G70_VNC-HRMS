@@ -20,7 +20,7 @@ export default function CmeRecordEditModal({
   onSave,
   busy = false,
 }: Props) {
-  const ineligibleStatuses = ['pending', 'unverified', 'rejected', 'revoked', 'suspended'];
+  const ineligibleStatuses = ['pending', 'unverified', 'rejected', 'inactive', 'revoked', 'suspended'];
   const onlyCerts = certificates.filter(
     c =>
       c.category === 'certificate' &&
