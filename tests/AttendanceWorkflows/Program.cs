@@ -87,6 +87,18 @@ static byte[] BinaryWorkbook(object?[][] cells) {
     stream.Write(eof); return stream.ToArray();
 }
 
+if (args.Length == 3 && args[0] == "--create-ot-fixture") {
+    var directory = Path.GetFullPath(args[1]);
+    Directory.CreateDirectory(directory);
+    var rows = new List<object?[]> { new object?[] { "Employee ID", "Date", "In1", "Out1", "In2", "Out2" } };
+    var checkouts = new[] { "17:00", "17:29", "17:30", "17:59", "18:00", "18:45", "20:00", "18:30" };
+    for (var i = 0; i < checkouts.Length; i++) rows.Add([args[2], new DateOnly(2026, 11, 16).AddDays(i).ToString("yyyy-MM-dd"), "07:10", "11:45", "13:30", checkouts[i]]);
+    var path = Path.Combine(directory, "GB12_OT_2026-11.xlsx");
+    await File.WriteAllBytesAsync(path, Workbook(rows.ToArray()));
+    Console.WriteLine("Created synthetic OT workbook: " + path);
+    return;
+}
+
 object?[][] sourceRows = [
     ["BÁO CÁO CHẤM CÔNG", "Tổng giờ đầu bảng 9999 không phải công đã xác nhận"],
     ["Mã nhân viên: 0001", "Họ tên: Nguyễn A"],
@@ -123,6 +135,7 @@ Check(AttendanceRules.Csv("=HYPERLINK(\"bad\")").StartsWith("\"'="), "CSV export
 var masked = AuditViewerService.Mask("{\"passwordHash\":\"secret-hash\",\"nested\":[{\"token\":\"secret-token\",\"email\":\"a@example.com\"}],\"role\":\"employee\"}")!.ToJsonString();
 Check(!masked.Contains("secret-hash") && !masked.Contains("secret-token") && !masked.Contains("a@example.com") && masked.Contains("employee"), "Audit masking recursively hides credentials and personal contact data");
 ImportParserRegression.Run(Check);
+OvertimeRegression.Run(Check);
 var typedWorkbook = parser.Parse(Workbook([["Employee ID", "Date", "In", "Out", "Hours", "Late", "Early"],
     ["1", new DateTime(2026, 11, 2), new DateTime(1899, 12, 30, 7, 0, 0), 11.5d / 24, TimeSpan.FromHours(4.5), TimeSpan.FromMinutes(30), new DateTime(1899, 12, 30, 0, 15, 0)]]), "2026-11");
 Check(typedWorkbook[0].ReportedHours == 4.5m && typedWorkbook[0].LateMinutes == 30m && typedWorkbook[0].EarlyMinutes == 15m
@@ -484,6 +497,7 @@ try {
     await Reject(async () => { await Run(employee, (_, _, _, _, service) => service.List(employee, new AuditFilter(), true, ct)); }, 403, "Employees cannot browse the operational audit history");
 
     await DeviceMappingRegression.Run(options, hrId, adminId, department1, Check, ct);
+    await OvertimeImportRegression.Run(options, clock, hrId, department1, facility1, Workbook, Check, ct);
     await AttendanceReconcileVerifyMonthlyRegression.Run(options, clock, next => clock.Now = next, hrId, managerId, accountantId, facility1, facility2, department1, Check, ct);
 
     // Exercise the real HTTP pipeline, including Swagger, multipart binding and SQL-backed sessions.
