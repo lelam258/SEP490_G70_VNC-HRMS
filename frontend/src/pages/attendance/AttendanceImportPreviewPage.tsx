@@ -12,7 +12,7 @@ import { attendanceApi, downloadAttendance } from '../../services/attendanceApi'
 import { ApiError } from '../../services/axiosClient';
 import { useAuthStore } from '../../store/useAuthStore';
 import type { AttendanceOptions, ImportPreview, ImportRow } from '../../types/attendance';
-import { attendanceLabel, clockTime, formatAttendanceNote, instant } from '../../utils/attendance';
+import { attendanceLabel, clockTime, formatAttendanceNote, instant, rememberAttendanceMonth } from '../../utils/attendance';
 import { shortDate } from '../../utils/schedule';
 
 const issueLabels: Record<string, string> = { closed_period: 'Kỳ đã khóa / hết hạn', future_time: 'Giờ thực tế tương lai', unknown_device: 'Mã máy chưa khớp', ambiguous_device: 'Mã máy bị trùng', malformed_date: 'Ngày sai / chưa rõ định dạng', invalid_time: 'Thiếu/sai giờ', repeated_time_pairs: 'Máy lặp cặp Vào/Ra', cross_month: 'Khác tháng', existing_record: 'Trùng bản ghi đã lưu', duplicate_file: 'Trùng trong tệp', facility_conflict: 'Khác cơ sở', shift_conflict: 'Không khớp ca đã công bố', leave_conflict: 'Trùng nghỉ phép', needs_reconciliation: 'Cần đối chiếu', inactive_staff: 'Nhân viên/khoa không hoạt động', future_date: 'Ngày tương lai', employment_dates: 'Ngoài thời gian công tác', invalid_shift: 'Ca không hợp lệ', inactive_facility: 'Cơ sở ngừng hoạt động' };
@@ -25,8 +25,9 @@ export default function AttendanceImportPreviewPage({ errors = false }: { errors
   const [confirm, setConfirm] = useState(false); const [mappingConfirmed, setMappingConfirmed] = useState(false); const [includeWarnings, setIncludeWarnings] = useState(false);
   const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [notice, setNotice] = useState<string>(location.state?.notice || '');
   const options = useApiResource<AttendanceOptions>('/attendance/options');
-  const resource = useApiResource<ImportPreview>(`/attendance/imports/${id}`, { status: errors ? status || 'issues' : status, errorCode, page, pageSize });
+  const resource = useApiResource<ImportPreview>(`/attendance/imports/${id}`, { status: errors ? status || 'issues' : status, errorCode, page, pageSize }, 120_000);
   const data = resource.data;
+  useEffect(() => { if (data?.batch.payMonth) rememberAttendanceMonth(data.batch.payMonth); }, [data?.batch.payMonth]);
   useEffect(() => { setRow(undefined); setInspect(undefined); setExclude(undefined); setConfirm(false); setMappingConfirmed(false); setIncludeWarnings(false); setPage(1); setStatus(''); setErrorCode(''); }, [id, errors]);
   useEffect(() => { setMappingConfirmed(false); setConfirm(false); }, [data?.version]);
   const eligible = data ? data.counts.valid + (includeWarnings ? data.counts.warning : 0) : 0;
@@ -54,9 +55,10 @@ export default function AttendanceImportPreviewPage({ errors = false }: { errors
     finally { setBusy(false); }
   }
   return <AttendanceShell layout="list" title={errors ? 'Kết quả lỗi nhập chấm công' : 'Xem trước nhập chấm công'} description={errors ? 'Kiểm tra từng lỗi, xác nhận nhân viên và bổ sung căn cứ điều chỉnh.' : 'Kiểm tra nguồn, ánh xạ nhân viên và các cặp vào/ra trước khi lưu dữ liệu.'}
-    actions={<><Link className="button" to="/attendance/imports">Lịch sử nhập</Link><Link className="button" to={`/attendance/imports/${id}/${errors ? 'preview' : 'errors'}`}>{errors ? 'Xem trước tất cả' : 'Xem kết quả lỗi'}</Link></>}>
+    actions={<>{data && data.counts.committed > 0 && <Link className="button primary" to={`/attendance/records?month=${data.batch.payMonth}`}>Xem bản ghi đã lưu</Link>}<Link className="button" to={data ? `/attendance/imports?month=${data.batch.payMonth}` : '/attendance/imports'}>Lịch sử nhập</Link><Link className="button" to={`/attendance/imports/${id}/${errors ? 'preview' : 'errors'}`}>{errors ? 'Xem trước tất cả' : 'Xem kết quả lỗi'}</Link></>}>
     {notice && <p className="alert success" role="status">{formatAttendanceNote(notice)}</p>}{error && <p className="alert error" role="alert">{formatAttendanceNote(error)}</p>}
-    <ResourceState loading={resource.loading || options.loading} error={resource.error || options.error} reload={() => { resource.reload(); options.reload(); }} />
+    <ResourceState loading={resource.loading} error={resource.error} reload={resource.reload} />
+    {options.error && <ResourceState loading={false} error={options.error} reload={options.reload} />}
     {data && <><section className="operations-panel attendance-import-summary"><h2>{data.batch.fileName}</h2><p>{data.batch.payMonth} · {options.data?.facilities.find(item => item.id === data.batch.facilityId)?.name || '—'} · {data.batch.deviceSource || 'Máy chấm công'} · {instant(data.batch.importDate)}</p>
       <div className="operations-stats"><span><strong>{data.employeeBlocks}</strong>khối/mã nhân viên</span>{Object.entries(data.counts).map(([key, count]) => <span key={key}><strong>{count}</strong>{attendanceLabel(key)}</span>)}</div>
       {data.lockedReason && <p className="alert warning">{formatAttendanceNote(data.lockedReason)}</p>}
@@ -68,7 +70,7 @@ export default function AttendanceImportPreviewPage({ errors = false }: { errors
         { key: 'staff', label: 'Nhân viên', render: item => item.staffName || 'Chưa xác định' },
         { key: 'date', label: 'Ngày / ca', render: item => <>{item.workDate ? shortDate(item.workDate, true) : item.rawDate || 'Ngày thiếu'}<small className="table-secondary">{attendanceLabel(item.shiftType)}</small></> },
         { key: 'times', label: 'Vào / ra', render: item => item.pairs.length ? item.pairs.map((pair, index) => <div key={index}>{clockTime(pair.in)} – {clockTime(pair.out)}</div>) : 'Thiếu giờ' },
-        { key: 'hours', label: 'Giờ tính / giờ máy', render: item => `${item.actualHours ?? '—'} / ${item.reportedHours ?? '—'}` },
+        { key: 'hours', label: 'Giờ công / giờ máy', render: item => <>{item.actualHours ?? '—'} / {item.reportedHours ?? '—'}<small className="table-secondary">Giờ máy đã tính theo cấu hình ca; không trừ nghỉ trưa lần nữa. OT tách riêng.</small></> },
         { key: 'ot', label: 'OT dự kiến', render: item => <>{item.staffId && !['error', 'duplicate'].includes(item.validationStatus) ? `${item.potentialOvertimeHours ?? 0} giờ` : '—'}<small className="table-secondary">{item.hasNightOnCall ? 'Có ca trực tối: không tính OT' : '17:00–19:00, đủ mỗi 30 phút; chờ HR xác nhận'}</small></> },
         { key: 'minutes', label: 'Muộn / sớm (phút)', render: item => <>{item.lateMinutes ?? '—'} / {item.earlyMinutes ?? '—'}<small className="table-secondary">Ký hiệu: {item.attendanceSymbol || '—'}</small></> },
         { key: 'status', label: 'Kiểm tra', render: item => <>{attendanceLabel(item.validationStatus)}<small className="table-secondary">{attendanceText(item.validationNote)}</small></> },

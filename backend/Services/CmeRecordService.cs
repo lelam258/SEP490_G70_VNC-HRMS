@@ -68,13 +68,21 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
                     var st = c.Status?.Trim().ToLowerInvariant();
                     if (st is "pending" or "unverified" or "rejected")
                         return false;
-                    if (st is "revoked" or "suspended")
+                    if (st is "inactive" or "revoked" or "suspended")
                         return recordsByCert[c.CertificateId].Any();
                     return true;
                 })
                 .ToArray();
 
-            var cmeCerts = staffCerts
+            var activeStaffCerts = staffCerts
+                .Where(c =>
+                {
+                    var st = c.Status?.Trim().ToLowerInvariant();
+                    return st is not ("inactive" or "revoked" or "suspended");
+                })
+                .ToArray();
+
+            var cmeCerts = activeStaffCerts
                 .Where(c => (c.CmeRequiredCredits ?? 0) > 0 || (c.CmeCycleMonths ?? 0) > 0)
                 .ToArray();
 
@@ -82,9 +90,13 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
                 .SelectMany(c => recordsByCert[c.CertificateId])
                 .ToArray();
 
-            var totalRequired = staffCerts.Sum(c =>
+            var activeStaffRecords = activeStaffCerts
+                .SelectMany(c => recordsByCert[c.CertificateId])
+                .ToArray();
+
+            var totalRequired = activeStaffCerts.Sum(c =>
                 c.CmeRequiredCredits is > 0 ? c.CmeRequiredCredits.Value : DefaultRequiredCredits);
-            var totalEarned = staffRecords.Where(r => r.Verified).Sum(r => r.Credits);
+            var totalEarned = activeStaffRecords.Where(r => r.Verified).Sum(r => r.Credits);
             var pendingCount = staffRecords.Count(r => !r.Verified);
 
             return new StaffCmeSummaryDto(
@@ -152,7 +164,7 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
             var certRecords = recordsByCert[cert.CertificateId].ToArray();
 
             var certStatus = cert.Status?.Trim().ToLowerInvariant();
-            if (certStatus is "revoked" or "suspended" && certCycles.Length == 0 && certRecords.Length == 0)
+            if (certStatus is "inactive" or "revoked" or "suspended" && certCycles.Length == 0 && certRecords.Length == 0)
             {
                 continue;
             }
@@ -1136,9 +1148,9 @@ public sealed class CmeRecordService(AppDbContext db, IUnitOfWork unitOfWork) : 
     private static void EnsureCertificateEligibleForCme(Certificate cert)
     {
         var st = cert.Status?.Trim().ToLowerInvariant();
-        if (st is "pending" or "unverified" or "rejected" or "revoked" or "suspended")
+        if (st is "pending" or "unverified" or "rejected" or "inactive" or "revoked" or "suspended")
         {
-            throw new AppException(400, "Chỉ có thể ghi nhận CME cho chứng chỉ đã được phê duyệt và đang hiệu lực.");
+            throw new AppException(400, "Chỉ có thể ghi nhận CME cho chứng chỉ đã được phê duyệt và đang hoạt động.");
         }
     }
 

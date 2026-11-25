@@ -25,6 +25,16 @@ public sealed record ReconcileAttendanceRequest([Required] string Action, TimePa
 public sealed record VerifyAttendanceRequest([Required] string Decision, string? Reason,
     string? SupervisorEvidence, [Required] string Version);
 
+public sealed record BulkAttendanceSelection([Required] string Month, Guid[]? Ids = null, AttendanceFilter? Filter = null);
+public sealed record BulkAttendanceVersion(Guid Id, [Required] string Version);
+public sealed record BulkVerifyAttendanceRequest([Required] string Month,
+    [Required, MinLength(1), MaxLength(1000)] BulkAttendanceVersion[] Items, [StringLength(1000)] string? Reason = null);
+public sealed record BulkAttendanceReviewItem(Guid Id, string Version, string StaffCode, string StaffName,
+    DateOnly WorkDate, string? ShiftType, decimal? ActualHours);
+public sealed record BulkAttendanceFailure(Guid Id, string? StaffCode, DateOnly? WorkDate, string Message);
+public sealed record BulkAttendanceReview(BulkAttendanceReviewItem[] Items, BulkAttendanceFailure[] Skipped);
+public sealed record BulkAttendanceResult(int Confirmed, BulkAttendanceFailure[] Failed);
+
 public sealed record LockMonthlyAttendanceRequest(string? Note = null, string? Version = null);
 
 public sealed class AttendanceFilter

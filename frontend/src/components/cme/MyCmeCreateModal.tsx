@@ -25,7 +25,7 @@ export default function MyCmeCreateModal({
   busy = false,
 }: Props) {
   // Only active/approved certificates eligible for CME (category == 'certificate')
-  const ineligibleStatuses = ['pending', 'unverified', 'rejected', 'revoked', 'suspended'];
+  const ineligibleStatuses = ['pending', 'unverified', 'rejected', 'inactive', 'revoked', 'suspended'];
   const cmeEligibleCerts = certificates.filter(
     (c) =>
       (c.category === 'certificate' || !c.category) &&

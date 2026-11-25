@@ -114,7 +114,7 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
     public async Task<object> Preview(Guid id, string? status, string? errorCode, int page, int pageSize, CancellationToken ct)
     {
         var batch = await db.AttendanceImports.AsNoTracking().SingleOrDefaultAsync(x => x.ImportId == id, ct) ?? throw new AppException(404, "Không tìm thấy đợt nhập.");
-        var all = await db.AttendanceImportRows.AsNoTracking().Where(x => x.ImportId == id).OrderBy(x => x.SheetName).ThenBy(x => x.RowNumber).ToArrayAsync(ct);
+        var all = await LoadRows(id, false, ct);
         await Validate(batch, all, ct);
         Totals(batch, all);
         var version = BatchVersion(batch, all);
@@ -142,7 +142,7 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         var batch = await db.AttendanceImports.SingleOrDefaultAsync(x => x.ImportId == importId, ct) ?? throw new AppException(404, "Không tìm thấy đợt nhập.");
         await access.RequireOpenImportMonth(batch.PayMonth!, ct);
-        var rows = await db.AttendanceImportRows.Where(x => x.ImportId == importId).OrderBy(x => x.SheetName).ThenBy(x => x.RowNumber).ToArrayAsync(ct);
+        var rows = await LoadRows(importId, true, ct);
         var row = rows.SingleOrDefault(x => x.Id == rowId) ?? throw new AppException(404, "Không tìm thấy dòng nhập.");
         AttendanceRules.RequireVersion(row.Version, request.Version);
         if (row.AttendanceId.HasValue) throw new AppException(409, "Dòng đã được lưu vào chấm công; cần luồng đối chiếu để điều chỉnh.");
@@ -167,7 +167,7 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         var batch = await db.AttendanceImports.SingleOrDefaultAsync(x => x.ImportId == importId, ct) ?? throw new AppException(404, "Không tìm thấy đợt nhập.");
         await access.RequireOpenImportMonth(batch.PayMonth!, ct);
-        var rows = await db.AttendanceImportRows.Where(x => x.ImportId == importId).OrderBy(x => x.SheetName).ThenBy(x => x.RowNumber).ToArrayAsync(ct);
+        var rows = await LoadRows(importId, true, ct);
         var row = rows.SingleOrDefault(x => x.Id == rowId) ?? throw new AppException(404, "Không tìm thấy dòng nhập.");
         AttendanceRules.RequireVersion(row.Version, request.Version);
         if (row.AttendanceId.HasValue) throw new AppException(409, "Không thể loại bản ghi đã lưu vào chấm công.");
@@ -190,7 +190,7 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         var batch = await db.AttendanceImports.SingleOrDefaultAsync(x => x.ImportId == id, ct) ?? throw new AppException(404, "Không tìm thấy đợt nhập.");
         await access.RequireOpenImportMonth(batch.PayMonth!, ct);
-        var rows = await db.AttendanceImportRows.Where(x => x.ImportId == id).OrderBy(x => x.SheetName).ThenBy(x => x.RowNumber).ToArrayAsync(ct);
+        var rows = await LoadRows(id, true, ct);
         await Validate(batch, rows, ct);
         Totals(batch, rows);
         if (version != BatchVersion(batch, rows)) throw new AppException(409, "Dữ liệu hoặc kết quả đối chiếu đã thay đổi. Tải lại bản xem trước và xác nhận lại trước khi lưu.");
@@ -237,6 +237,16 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
         return "Sheet,Row,Date,Issue,Message\r\n" + string.Join("\r\n", rows.Select(x => string.Join(",", new[] { sheetNumbers[x.SheetName],
             x.RowNumber.ToString(), x.WorkDate?.ToString("yyyy-MM-dd"), x.ErrorCode ?? (locked is null ? null : "closed_period"),
             locked is null ? x.ValidationNote : (x.ValidationNote is null ? locked : x.ValidationNote + " Trạng thái kỳ: " + locked) }.Select(AttendanceRules.Csv))));
+    }
+
+    private async Task<AttendanceImportRow[]> LoadRows(Guid id, bool tracking, CancellationToken ct)
+    {
+        var query = db.AttendanceImportRows.Where(x => x.ImportId == id);
+        if (!tracking) query = query.AsNoTracking();
+        // Validation needs the whole batch anyway. Sorting wide raw JSON columns in SQL
+        // can wait on RESOURCE_SEMAPHORE on the clinic's local SQL Server.
+        var rows = await query.ToArrayAsync(ct);
+        return rows.OrderBy(x => x.SheetName, StringComparer.Ordinal).ThenBy(x => x.RowNumber).ToArray();
     }
 
     private async Task Validate(AttendanceImport batch, AttendanceImportRow[] rows, CancellationToken ct)
@@ -289,7 +299,11 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
             if (row.ShiftType is not ("main" or "noon" or "evening")) { Error("invalid_shift", "Loại ca không hợp lệ. Cần chọn ca chính, trực trưa hoặc trực tối."); continue; }
             var pairs = JsonSerializer.Deserialize<AttendanceTimePair[]>(row.TimePairsJson) ?? [];
             bool repeatedPairs;
-            try { (row.ActualHours, repeatedPairs) = AttendanceRules.ImportHours(pairs, date); }
+            decimal calculatedHours;
+            try {
+                var calculation = AttendanceRules.ImportWorkHours(pairs, date, row.ShiftType, row.CorrectedBy is null ? row.ReportedHours : null);
+                row.ActualHours = calculation.Hours; calculatedHours = calculation.CalculatedHours; repeatedPairs = calculation.RepeatedPairs;
+            }
             catch (AppException error) { Error("invalid_time", error.Message); continue; }
             if (pairs.Max(x => x.Out) > access.Now.ToOffset(TimeSpan.FromHours(7)).DateTime) { Error("future_time", "Giờ chấm công thực tế chưa diễn ra."); continue; }
             if (existing.Contains((person.StaffId, date, row.ShiftType))) { Error("existing_record", "Ngày và ca đã có bản ghi. Dùng luồng đối chiếu; không ghi đè dữ liệu hiện có.", "duplicate"); continue; }
@@ -311,7 +325,7 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
             if (dayPlans.Length == 0) warnings.Add("Chưa có lịch đã công bố để đối chiếu");
             var shiftConflict = workedShifts.Length == 0 || (dayPlans.Length > 0 && workedShifts.Any(shift => !relevantPlans.Any(x => x.Shift == shift)));
             if (shiftConflict) warnings.Add("Ca và giờ trong tệp chưa khớp ca làm việc đã công bố");
-            if (row.ReportedHours.HasValue && Math.Abs(row.ReportedHours.Value - row.ActualHours!.Value) > 0.05m) warnings.Add("Tổng giờ máy báo khác tổng các cặp Vào/Ra");
+            if (row.ReportedHours.HasValue && Math.Abs(row.ReportedHours.Value - calculatedHours) > 0.05m) warnings.Add("Giờ máy báo khác giờ đối chiếu theo ca làm việc (đã loại giờ nghỉ trưa và tách OT)");
             if (warnings.Count > 0) { row.ValidationStatus = "warning"; row.ErrorCode = repeatedPairs ? "repeated_time_pairs" : shiftConflict ? "shift_conflict" : "needs_reconciliation"; row.ValidationNote = string.Join(". ", warnings) + ". Chỉ được lưu vào hàng chờ đối chiếu, chưa được tính lương."; }
 
             void Error(string code, string message, string status = "error") { row.ErrorCode = code; row.ValidationNote = message; row.ValidationStatus = status; }
@@ -348,10 +362,10 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
             if (pairs.Length == 0) { empty++; continue; }
             if (pairs.Any(x => x.In is null || x.Out is null)) { missing++; continue; }
             try {
-                var result = AttendanceRules.ImportHours(pairs, date);
+                var result = AttendanceRules.ImportWorkHours(pairs, date, row.ShiftType, row.ReportedHours);
                 hours[row.Id] = result.Hours; complete++;
                 if (result.RepeatedPairs) repeated++;
-                if (row.ReportedHours.HasValue && Math.Abs(row.ReportedHours.Value - result.Hours) > .05m) discrepancy++;
+                if (row.ReportedHours.HasValue && Math.Abs(row.ReportedHours.Value - result.CalculatedHours) > .05m) discrepancy++;
             }
             catch (AppException) { invalid++; }
         }

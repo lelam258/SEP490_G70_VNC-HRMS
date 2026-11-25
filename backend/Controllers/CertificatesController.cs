@@ -38,6 +38,10 @@ public sealed class CertificatesController(ICertificateService certificates) : C
     public Task<CertificateDto> Update(Guid id, [FromBody] UpdateCertificateRequest request, CancellationToken ct) =>
         certificates.UpdateAsync(id, request, ct);
 
+    [HttpPatch("{id:guid}/status")]
+    public Task<CertificateDto> UpdateStatus(Guid id, [FromBody] UpdateCertificateStatusRequest request, CancellationToken ct) =>
+        certificates.UpdateStatusAsync(id, request.Status, ct);
+
     [HttpPost("{id:guid}/review")]
     public Task<CertificateDto> Review(Guid id, [FromBody] ReviewCertificateRequest request, CancellationToken ct)
     {

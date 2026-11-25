@@ -4,7 +4,7 @@ import Alert from '../ui/Alert';
 import type { Department } from '../../services/departmentApi';
 import type { EmployeeDetail, UpdateEmployeeInput } from '../../types/accounts';
 import { formatDate, initials } from '../../utils/format';
-import { validateEmployeeProfile } from '../../utils/employeeRules';
+import { validateDependentCount, validateEmployeeProfile } from '../../utils/employeeRules';
 import { getMaxAdultDateOfBirth } from '../../utils/leaveRules';
 
 interface EmployeeProfileFormProps {
@@ -40,7 +40,8 @@ export default function EmployeeProfileForm({
   const [scopeOfPractice, setScopeOfPractice] = useState(employee.scopeOfPractice || '');
   const [dateJoined, setDateJoined] = useState(employee.dateJoined || '');
   const [dateLeft, setDateLeft] = useState(employee.dateLeft || '');
-  const [dependentCount, setDependentCount] = useState<number>(employee.dependentCount ?? 0);
+  const [dependentCount, setDependentCount] = useState(String(employee.dependentCount ?? 0));
+  const dependentError = validateDependentCount(dependentCount);
   const [status, setStatus] = useState(employee.status || 'active');
 
   const [error, setError] = useState('');
@@ -59,7 +60,7 @@ export default function EmployeeProfileForm({
     scopeOfPractice !== (employee.scopeOfPractice || '') ||
     dateJoined !== (employee.dateJoined || '') ||
     dateLeft !== (employee.dateLeft || '') ||
-    dependentCount !== (employee.dependentCount ?? 0) ||
+    dependentCount !== String(employee.dependentCount ?? 0) ||
     status !== (employee.status || 'active');
 
   function handleBack() {
@@ -73,10 +74,15 @@ export default function EmployeeProfileForm({
     if (readonly || !onSave || busy || saving) return;
 
     setError('');
+    if (dependentError) {
+      setError(dependentError);
+      document.getElementById('staff-dependents')?.focus();
+      return;
+    }
     const trimmedCode = code.trim();
     const trimmedName = name.trim();
 
-    const invalid = validateEmployeeProfile({ code, name, email, phone, dateOfBirth, idCardNumber, dateJoined, dateLeft, dependentCount });
+    const invalid = validateEmployeeProfile({ code, name, email, phone, dateOfBirth, idCardNumber, dateJoined, dateLeft, dependentCount: Number(dependentCount) });
     if (invalid) {
       setError(invalid);
       return;
@@ -97,7 +103,7 @@ export default function EmployeeProfileForm({
         scopeOfPractice: scopeOfPractice.trim() || null,
         dateJoined: dateJoined || null,
         dateLeft: dateLeft || null,
-        dependentCount,
+        dependentCount: Number(dependentCount),
         status,
       });
       if (err) setError(err);
@@ -369,14 +375,16 @@ export default function EmployeeProfileForm({
               <label htmlFor="staff-dependents">Số người phụ thuộc giảm trừ gia cảnh</label>
               <input
                 id="staff-dependents"
-                type="number"
-                min={0}
-                step={1}
+                type="text"
+                inputMode="numeric"
                 value={dependentCount}
                 readOnly={readonly}
-                onChange={e => setDependentCount(Number(e.target.value))}
+                onChange={e => setDependentCount(e.target.value)}
+                aria-invalid={!readonly && !!dependentError}
+                aria-describedby="staff-dependents-hint staff-dependents-error"
               />
-              <p className="field-hint">Dùng để tính mức giảm trừ thuế TNCN trên bảng lương.</p>
+              {!readonly && dependentError && <p id="staff-dependents-error" className="field-error" role="alert">{dependentError}</p>}
+              <p id="staff-dependents-hint" className="field-hint">Nhập số nguyên không âm. Dùng để tính mức giảm trừ thuế TNCN trên bảng lương.</p>
             </div>
           </div>
 

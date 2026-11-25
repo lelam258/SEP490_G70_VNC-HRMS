@@ -65,7 +65,7 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
     certificate.cmeRequiredCredits != null ? String(certificate.cmeRequiredCredits) : ''
   );
   const [status, setStatus] = useState<string>(() => {
-    const allowed = ['active', 'expired', 'suspended', 'revoked', 'pending', 'unverified', 'rejected'];
+    const allowed = ['active', 'inactive', 'expired', 'suspended', 'revoked', 'pending', 'unverified', 'rejected'];
     const rawStatus = certificate.status?.toLowerCase();
     return rawStatus && allowed.includes(rawStatus) ? rawStatus : 'active';
   });
@@ -428,6 +428,7 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
                 disabled={busy || uploading}
               >
                 <option value="active">Đang hiệu lực (Active)</option>
+                <option value="inactive">Ngừng hoạt động (Inactive)</option>
                 <option value="expired">Đã hết hạn (Expired)</option>
                 <option value="suspended">Tạm đình chỉ (Suspended)</option>
                 <option value="revoked">Bị thu hồi (Revoked)</option>

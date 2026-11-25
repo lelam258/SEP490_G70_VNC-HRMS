@@ -111,9 +111,9 @@ public sealed class MyCmeRecordsController(
         }
 
         var certStatus = cert.Status?.Trim().ToLowerInvariant();
-        if (certStatus is "pending" or "unverified" or "rejected" or "revoked" or "suspended")
+        if (certStatus is "pending" or "unverified" or "rejected" or "inactive" or "revoked" or "suspended")
         {
-            throw new AppException(400, "Chỉ có thể nộp CME cho chứng chỉ đã được phòng Nhân sự phê duyệt.");
+            throw new AppException(400, "Chỉ có thể nộp CME cho chứng chỉ đã được phê duyệt và đang hoạt động.");
         }
 
         // Staff submissions are always pending (Verified = false)

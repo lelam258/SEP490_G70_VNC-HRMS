@@ -914,10 +914,12 @@ export default function CmeRecordListPage() {
                   const baseLabel = c.certificateNumber
                     ? `${c.certificateNumber} - ${c.certificateType}`
                     : c.certificateType;
+                  const statusSuffix =
+                    c.certificateStatus?.toLowerCase() === 'inactive' ? ' (Ngừng hoạt động)' : '';
                   const label =
                     pendingCount > 0
-                      ? `🔔 [Chờ duyệt: ${pendingCount}] ${baseLabel}`
-                      : baseLabel;
+                      ? `🔔 [Chờ duyệt: ${pendingCount}] ${baseLabel}${statusSuffix}`
+                      : `${baseLabel}${statusSuffix}`;
                   return (
                     <option key={c.certificateId} value={c.certificateId}>
                       {label}

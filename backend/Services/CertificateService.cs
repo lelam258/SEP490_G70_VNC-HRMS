@@ -601,6 +601,55 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
         return await GetAsync(id, ct);
     }
 
+    public async Task<CertificateDto> UpdateStatusAsync(Guid id, string status, CancellationToken ct = default)
+    {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+        var entity = await db.Certificates.SingleOrDefaultAsync(c => c.CertificateId == id, ct)
+            ?? throw new AppException(404, "Không tìm thấy chứng chỉ.");
+
+        var (cat, _, _) = CertificateCategoryHelper.Parse(entity.CertificateType);
+        if (cat == "degree")
+            throw new AppException(400, "Chỉ áp dụng ngừng hoạt động / kích hoạt cho chứng chỉ.", "category");
+
+        var normalizedStatus = status?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (normalizedStatus is not ("active" or "inactive"))
+            throw new AppException(400, "Trạng thái chứng chỉ chỉ chấp nhận 'active' hoặc 'inactive'.", "status");
+
+        var currentStatus = (entity.Status ?? "active").Trim().ToLowerInvariant();
+        if (currentStatus is "pending" or "unverified" or "rejected")
+            throw new AppException(409, "Chứng chỉ chưa được phê duyệt hoặc đã bị từ chối thẩm định, không thể chuyển trạng thái hoạt động.");
+
+        entity.Status = normalizedStatus;
+        entity.UpdatedAt = DateTime.UtcNow;
+
+        if (normalizedStatus == "active" &&
+            ((entity.CmeRequiredCredits ?? 0) > 0 || (entity.CmeCycleMonths ?? 0) > 0) &&
+            !await db.CmeCycles.AnyAsync(c => c.CertificateId == id, ct))
+        {
+            var start = entity.IssueDate ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+            var months = entity.CmeCycleMonths is > 0 ? entity.CmeCycleMonths.Value : 24;
+            var end = start.AddMonths(months);
+            var reqCredits = entity.CmeRequiredCredits is > 0 ? entity.CmeRequiredCredits.Value : 24m;
+
+            db.CmeCycles.Add(new CmeCycle
+            {
+                CycleId = Guid.NewGuid(),
+                CertificateId = entity.CertificateId,
+                CycleNumber = 1,
+                CycleStart = start,
+                CycleEnd = end,
+                RequiredCredits = reqCredits,
+                EarnedCredits = 0,
+                Status = "active"
+            });
+        }
+
+        await unitOfWork.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
+        return await GetAsync(id, ct);
+    }
+
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
         await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
@@ -812,7 +861,7 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
         decimal? credits, string? authority, string? fileUrl, string? scope)
     {
         string[] statuses = category == "degree" ? ["unverified", "verified", "rejected", "pending"]
-            : ["active", "expired", "suspended", "revoked", "pending", "unverified", "rejected"];
+            : ["active", "inactive", "expired", "suspended", "revoked", "pending", "unverified", "rejected"];
         if (!statuses.Contains(status)) throw new AppException(400, "Trạng thái văn bằng/chứng chỉ không hợp lệ.", "status");
         var todayVn = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
         if (issueDate.HasValue && issueDate.Value > todayVn)

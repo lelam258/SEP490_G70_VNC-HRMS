@@ -3,7 +3,9 @@ import { createServer } from 'vite';
 
 const server = await createServer({ server: { middlewareMode: true }, appType: 'custom' });
 try {
-  const { validateEmployeeBasics, validateEmployeeProfile } = await server.ssrLoadModule('/src/utils/employeeRules.ts');
+  const { validateEmployeeBasics, validateEmployeeProfile, validateDependentCount } = await server.ssrLoadModule('/src/utils/employeeRules.ts');
+  for (const value of ['-1', '-01', '-', '', '1.5', '1e2', 'abc', '2147483648']) assert.ok(validateDependentCount(value), `Reject dependent input: ${value}`);
+  for (const value of ['0', '1', '12', '2147483647']) assert.equal(validateDependentCount(value), '', `Accept dependent input: ${value}`);
   const basics = { code: 'NV01', name: "Nguyễn Thị An", email: null };
   const profile = { ...basics, dateOfBirth: '2000-01-01', dateJoined: '2024-01-01', dateLeft: '', phone: '', idCardNumber: '', dependentCount: 0 };
   const today = '2026-11-06';

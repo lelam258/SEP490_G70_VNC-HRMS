@@ -117,8 +117,8 @@ export default function CertificateListPage() {
   const [viewingCert, setViewingCert] = useState<Certificate | null>(null);
   const [editingCert, setEditingCert] = useState<Certificate | null>(null);
   const [creatingForStaff, setCreatingForStaff] = useState<StaffCertificateSummary | null>(null);
-  const [deletingCert, setDeletingCert] = useState<Certificate | null>(null);
-  const [deleteCertError, setDeleteCertError] = useState('');
+  const [togglingCert, setTogglingCert] = useState<Certificate | null>(null);
+  const [toggleCertError, setToggleCertError] = useState('');
   const [rejectingCert, setRejectingCert] = useState<Certificate | null>(null);
   const [quickRejectReason, setQuickRejectReason] = useState('');
   const [quickRejectError, setQuickRejectError] = useState('');
@@ -357,37 +357,32 @@ export default function CertificateListPage() {
     }
   }
 
-  async function handleConfirmDeleteCertificate() {
-    if (!deletingCert || actionBusy) return;
+  async function handleConfirmToggleCertificateStatus() {
+    if (!togglingCert || actionBusy) return;
     setActionBusy(true);
-    setDeleteCertError('');
+    setToggleCertError('');
     setError('');
     setNotice('');
+    const nextStatus: 'active' | 'inactive' = togglingCert.status === 'inactive' ? 'active' : 'inactive';
     try {
-      await certificateApi.delete(deletingCert.certificateId);
-      const deletedId = deletingCert.certificateId;
-      const deletedStaffId = deletingCert.staffId;
-      const deletedName = deletingCert.certificateType;
-      const label = deletingCert.categoryLabel?.toLowerCase() || 'hồ sơ';
-
-      setStaffCertificates(prev => prev.filter(c => c.certificateId !== deletedId));
-      setPendingCerts(prev => prev.filter(c => c.certificateId !== deletedId));
-      setStaffList(prev =>
-        prev.map(s =>
-          s.staffId === deletedStaffId
-            ? { ...s, certificateCount: Math.max(0, s.certificateCount - 1) }
-            : s
-        )
+      const updatedRaw = await certificateApi.updateStatus(togglingCert.certificateId, nextStatus);
+      const updated = normalizeCertificate(updatedRaw);
+      setStaffCertificates(prev =>
+        prev.map(c => (c.certificateId === togglingCert.certificateId ? updated : c))
       );
-      if (selectedStaff && selectedStaff.staffId === deletedStaffId) {
-        setSelectedStaff(prev =>
-          prev ? { ...prev, certificateCount: Math.max(0, prev.certificateCount - 1) } : null
-        );
+      if (viewingCert?.certificateId === togglingCert.certificateId) {
+        setViewingCert(updated);
       }
-      setDeletingCert(null);
-      setNotice(`Đã xóa ${label} "${deletedName}" thành công.`);
+      setTogglingCert(null);
+      setNotice(
+        nextStatus === 'inactive'
+          ? `Đã ngừng hoạt động chứng chỉ "${updated.certificateType}".`
+          : `Đã kích hoạt lại chứng chỉ "${updated.certificateType}".`
+      );
     } catch (cause) {
-      setDeleteCertError(cause instanceof Error ? cause.message : 'Không xóa được hồ sơ chuyên môn.');
+      setToggleCertError(
+        cause instanceof Error ? cause.message : 'Không cập nhật được trạng thái chứng chỉ.'
+      );
     } finally {
       setActionBusy(false);
     }
@@ -895,7 +890,7 @@ export default function CertificateListPage() {
                           ? 'pending'
                           : cert.status === 'active' && !isExpired
                           ? 'active'
-                          : cert.status === 'expired' || isExpired || cert.status === 'rejected' || cert.status === 'revoked'
+                          : cert.status === 'inactive' || cert.status === 'expired' || isExpired || cert.status === 'rejected' || cert.status === 'revoked'
                           ? 'inactive'
                           : 'pending';
 
@@ -904,6 +899,8 @@ export default function CertificateListPage() {
                           ? isExpired
                             ? 'Hết hạn'
                             : 'Đang hiệu lực'
+                          : cert.status === 'inactive'
+                          ? 'Ngừng hoạt động'
                           : cert.status === 'pending' || cert.status === 'unverified'
                           ? 'Chờ HR duyệt'
                           : cert.status === 'rejected'
@@ -1027,18 +1024,32 @@ export default function CertificateListPage() {
                               >
                                 <Icon name="edit" size={18} />
                               </button>
-                              <button
-                                className="icon-button text-red-500 hover:text-red-700"
-                                title="Xóa hồ sơ"
-                                aria-label={`Xóa ${cert.certificateType}`}
-                                onClick={() => {
-                                  setDeleteCertError('');
-                                  setDeletingCert(cert);
-                                }}
-                                disabled={actionBusy}
-                              >
-                                <Icon name="trash" size={17} />
-                              </button>
+                              {!isDegree && !isPending && cert.status !== 'rejected' && (
+                                <button
+                                  className={`icon-button ${
+                                    cert.status === 'inactive'
+                                      ? 'text-teal-600 hover:text-teal-800'
+                                      : 'text-amber-600 hover:text-red-600'
+                                  }`}
+                                  title={
+                                    cert.status === 'inactive'
+                                      ? 'Kích hoạt lại chứng chỉ'
+                                      : 'Ngừng hoạt động chứng chỉ'
+                                  }
+                                  aria-label={
+                                    cert.status === 'inactive'
+                                      ? `Kích hoạt lại ${cert.certificateType}`
+                                      : `Ngừng hoạt động ${cert.certificateType}`
+                                  }
+                                  onClick={() => {
+                                    setToggleCertError('');
+                                    setTogglingCert(cert);
+                                  }}
+                                  disabled={actionBusy}
+                                >
+                                  <Icon name="power" size={17} />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1090,49 +1101,66 @@ export default function CertificateListPage() {
           certificate={viewingCert}
           onClose={() => setViewingCert(null)}
           onEdit={cert => setEditingCert(cert)}
-          onDelete={cert => {
-            setDeleteCertError('');
-            setDeletingCert(cert);
+          onToggleStatus={cert => {
+            setToggleCertError('');
+            setTogglingCert(cert);
           }}
           onReview={handleReviewCertificate}
           busyReview={actionBusy}
         />
       )}
 
-      {deletingCert && (
+      {togglingCert && (
         <Modal
-          title="Xác nhận xóa hồ sơ chuyên môn"
-          onClose={() => !actionBusy && setDeletingCert(null)}
+          title={
+            togglingCert.status === 'inactive'
+              ? 'Kích hoạt lại chứng chỉ'
+              : 'Ngừng hoạt động chứng chỉ'
+          }
+          onClose={() => !actionBusy && setTogglingCert(null)}
           busy={actionBusy}
         >
           <div className="p-5 space-y-4 text-xs">
             <p className="text-slate-600 leading-relaxed">
-              Bạn có chắc chắn muốn xóa {deletingCert.category === 'degree' ? 'bằng cấp' : 'chứng chỉ'}{' '}
-              <strong className="text-slate-900">{deletingCert.certificateType}</strong> của nhân viên{' '}
-              <strong className="text-slate-900">{deletingCert.staffName}</strong>?
-              {deletingCert.category === 'certificate' && (
-                <span className="block mt-1.5 text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
-                  Lưu ý: Nếu chứng chỉ đã có chu kỳ CME đã khóa (lịch sử hoàn thành), hệ thống sẽ chặn xóa để bảo toàn dữ liệu tuân thủ.
+              Xác nhận{' '}
+              <strong>
+                {togglingCert.status === 'inactive' ? 'kích hoạt lại' : 'ngừng hoạt động'}
+              </strong>{' '}
+              chứng chỉ <strong className="text-slate-900">{togglingCert.certificateType}</strong> của
+              nhân viên <strong className="text-slate-900">{togglingCert.staffName}</strong>?
+              {togglingCert.status !== 'inactive' ? (
+                <span className="block mt-2 text-slate-600 bg-slate-50 border border-slate-200 rounded p-2.5">
+                  Toàn bộ hồ sơ và lịch sử chu kỳ CME của chứng chỉ được giữ nguyên. Chứng chỉ ngừng hoạt động sẽ không còn tạo cảnh báo tuân thủ và không nhận khai báo CME mới cho đến khi kích hoạt lại.
+                </span>
+              ) : (
+                <span className="block mt-2 text-teal-800 bg-teal-50 border border-teal-200 rounded p-2.5">
+                  Chứng chỉ sẽ chuyển về trạng thái đang hiệu lực để tiếp tục theo dõi thời hạn tuân thủ và tích lũy CME.
                 </span>
               )}
             </p>
-            {deleteCertError && <Alert variant="error">{deleteCertError}</Alert>}
+            {toggleCertError && <Alert variant="error">{toggleCertError}</Alert>}
             <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="button"
                 className="button secondary text-xs"
-                onClick={() => setDeletingCert(null)}
+                onClick={() => setTogglingCert(null)}
                 disabled={actionBusy}
               >
                 Hủy bỏ
               </button>
               <button
                 type="button"
-                className="button danger text-xs"
-                onClick={() => void handleConfirmDeleteCertificate()}
+                className={`button text-xs ${
+                  togglingCert.status === 'inactive' ? 'primary' : 'danger'
+                }`}
+                onClick={() => void handleConfirmToggleCertificateStatus()}
                 disabled={actionBusy}
               >
-                {actionBusy ? 'Đang xóa...' : 'Xác nhận xóa'}
+                {actionBusy
+                  ? 'Đang lưu...'
+                  : togglingCert.status === 'inactive'
+                  ? 'Kích hoạt lại'
+                  : 'Ngừng hoạt động'}
               </button>
             </div>
           </div>
