@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import Alert from '../../components/ui/Alert';
 import Icon from '../../components/ui/Icon';
 import { myPayslipApi } from '../../services/myPayslipApi';
@@ -177,6 +178,19 @@ export default function MyPayslipsPage() {
               ))}
             </select>
           </div>
+
+          <Link
+            to={
+              payslip
+                ? `/me/payroll-inquiries/new?payslipId=${payslip.payslipId}&month=${payslip.payMonth}`
+                : `/me/payroll-inquiries/new?month=${selectedPayMonth}`
+            }
+            className="h-9 px-3 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold inline-flex items-center gap-1.5 shadow-2xs transition-colors no-underline"
+            title="Gửi thắc mắc về bảng công hoặc phiếu lương kỳ này"
+          >
+            <Icon name="mail" size={14} />
+            <span>Gửi thắc mắc</span>
+          </Link>
 
           <button
             type="button"

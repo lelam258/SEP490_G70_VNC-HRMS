@@ -473,7 +473,8 @@ public sealed partial class PayrollPeriodService(
                 attendanceByStaff[staff.StaffId],
                 onCallsByStaff[staff.StaffId],
                 leavesByStaff[staff.StaffId],
-                ctx.LeaveTypesIsPaid);
+                ctx.LeaveTypesIsPaid,
+                ctx.ScheduledNightDatesByStaff?[staff.StaffId]);
 
             ctx.ActiveContractsByStaff.TryGetValue(staff.StaffId, out var contract);
             Position? position = null;

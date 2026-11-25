@@ -146,7 +146,8 @@ public static class PayrollPeriodRules
         IEnumerable<AttendanceRecord> records,
         IEnumerable<OnCallShift> onCallShifts,
         IEnumerable<LeaveRequest> approvedLeaves,
-        IReadOnlyDictionary<string, bool> leaveTypesIsPaid)
+        IReadOnlyDictionary<string, bool> leaveTypesIsPaid,
+        IEnumerable<DateOnly>? scheduledNightDates = null)
     {
         var recList = records as IReadOnlyList<AttendanceRecord> ?? records.ToArray();
         var shiftList = onCallShifts as IReadOnlyList<OnCallShift> ?? onCallShifts.ToArray();
@@ -156,7 +157,6 @@ public static class PayrollPeriodRules
             .ToArray();
 
         decimal mainWorkDays = 0m;
-        decimal overtimeFromMain = 0m;
         var mainDates = new HashSet<DateOnly>();
 
         foreach (var dayGroup in confirmedMain.GroupBy(r => r.WorkDate))
@@ -164,10 +164,6 @@ public static class PayrollPeriodRules
             mainDates.Add(dayGroup.Key);
             var dayHours = dayGroup.Sum(x => x.ActualHours ?? 8m);
             mainWorkDays += (dayHours > 0m && dayHours <= 4.5m) ? 0.5m : 1.0m;
-            if (dayHours > 8m)
-            {
-                overtimeFromMain += dayHours - 8m;
-            }
         }
 
         var leaveDates = new HashSet<DateOnly>();
@@ -229,15 +225,7 @@ public static class PayrollPeriodRules
             .Distinct()
             .Count();
 
-        var overtimeFromExtraRecords = recList
-            .Where(r => r.ValidationStatus == "confirmed" && r.ShiftType == "overtime")
-            .Sum(r => r.ActualHours ?? 0m);
-
-        var overtimeFromShifts = shiftList
-            .Where(o => o.Status == "confirmed" && o.ShiftCategory == "overtime" && o.ShiftStart.HasValue && o.ShiftEnd.HasValue)
-            .Sum(o => Math.Round((decimal)(o.ShiftEnd!.Value - o.ShiftStart!.Value).TotalHours, 2, MidpointRounding.AwayFromZero));
-
-        decimal totalOvertimeHours = Math.Round(overtimeFromMain + overtimeFromExtraRecords + overtimeFromShifts, 2, MidpointRounding.AwayFromZero);
+        decimal totalOvertimeHours = OvertimeRules.ConfirmedHours(recList, shiftList, scheduledNightDates);
         decimal totalWorkDays = mainWorkDays + paidLeaveDays;
         decimal onCallDays = noonDates + eveningDates;
         bool hasUnconfirmed = recList.Any(r => r.ValidationStatus != "confirmed")

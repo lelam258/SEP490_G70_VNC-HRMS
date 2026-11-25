@@ -68,6 +68,10 @@ export default function AppLayout() {
     ? 'Đãi ngộ hợp đồng'
     : location.pathname.startsWith('/payroll/periods')
     ? 'Kỳ tính lương'
+    : location.pathname.startsWith('/payroll/history')
+    ? 'Lịch sử tính lương'
+    : location.pathname.startsWith('/payroll/inquiries')
+    ? 'Thắc mắc bảng lương'
     : location.pathname.startsWith('/payroll/procedure-services')
     ? 'Danh mục thủ thuật'
     : location.pathname.startsWith('/payroll/procedures') || location.pathname.startsWith('/procedures')
@@ -84,6 +88,8 @@ export default function AppLayout() {
     ? 'Đơn nghỉ phép'
     : location.pathname.startsWith('/me/payslips')
     ? 'Phiếu lương của tôi'
+    : location.pathname.startsWith('/me/payroll-inquiries')
+    ? 'Thắc mắc lương của tôi'
     : location.pathname === '/change-password'
     ? 'Đổi mật khẩu'
     : 'Trang chủ';
@@ -179,6 +185,10 @@ export default function AppLayout() {
                   <Icon name="fileText" />
                   Hồ sơ đào tạo CME
                 </NavLink>
+                <NavLink to="/payroll/history" className={navClass}>
+                  <Icon name="clock" />
+                  Lịch sử tính lương
+                </NavLink>
               </>
             )}
             {(user.role === 'department_head' || user.role === 'admin') && (
@@ -212,6 +222,14 @@ export default function AppLayout() {
                 <NavLink to="/payroll/periods" className={navClass}>
                   <Icon name="calendar" />
                   Kỳ tính lương
+                </NavLink>
+                <NavLink to="/payroll/history" className={navClass}>
+                  <Icon name="clock" />
+                  Lịch sử tính lương
+                </NavLink>
+                <NavLink to="/payroll/inquiries" className={navClass}>
+                  <Icon name="mail" />
+                  Thắc mắc bảng lương
                 </NavLink>
                 <NavLink to="/payroll/procedure-services" className={navClass}>
                   <Icon name="sliders" />
@@ -262,6 +280,10 @@ export default function AppLayout() {
                 <NavLink to="/me/payslips" className={navClass}>
                   <Icon name="fileText" />
                   Phiếu lương của tôi
+                </NavLink>
+                <NavLink to="/me/payroll-inquiries" className={navClass}>
+                  <Icon name="mail" />
+                  Thắc mắc lương của tôi
                 </NavLink>
               </>
             )}

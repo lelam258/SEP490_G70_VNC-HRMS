@@ -1014,6 +1014,10 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnType("nvarchar(30)")
                         .HasColumnName("inquiry_type");
 
+                    b.Property<string>("PayMonth")
+                        .HasColumnType("nvarchar(7)")
+                        .HasColumnName("pay_month");
+
                     b.Property<Guid?>("PayslipId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("payslip_id");
@@ -1059,7 +1063,11 @@ namespace Vnc.HRMS.Persistence.Migrations
 
                     b.HasIndex("PayslipId");
 
-                    b.HasIndex("StaffId");
+                    b.HasIndex("PayMonth", "Status")
+                        .HasDatabaseName("IX_complaints_pay_month_status");
+
+                    b.HasIndex("StaffId", "SubmittedAt")
+                        .HasDatabaseName("IX_complaints_staff_submitted");
 
                     b.ToTable("complaints", "dbo");
                 });

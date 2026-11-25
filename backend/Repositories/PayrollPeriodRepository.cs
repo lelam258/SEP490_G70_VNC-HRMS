@@ -503,6 +503,11 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
             .Where(p => p.PayMonth == payMonth && staffIds.Contains(p.StaffId))
             .ToDictionaryAsync(p => p.StaffId, ct);
 
+        var publishedPlans = await Vnc.HRMS.Services.PublishedAttendancePlans.Load(db, monthStart, monthEnd, ct);
+        var scheduledNightDatesByStaff = publishedPlans
+            .Where(x => x.Shift == "evening")
+            .ToLookup(x => x.StaffId, x => x.Date);
+
         return new PayrollCalculationContext(
             AttendanceLocked: attendanceLocked,
             ProceduresVerified: proceduresVerified,
@@ -529,7 +534,8 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
             DeductUnionFeeBeforeTax: taxPolicy.DeductUnionFeeBeforeTax,
             DeductOtherBeforeTax: taxPolicy.DeductOtherBeforeTax,
             FlatTaxBase: taxPolicy.FlatTaxBase,
-            ExistingPayslipsByStaff: existingPayslips
+            ExistingPayslipsByStaff: existingPayslips,
+            ScheduledNightDatesByStaff: scheduledNightDatesByStaff
         );
     }
 
@@ -598,9 +604,13 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
             .ToListAsync(ct);
         var leaveTypesIsPaid = await db.LeaveTypes.AsNoTracking()
             .ToDictionaryAsync(x => x.Code, x => x.IsPaid, ct);
+        var publishedPlans = await Vnc.HRMS.Services.PublishedAttendancePlans.Load(db, monthStart, monthEnd, ct);
+        var scheduledNightDates = publishedPlans
+            .Where(x => x.StaffId == ps.StaffId && x.Shift == "evening")
+            .Select(x => x.Date);
 
         var attMetrics = PayrollPeriodRules.ComputeStaffAttendanceMetrics(
-            monthStart, monthEnd, records, onCalls, leaves, leaveTypesIsPaid);
+            monthStart, monthEnd, records, onCalls, leaves, leaveTypesIsPaid, scheduledNightDates);
 
         var hasUnverifiedProc = await (
             from pa in db.ProcedureAssignments.AsNoTracking()

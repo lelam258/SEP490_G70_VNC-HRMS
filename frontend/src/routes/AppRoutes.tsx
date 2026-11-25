@@ -37,6 +37,12 @@ import MyCmeListPage from '../pages/me/MyCmeListPage';
 import MyLeaveRequestsPage from '../pages/me/MyLeaveRequestsPage';
 import LeaveRequestFormPage from '../pages/me/LeaveRequestFormPage';
 import MyPayslipsPage from '../pages/me/MyPayslipsPage';
+import MyPayrollInquiriesPage from '../pages/me/MyPayrollInquiriesPage';
+import PayrollInquiryFormPage from '../pages/me/PayrollInquiryFormPage';
+import PayrollInquiryDetailPage from '../pages/me/PayrollInquiryDetailPage';
+import PayrollInquiryQueuePage from '../pages/payroll/PayrollInquiryQueuePage';
+import PayrollInquiryReviewPage from '../pages/payroll/PayrollInquiryReviewPage';
+import PayrollHistoryPage from '../pages/payroll/PayrollHistoryPage';
 import LeaveApprovalPage from '../pages/leaves/LeaveApprovalPage';
 import ProtectedRoute from './ProtectedRoute';
 import SchedulesPage from '../pages/SchedulesPage';
@@ -122,6 +128,9 @@ export default function AppRoutes() {
             <Route path="/me/leave-requests/new" element={<LeaveRequestFormPage />} />
             <Route path="/me/leave-requests/:id/edit" element={<LeaveRequestFormPage />} />
             <Route path="/me/payslips" element={<MyPayslipsPage />} />
+            <Route path="/me/payroll-inquiries" element={<MyPayrollInquiriesPage />} />
+            <Route path="/me/payroll-inquiries/new" element={<PayrollInquiryFormPage />} />
+            <Route path="/me/payroll-inquiries/:id" element={<PayrollInquiryDetailPage />} />
           </Route>
           <Route element={<ProtectedRoute roles={['department_head', 'hr_manager', 'admin']} />}>
             <Route path="/leave-approvals" element={<LeaveApprovalPage />} />
@@ -135,11 +144,16 @@ export default function AppRoutes() {
           <Route element={<ProtectedRoute roles={['accountant', 'department_head']} />}>
             <Route path="/payroll/commission-results" element={<CommissionResultsPage />} />
           </Route>
+          <Route element={<ProtectedRoute roles={['accountant', 'hr_manager']} />}>
+            <Route path="/payroll/history" element={<PayrollHistoryPage />} />
+          </Route>
           <Route element={<ProtectedRoute roles={['accountant']} />}>
             <Route path="/payroll/parameters" element={<PayrollParameterPage />} />
             <Route path="/payroll/compensation" element={<CompensationPage />} />
             <Route path="/payroll/periods" element={<PayrollPeriodsPage />} />
             <Route path="/payroll/periods/:month" element={<PayrollPeriodDetailPage />} />
+            <Route path="/payroll/inquiries" element={<PayrollInquiryQueuePage />} />
+            <Route path="/payroll/inquiries/:id" element={<PayrollInquiryReviewPage />} />
             <Route path="/payroll/procedure-services" element={<ProcedureServiceListPage />} />
             <Route path="/payroll/procedure-services/:id" element={<ProcedureServiceDetailPage />} />
             <Route path="/payroll/procedures" element={<ProcedureListPage />} />
