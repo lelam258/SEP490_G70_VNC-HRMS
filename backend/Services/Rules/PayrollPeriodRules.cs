@@ -131,7 +131,9 @@ public static class PayrollPeriodRules
         decimal EveningDutyCount,
         decimal OvertimeHours,
         decimal OnCallDays,
-        bool HasUnconfirmedAttendance
+        bool HasUnconfirmedAttendance,
+        decimal MaternityCalendarDays = 0m,
+        decimal MaternityMonthRatio = 0m
     );
 
     /// <summary>
@@ -144,7 +146,8 @@ public static class PayrollPeriodRules
         IEnumerable<AttendanceRecord> records,
         IEnumerable<OnCallShift> onCallShifts,
         IEnumerable<LeaveRequest> approvedLeaves,
-        IReadOnlyDictionary<string, bool> leaveTypesIsPaid)
+        IReadOnlyDictionary<string, bool> leaveTypesIsPaid,
+        IEnumerable<DateOnly>? scheduledNightDates = null)
     {
         var recList = records as IReadOnlyList<AttendanceRecord> ?? records.ToArray();
         var shiftList = onCallShifts as IReadOnlyList<OnCallShift> ?? onCallShifts.ToArray();
@@ -154,7 +157,6 @@ public static class PayrollPeriodRules
             .ToArray();
 
         decimal mainWorkDays = 0m;
-        decimal overtimeFromMain = 0m;
         var mainDates = new HashSet<DateOnly>();
 
         foreach (var dayGroup in confirmedMain.GroupBy(r => r.WorkDate))
@@ -162,17 +164,15 @@ public static class PayrollPeriodRules
             mainDates.Add(dayGroup.Key);
             var dayHours = dayGroup.Sum(x => x.ActualHours ?? 8m);
             mainWorkDays += (dayHours > 0m && dayHours <= 4.5m) ? 0.5m : 1.0m;
-            if (dayHours > 8m)
-            {
-                overtimeFromMain += dayHours - 8m;
-            }
         }
 
         var leaveDates = new HashSet<DateOnly>();
+        var maternityDates = new HashSet<DateOnly>();
         decimal paidLeaveDays = 0m;
         decimal unpaidLeaveDays = 0m;
         foreach (var lv in approvedLeaves)
         {
+            var isMaternity = string.Equals(lv.LeaveType, "maternity", StringComparison.OrdinalIgnoreCase);
             var isPaid = !leaveTypesIsPaid.TryGetValue(lv.LeaveType, out var paidFlag) || paidFlag;
             var from = lv.StartDate < monthStart ? monthStart : lv.StartDate;
             var to = lv.EndDate > monthEnd ? monthEnd : lv.EndDate;
@@ -183,6 +183,11 @@ public static class PayrollPeriodRules
 
             for (var d = from; d <= to; d = d.AddDays(1))
             {
+                if (isMaternity)
+                {
+                    maternityDates.Add(d);
+                }
+
                 if (d.DayOfWeek == DayOfWeek.Sunday) continue;
                 if (!leaveDates.Add(d)) continue;
 
@@ -200,6 +205,12 @@ public static class PayrollPeriodRules
             }
         }
 
+        int daysInMonth = DateTime.DaysInMonth(monthStart.Year, monthStart.Month);
+        decimal maternityCalendarDays = maternityDates.Count;
+        decimal maternityMonthRatio = maternityCalendarDays <= 0m
+            ? 0m
+            : (maternityCalendarDays >= daysInMonth ? 1m : maternityCalendarDays / daysInMonth);
+
         var noonDates = recList
             .Where(r => r.ValidationStatus == "confirmed" && r.ShiftType == "noon")
             .Select(r => r.WorkDate)
@@ -214,15 +225,7 @@ public static class PayrollPeriodRules
             .Distinct()
             .Count();
 
-        var overtimeFromExtraRecords = recList
-            .Where(r => r.ValidationStatus == "confirmed" && r.ShiftType == "overtime")
-            .Sum(r => r.ActualHours ?? 0m);
-
-        var overtimeFromShifts = shiftList
-            .Where(o => o.Status == "confirmed" && o.ShiftCategory == "overtime" && o.ShiftStart.HasValue && o.ShiftEnd.HasValue)
-            .Sum(o => Math.Round((decimal)(o.ShiftEnd!.Value - o.ShiftStart!.Value).TotalHours, 2, MidpointRounding.AwayFromZero));
-
-        decimal totalOvertimeHours = Math.Round(overtimeFromMain + overtimeFromExtraRecords + overtimeFromShifts, 2, MidpointRounding.AwayFromZero);
+        decimal totalOvertimeHours = OvertimeRules.ConfirmedHours(recList, shiftList, scheduledNightDates);
         decimal totalWorkDays = mainWorkDays + paidLeaveDays;
         decimal onCallDays = noonDates + eveningDates;
         bool hasUnconfirmed = recList.Any(r => r.ValidationStatus != "confirmed")
@@ -237,7 +240,9 @@ public static class PayrollPeriodRules
             EveningDutyCount: eveningDates,
             OvertimeHours: totalOvertimeHours,
             OnCallDays: onCallDays,
-            HasUnconfirmedAttendance: hasUnconfirmed
+            HasUnconfirmedAttendance: hasUnconfirmed,
+            MaternityCalendarDays: maternityCalendarDays,
+            MaternityMonthRatio: maternityMonthRatio
         );
     }
 
@@ -249,7 +254,8 @@ public static class PayrollPeriodRules
         decimal PureAllowanceTotal,
         List<PayslipAllowanceItemDto> PureAllowances,
         decimal NoonDutyCount = 0m,
-        decimal EveningDutyCount = 0m
+        decimal EveningDutyCount = 0m,
+        decimal MaternityPay = 0m
     );
 
     public static decimal ParseDutyCountFromName(string lineName)
@@ -278,6 +284,7 @@ public static class PayrollPeriodRules
         decimal noonPay = 0m;
         decimal eveningPay = 0m;
         decimal overtimePay = 0m;
+        decimal maternityPay = 0m;
         decimal noonCount = 0m;
         decimal eveningCount = 0m;
         var pureItems = new List<PayslipAllowanceItemDto>();
@@ -302,6 +309,11 @@ public static class PayrollPeriodRules
             }
             else
             {
+                if (line.AllowanceId is null
+                    && line.Name.StartsWith("Trợ cấp thai sản", StringComparison.OrdinalIgnoreCase))
+                {
+                    maternityPay += line.Amount;
+                }
                 pureItems.Add(new PayslipAllowanceItemDto(line.Id, line.AllowanceId, line.Name, line.Amount));
             }
         }
@@ -312,7 +324,7 @@ public static class PayrollPeriodRules
             : Math.Max(0m, storedAllowanceTotal - onCallPay - overtimePay);
 
         return new AllowanceSplitResult(
-            noonPay, eveningPay, overtimePay, onCallPay, pureTotal, pureItems, noonCount, eveningCount);
+            noonPay, eveningPay, overtimePay, onCallPay, pureTotal, pureItems, noonCount, eveningCount, maternityPay);
     }
 
     public static bool IsDoctorPosition(Position? position)

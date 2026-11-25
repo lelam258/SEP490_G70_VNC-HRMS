@@ -27,6 +27,7 @@ public interface IPayrollParameterService
     Task<TaxDeductionPolicyDto> GetTaxDeductionPolicyAsync(CancellationToken ct);
     Task<TaxPolicySummaryDto> GetTaxPolicySummaryAsync(CancellationToken ct);
     Task<TaxPolicySummaryDto> UpdateTaxPolicyFlagsAsync(UpdateTaxPolicyFlagsRequest request, CancellationToken ct);
+    Task<TaxPolicySummaryDto> UpdateTaxDeductionsAsync(UpdateTaxDeductionsRequest request, CancellationToken ct);
     Task<TaxCalculationResultDto> PreviewTaxCalculationAsync(TaxCalculationPreviewRequest request, CancellationToken ct);
 
     // Rate Configs

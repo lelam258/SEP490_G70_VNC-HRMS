@@ -123,7 +123,7 @@ export default function LoginPage() {
               onChange={e => setRememberMe(e.target.checked)}
               className="auth-custom-checkbox"
             />
-            <span>Duy trì đăng nhập trong ca trực</span>
+            <span>Lưu mật khẩu</span>
           </label>
           <Link to="/forgot-password" className="auth-forgot-password-link">
             Quên mật khẩu?

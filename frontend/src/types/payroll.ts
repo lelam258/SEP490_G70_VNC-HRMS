@@ -93,6 +93,12 @@ export interface UpdateTaxPolicyFlagsInput {
   flatTaxBase?: 'gross' | 'after_deductions';
 }
 
+export interface UpdateTaxDeductionsInput {
+  personalDeduction: number;
+  dependentDeduction: number;
+  taxFlatThreshold: number;
+}
+
 export interface TaxCalculationPreviewRequest {
   totalIncome: number;
   insuranceSalary: number;

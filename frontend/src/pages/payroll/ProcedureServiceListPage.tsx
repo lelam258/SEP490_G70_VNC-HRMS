@@ -164,12 +164,7 @@ export default function ProcedureServiceListPage() {
     >
       <header className="directory-heading">
         <div>
-          <span className="eyebrow">QUẢN LÝ LƯƠNG & HOA HỒNG</span>
           <h1 id="procedure-services-page-title">Danh mục thủ thuật</h1>
-          <p>
-            Quản lý danh mục dịch vụ thủ thuật y tế, đơn giá niêm yết và trạng thái áp dụng khi lập
-            phiếu thủ thuật.
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <Link to="/payroll/parameters" className="button">
