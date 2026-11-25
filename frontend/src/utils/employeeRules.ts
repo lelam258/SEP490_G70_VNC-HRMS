@@ -2,6 +2,11 @@ import { getMaxAdultDateOfBirth } from './leaveRules';
 
 type EmployeeBasics = { code: string; name: string; email?: string | null };
 
+export function validateDependentCount(value: string): string {
+  return /^\d+$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) <= 2147483647
+    ? '' : 'Số người phụ thuộc phải là số nguyên từ 0 đến 2147483647.';
+}
+
 export function validateEmployeeBasics(input: EmployeeBasics): string {
   if (!input.code.trim() || input.code.trim().length > 20) return 'Mã nhân viên là bắt buộc và tối đa 20 ký tự.';
   const name = input.name.trim().replace(/\s+/g, ' ');
