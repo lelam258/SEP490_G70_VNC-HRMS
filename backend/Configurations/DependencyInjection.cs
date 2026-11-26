@@ -29,6 +29,8 @@ public static class DependencyInjection
         services.AddScoped<IContractRepository, ContractRepository>();
         services.AddScoped<ISelfServiceRepository, SelfServiceRepository>();
         services.AddScoped<IPayrollPeriodRepository, PayrollPeriodRepository>();
+        services.AddScoped<IPayrollInquiryRepository, PayrollInquiryRepository>();
+        services.AddScoped<IPayrollHistoryRepository, PayrollHistoryRepository>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IAccountRecoveryService, AccountRecoveryService>();
         services.AddScoped<IUserService, UserService>();
@@ -43,6 +45,8 @@ public static class DependencyInjection
         services.AddScoped<ILeaveRequestService, LeaveRequestService>();
         services.AddScoped<ILeaveApprovalService, LeaveApprovalService>();
         services.AddScoped<IPayrollPeriodService, PayrollPeriodService>();
+        services.AddScoped<IPayrollInquiryService, PayrollInquiryService>();
+        services.AddScoped<IPayrollHistoryService, PayrollHistoryService>();
         services.AddScoped<IProcedureSlipService, ProcedureSlipService>();
         services.AddScoped<IProcedureServiceCatalogService, ProcedureServiceCatalogService>();
         services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();

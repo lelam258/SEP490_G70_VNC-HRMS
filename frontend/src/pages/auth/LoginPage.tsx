@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import AuthLayout from '../../layouts/AuthLayout';
 import Alert from '../../components/ui/Alert';
 import Icon from '../../components/ui/Icon';
@@ -7,7 +7,7 @@ import { authApi } from '../../services/authApi';
 import { useAppStore } from '../../store/useAppStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useRecoveryStore } from '../../store/useRecoveryStore';
-import { loginDestination } from '../../utils/roleNavigation';
+import { roleHome } from '../../utils/roleNavigation';
 
 export default function LoginPage() {
   const [login, setLogin] = useState('');
@@ -20,7 +20,6 @@ export default function LoginPage() {
   const notice = useAppStore(state => state.notice);
   const session = useAuthStore(state => state.session);
   const navigate = useNavigate();
-  const location = useLocation();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -39,8 +38,7 @@ export default function LoginPage() {
         localStorage.removeItem('vnc_remember_shift');
       }
 
-      const from = location.state?.from;
-      navigate(loginDestination(session.user.role, from), { replace: true });
+      navigate(roleHome(session.user.role), { replace: true });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Không đăng nhập được.');
     } finally {
@@ -49,7 +47,7 @@ export default function LoginPage() {
   }
 
   if (session) {
-    return <Navigate to={loginDestination(session.user.role, location.state?.from)} replace />;
+    return <Navigate to={roleHome(session.user.role)} replace />;
   }
 
   return (
@@ -123,7 +121,7 @@ export default function LoginPage() {
               onChange={e => setRememberMe(e.target.checked)}
               className="auth-custom-checkbox"
             />
-            <span>Duy trì đăng nhập trong ca trực</span>
+            <span>Lưu mật khẩu</span>
           </label>
           <Link to="/forgot-password" className="auth-forgot-password-link">
             Quên mật khẩu?

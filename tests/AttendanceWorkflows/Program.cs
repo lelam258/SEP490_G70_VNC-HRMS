@@ -355,15 +355,15 @@ try {
             && devicePreview.GetProperty("counts").GetProperty("warning").GetInt32() == 2 && devicePreview.GetProperty("counts").GetProperty("error").GetInt32() == 2,
             "The supplied machine layout stages complete repeated punches as warnings and missing/empty punches as errors");
         var repeatedPunch = devicePreview.GetProperty("items").EnumerateArray().Single(x => x.GetProperty("workDate").GetString() == "2026-08-01");
-        Check(repeatedPunch.GetProperty("pairs").GetArrayLength() == 3 && repeatedPunch.GetProperty("actualHours").GetDecimal() == 10m
+        Check(repeatedPunch.GetProperty("pairs").GetArrayLength() == 3 && repeatedPunch.GetProperty("actualHours").GetDecimal() == 8m
             && repeatedPunch.GetProperty("reportedHours").GetDecimal() == 24m && repeatedPunch.GetProperty("errorCode").GetString() == "repeated_time_pairs",
-            "Preview preserves all machine pairs and reported totals while counting repeated elapsed hours only once");
+            "Preview preserves source pairs/totals but excludes lunch and rejects inflated reported hours");
         var noWarnings = Json(await Import(service => service.Commit(hr, deviceBatch, devicePreview.GetProperty("version").GetString()!, false, ct)));
         Check(noWarnings.GetProperty("created").GetInt32() == 0, "Repeated machine punches are never committed by the default valid-only action");
         devicePreview = await Preview(deviceBatch);
         var acceptedWarnings = Json(await Import(service => service.Commit(hr, deviceBatch, devicePreview.GetProperty("version").GetString()!, true, ct)));
         Check(acceptedWarnings.GetProperty("created").GetInt32() == 2 && await Read(db => db.AttendanceRecords.Where(x => x.ImportId == deviceBatch)
-            .AllAsync(x => x.ValidationStatus == "flagged" && x.ConfirmedAt == null && x.ActualHours == 10m)),
+            .AllAsync(x => x.ValidationStatus == "flagged" && x.ConfirmedAt == null && x.ActualHours == 8m)),
             "Explicitly accepted machine warnings remain flagged, unconfirmed and do not multiply work hours");
         var retainedSource = await Run(hr, async (_, service, _, _, _) => await service.Source(deviceBatch, ct));
         Check(retainedSource.Bytes.SequenceEqual(deviceWorkbook), "Normalizing repeated-hour calculations never rewrites the source workbook");
@@ -538,6 +538,21 @@ try {
         async Task<HttpResponseMessage> Get(string path, string token) { using var request = new HttpRequestMessage(HttpMethod.Get, path); request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token); return await http.SendAsync(request); }
         using (var response = await Get("/api/roles", adminToken)) Check(response.IsSuccessStatusCode, "HTTP Administrator can inspect the role catalog");
         using (var response = await Get("/api/roles", hrToken)) Check(response.StatusCode == HttpStatusCode.Forbidden, "HTTP role management rejects HR Staff");
+        using (var request = new HttpRequestMessage(HttpMethod.Post, "/api/attendance/records/bulk-verify/preview") { Content = JsonContent.Create(new { month = "2026-11", ids = new[] { Guid.NewGuid() } }) }) {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", employeeToken);
+            using var response = await http.SendAsync(request);
+            Check(response.StatusCode == HttpStatusCode.Forbidden, "HTTP employees cannot preview bulk attendance verification");
+        }
+        using (var request = new HttpRequestMessage(HttpMethod.Post, "/api/attendance/records/bulk-verify") { Content = JsonContent.Create(new { month = "2026-11", items = new[] { new { id = Guid.NewGuid(), version = "x" } } }) }) {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", employeeToken);
+            using var response = await http.SendAsync(request);
+            Check(response.StatusCode == HttpStatusCode.Forbidden, "HTTP employees cannot execute bulk attendance verification");
+        }
+        using (var request = new HttpRequestMessage(HttpMethod.Post, "/api/attendance/records/bulk-verify") { Content = JsonContent.Create(new { month = "2026-11", items = Array.Empty<object>() }) }) {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", hrToken);
+            using var response = await http.SendAsync(request);
+            Check(response.StatusCode == HttpStatusCode.BadRequest, "HTTP bulk verification rejects an empty selection");
+        }
         using (var response = await Get("/api/roles", forgedRoleToken)) Check(response.StatusCode == HttpStatusCode.Forbidden, "SQL session role overrides a stale or elevated JWT role claim");
         using (var response = await Get("/api/audit-logs?module=accounts&userId=&facilityId=", adminToken)) Check(response.IsSuccessStatusCode, "HTTP audit filters bind empty optional identifiers correctly");
         using (var response = await Get("/api/audit-logs", employeeToken)) Check(response.StatusCode == HttpStatusCode.Forbidden, "HTTP employees cannot access audit events");

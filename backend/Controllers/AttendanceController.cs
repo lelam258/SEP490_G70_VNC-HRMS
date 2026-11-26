@@ -34,6 +34,13 @@ public sealed class AttendanceController(AttendanceService legacy, AttendanceRec
     public Task<object> Verify(Guid id, VerifyAttendanceRequest request, CancellationToken ct)
         => records.Verify(User, id, request, ct);
 
+    [HttpPost("records/bulk-verify/preview"), Authorize(Roles = "hr_staff")]
+    public Task<BulkAttendanceReview> BulkVerifyPreview(BulkAttendanceSelection request, CancellationToken ct)
+        => records.PreviewBulkVerify(User, request, ct);
+    [HttpPost("records/bulk-verify"), Authorize(Roles = "hr_staff")]
+    public Task<BulkAttendanceResult> BulkVerify(BulkVerifyAttendanceRequest request, CancellationToken ct)
+        => records.BulkVerify(User, request, ct);
+
     [HttpGet("imports"), Authorize(Roles = ImportReaders)]
     public Task<object> Imports(string? month, Guid? facilityId, CancellationToken ct, int page = 1, int pageSize = 20)
         => imports.List(month, facilityId, page, pageSize, ct);

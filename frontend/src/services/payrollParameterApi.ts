@@ -9,6 +9,7 @@ import type {
   TaxDeductionPolicy,
   TaxPolicySummary,
   UpdateTaxPolicyFlagsInput,
+  UpdateTaxDeductionsInput,
   TaxCalculationPreviewRequest,
   TaxCalculationResult,
   PayrollRateConfig,
@@ -84,6 +85,10 @@ export const payrollParameterApi = {
 
   async updateTaxPolicyFlags(data: UpdateTaxPolicyFlagsInput) {
     return (await axiosClient.put<TaxPolicySummary>('/payroll-parameters/tax-policy/flags', data)).data;
+  },
+
+  async updateTaxDeductions(data: UpdateTaxDeductionsInput) {
+    return (await axiosClient.put<TaxPolicySummary>('/payroll-parameters/tax-deductions', data)).data;
   },
 
   async previewTaxCalculation(data: TaxCalculationPreviewRequest) {

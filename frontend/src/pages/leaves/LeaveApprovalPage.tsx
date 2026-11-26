@@ -8,12 +8,9 @@ import Icon from '../../components/ui/Icon';
 
 const LEAVE_TYPES = [
   { value: 'all', label: 'Tất cả loại nghỉ' },
-  { value: 'annual', label: 'Nghỉ phép năm' },
-  { value: 'personal_paid', label: 'Nghỉ việc riêng' },
+  { value: 'unpaid', label: 'Nghỉ việc riêng' },
   { value: 'sick', label: 'Nghỉ ốm đau' },
   { value: 'maternity', label: 'Nghỉ thai sản' },
-  { value: 'unpaid', label: 'Nghỉ không lương' },
-  { value: 'other', label: 'Nghỉ khác' },
 ];
 
 export default function LeaveApprovalPage() {

@@ -473,7 +473,8 @@ public sealed partial class PayrollPeriodService(
                 attendanceByStaff[staff.StaffId],
                 onCallsByStaff[staff.StaffId],
                 leavesByStaff[staff.StaffId],
-                ctx.LeaveTypesIsPaid);
+                ctx.LeaveTypesIsPaid,
+                ctx.ScheduledNightDatesByStaff?[staff.StaffId]);
 
             ctx.ActiveContractsByStaff.TryGetValue(staff.StaffId, out var contract);
             Position? position = null;
@@ -607,19 +608,39 @@ public sealed partial class PayrollPeriodService(
                 });
             }
 
+            decimal maternityPay = 0m;
+            if (att.MaternityMonthRatio > 0m && contract is not null && contract.IsInsuranceEligible)
+            {
+                int daysInMonth = DateTime.DaysInMonth(y, m);
+                decimal maternityInsBase = contract.InsuranceSalaryBasis ?? 5_061_100m;
+                maternityPay = Math.Round(maternityInsBase * att.MaternityMonthRatio, 0, MidpointRounding.AwayFromZero);
+                if (maternityPay > 0m)
+                {
+                    allowanceLines.Add(new PayslipAllowance
+                    {
+                        Id = Guid.NewGuid(),
+                        PayslipId = payslip.PayslipId,
+                        AllowanceId = null,
+                        Name = $"Trợ cấp thai sản BHXH ({(att.MaternityMonthRatio >= 1m ? "1 tháng" : $"{att.MaternityCalendarDays:0} ngày/{daysInMonth}")})",
+                        Amount = maternityPay
+                    });
+                }
+            }
+
             decimal allowanceTotal = allowanceLines.Sum(x => x.Amount);
             decimal commissionTotal = Math.Round(
                 ctx.ProcedureCommissionsByStaff[staff.StaffId].Where(x => x.IsVerified).Sum(x => x.CommissionAmount),
                 2, MidpointRounding.AwayFromZero);
             decimal grossPay = basePay + allowanceTotal + commissionTotal;
+            decimal taxableGrossPay = Math.Max(0m, basePay + (allowanceTotal - maternityPay) + commissionTotal);
 
-            decimal insSalary = (grossPay > 0m && contract is not null && contract.IsInsuranceEligible)
+            decimal insSalary = (taxableGrossPay > 0m && att.MaternityCalendarDays < 14m && contract is not null && contract.IsInsuranceEligible)
                 ? (contract.InsuranceSalaryBasis ?? 5_061_100m)
                 : 0m;
-            bool isUnion = grossPay > unionFeeFixed && staff.IsUnionMember;
+            bool isUnion = taxableGrossPay > unionFeeFixed && staff.IsUnionMember;
 
             var formulaResult = PayrollFormula.Calculate(new PayrollFormulaInput(
-                TotalIncome: grossPay,
+                TotalIncome: taxableGrossPay,
                 InsuranceSalary: insSalary,
                 IsUnionMember: isUnion,
                 DependentCount: staff.DependentCount,
@@ -659,7 +680,7 @@ public sealed partial class PayrollPeriodService(
             payslip.TaxableIncome = formulaResult.Step4_TaxableIncome;
             payslip.TaxDeduction = Math.Round(formulaResult.Step5_PitTax, 0, MidpointRounding.AwayFromZero);
             payslip.OtherDeduction = Math.Round(formulaResult.Step2_UnionFeeDeduction, 0, MidpointRounding.AwayFromZero);
-            payslip.NetPay = formulaResult.Step6_TakeHome;
+            payslip.NetPay = formulaResult.Step6_TakeHome + maternityPay;
             payslip.Status = "draft";
             payslip.IsLocked = false;
             payslip.LockedAt = null;
@@ -1179,5 +1200,117 @@ public sealed partial class PayrollPeriodService(
 
         var detail = await repository.GetPeriodDetailAsync(normalizedMonth, ct);
         return detail!;
+    }
+
+    private static bool IsFinalizedStatus(string? status)
+        => status is not null && status.Trim().ToLowerInvariant() is "finalized" or "locked" or "paid";
+
+    private static PayslipDetailDto SanitizeForEmployee(PayslipDetailDto detail)
+    {
+        // Ẩn ghi chú rà soát nội bộ của kế toán khi hiển thị cho nhân viên (SRS 6.13)
+        return detail with
+        {
+            ReviewNote = null
+        };
+    }
+
+    private async Task<Guid> RequireStaffIdAsync(Guid userId, CancellationToken ct)
+    {
+        var staffId = await repository.FindStaffIdByUserIdAsync(userId, ct);
+        if (!staffId.HasValue)
+        {
+            throw new AppException(403, "Bạn không có quyền truy cập chức năng hoặc bản ghi này.");
+        }
+        return staffId.Value;
+    }
+
+    public async Task<List<MyPayslipSummaryDto>> ListMyPayslipsAsync(Guid userId, int? year, CancellationToken ct)
+    {
+        if (year.HasValue && (year.Value < 2000 || year.Value > 2100))
+        {
+            throw new AppException(400, "Năm lọc không hợp lệ.");
+        }
+
+        var staffId = await RequireStaffIdAsync(userId, ct);
+        return await repository.ListFinalizedPayslipsByStaffAsync(staffId, year, ct);
+    }
+
+    public async Task<MyPayslipMonthLookupDto> GetMyPayslipByMonthAsync(
+        Guid userId, string payMonth, CancellationToken ct)
+    {
+        ValidateMonth(payMonth);
+        var normalizedMonth = payMonth.Trim();
+        var staffId = await RequireStaffIdAsync(userId, ct);
+
+        var period = await repository.FindByMonthAsync(normalizedMonth, ct);
+        if (period is null || !IsFinalizedStatus(period.Status))
+        {
+            // A1 - MSG10: Kỳ lương chưa được chốt
+            return new MyPayslipMonthLookupDto(
+                PayMonth: normalizedMonth,
+                Availability: "not_finalized",
+                Message: "Bảng lương kỳ này chưa được chốt, phiếu lương chưa khả dụng.",
+                Payslip: null
+            );
+        }
+
+        var ps = await repository.FindPayslipByMonthAndStaffAsync(normalizedMonth, staffId, ct);
+        if (ps is null || (ps.IsLocked != true && !IsFinalizedStatus(ps.Status)))
+        {
+            // A2 - MSG01: Không tìm thấy phiếu lương phù hợp
+            return new MyPayslipMonthLookupDto(
+                PayMonth: normalizedMonth,
+                Availability: "not_found",
+                Message: "Không tìm thấy phiếu lương phù hợp cho kỳ đã chọn.",
+                Payslip: null
+            );
+        }
+
+        var detail = await repository.GetPayslipDetailAsync(normalizedMonth, ps.PayslipId, ct);
+        if (detail is null)
+        {
+            return new MyPayslipMonthLookupDto(
+                PayMonth: normalizedMonth,
+                Availability: "not_found",
+                Message: "Không tìm thấy phiếu lương phù hợp cho kỳ đã chọn.",
+                Payslip: null
+            );
+        }
+
+        return new MyPayslipMonthLookupDto(
+            PayMonth: normalizedMonth,
+            Availability: "available",
+            Message: null,
+            Payslip: SanitizeForEmployee(detail)
+        );
+    }
+
+    public async Task<PayslipDetailDto> GetMyPayslipDetailAsync(
+        Guid userId, Guid payslipId, CancellationToken ct)
+    {
+        var staffId = await RequireStaffIdAsync(userId, ct);
+        var ps = await repository.FindPayslipByIdAsync(payslipId, ct);
+        if (ps is null)
+        {
+            throw new AppException(404, "Không tìm thấy phiếu lương phù hợp.");
+        }
+
+        // A3 - MSG38: Chặn truy cập phiếu lương của nhân viên khác
+        if (ps.StaffId != staffId)
+        {
+            throw new AppException(403, "Bạn không có quyền truy cập chức năng hoặc bản ghi này.");
+        }
+
+        var period = await repository.FindByMonthAsync(ps.PayMonth, ct);
+        if (period is null || !IsFinalizedStatus(period.Status) || (ps.IsLocked != true && !IsFinalizedStatus(ps.Status)))
+        {
+            // A1 - MSG10: Kỳ lương chưa được chốt
+            throw new AppException(400, "Bảng lương kỳ này chưa được chốt, phiếu lương chưa khả dụng.");
+        }
+
+        var detail = await repository.GetPayslipDetailAsync(ps.PayMonth, ps.PayslipId, ct)
+            ?? throw new AppException(404, "Không tìm thấy phiếu lương phù hợp.");
+
+        return SanitizeForEmployee(detail);
     }
 }

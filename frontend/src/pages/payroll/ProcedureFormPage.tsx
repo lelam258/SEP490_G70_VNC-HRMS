@@ -966,13 +966,13 @@ export default function ProcedureFormPage() {
               ? `Chỉnh sửa phiếu thủ thuật: ${existingSlip?.slipNumber || ''}`
               : 'Lập phiếu thủ thuật y tế mới'}
           </h1>
-          <p className="muted">
-            {isAccountant
-              ? 'Kế toán điều chỉnh nhân viên thực hiện hoặc thời gian dự kiến của ca thủ thuật. Các thông tin tài chính và dịch vụ được giữ nguyên.'
-              : isEditMode
-              ? 'Cập nhật các trường được phép của phiếu thủ thuật và gửi lại vào quy trình kiểm duyệt.'
-              : 'Điền thông tin ca thủ thuật, chọn khoa/phòng thực hiện cùng nhân sự tham gia kíp và tự động áp dụng định mức hoa hồng.'}
-          </p>
+          {(isAccountant || isEditMode) && (
+            <p className="muted">
+              {isAccountant
+                ? 'Kế toán điều chỉnh nhân viên thực hiện hoặc thời gian dự kiến của ca thủ thuật. Các thông tin tài chính và dịch vụ được giữ nguyên.'
+                : 'Cập nhật các trường được phép của phiếu thủ thuật và gửi lại vào quy trình kiểm duyệt.'}
+            </p>
+          )}
         </div>
       </div>
       <div className="workspace-section-body">

@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect, type FormEvent } from 'react';
 import Alert from '../ui/Alert';
 import MoneyInput from '../ui/MoneyInput';
-import { useModal } from '../ui/Modal';
 import { formatDateOnly, formatVnd, todayVn } from '../../utils/format';
 import type { ContractSummary, UpdateContractCompensationInput, SiteOption } from '../../types/payroll';
 
@@ -9,7 +8,7 @@ interface ContractCompensationFormProps {
   contract: ContractSummary;
   sites: SiteOption[];
   onSave: (value: UpdateContractCompensationInput) => Promise<void>;
-  onClose: () => void;
+  onClose?: () => void;
   busy: boolean;
   error?: string;
   onDirtyChange?: (dirty: boolean) => void;
@@ -21,7 +20,6 @@ export default function ContractCompensationForm({
   contract,
   sites,
   onSave,
-  onClose,
   busy,
   error,
   onDirtyChange,
@@ -106,16 +104,6 @@ export default function ContractCompensationForm({
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
 
-  const modal = useModal();
-
-  function handleCancel() {
-    if (modal) {
-      modal.requestClose();
-    } else {
-      onClose();
-    }
-  }
-
   function submit(event: FormEvent) {
     event.preventDefault();
     if (busy || !isDirty) return;
@@ -138,19 +126,7 @@ export default function ContractCompensationForm({
   return (
     <form onSubmit={submit} className="flex flex-col">
       {/* Form Body */}
-      <div className="space-y-6">
-        {/* Contract Info Banner */}
-        <div className="rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 p-3.5 text-xs text-slate-700 dark:text-slate-300 grid grid-cols-2 gap-2">
-          <div>
-            <span className="text-slate-400 block mb-0.5">Nhân viên</span>
-            <strong className="text-sm text-slate-900 dark:text-slate-100">{contract.staffName}</strong> ({contract.staffCode})
-          </div>
-          <div>
-            <span className="text-slate-400 block mb-0.5">Hợp đồng</span>
-            <strong className="text-sm text-slate-900 dark:text-slate-100">{contract.contractCode || 'Chưa có mã'}</strong> ({contract.contractType})
-          </div>
-        </div>
-
+      <div className="space-y-5">
         {pending && (
           <div className="rounded-lg bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 p-3.5 text-xs text-sky-900 dark:text-sky-200 leading-relaxed">
             Đang áp dụng: <strong>{contract.salaryType === 'monthly' ? `${formatVnd(contract.monthlySalary)}/tháng` : `${formatVnd(contract.dailyRate)}/ngày`}</strong>.
@@ -161,9 +137,6 @@ export default function ContractCompensationForm({
 
         {/* GROUP 1: MỨC LƯƠNG CHÍNH */}
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 pb-1.5 border-b border-slate-200 dark:border-slate-800 mb-3.5">
-            Mức lương chính & Ngày công
-          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
             <div>
               <label htmlFor="comp-salarytype" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
@@ -175,8 +148,8 @@ export default function ContractCompensationForm({
                 onChange={e => handleSalaryTypeChange(e.target.value as any)}
                 className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border"
               >
-                <option value="daily">Theo ngày (Bác sĩ, KTV, Kế toán)</option>
-                <option value="monthly">Theo tháng (Điều dưỡng, Dược sĩ, Y tá)</option>
+                <option value="daily">Theo ngày</option>
+                <option value="monthly">Theo tháng</option>
               </select>
             </div>
 
@@ -371,7 +344,6 @@ export default function ContractCompensationForm({
                 onChange={e => setEffectiveFrom(e.target.value)}
                 className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border"
               />
-              <p className="text-[11px] text-slate-400 mt-1">Lưu vết lịch sử điều chỉnh lương từ ngày này.</p>
             </div>
 
             <div>
@@ -395,24 +367,16 @@ export default function ContractCompensationForm({
       </div>
 
       {/* Modal Footer */}
-      <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 flex items-center justify-end gap-3 flex-shrink-0">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={handleCancel}
-          className="h-10 px-4 rounded-lg border border-sky-600 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950 font-medium text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1"
-        >
-          Hủy
-        </button>
+      <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end flex-shrink-0">
         <button
           type="submit"
           disabled={busy || !isDirty}
-          className="h-10 px-5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-medium text-sm shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1"
+          className="h-10 px-6 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-medium text-sm whitespace-nowrap shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1"
         >
           {busy && (
             <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin flex-shrink-0" />
           )}
-          <span>{busy ? 'Đang lưu…' : 'Lưu đãi ngộ & Lịch sử'}</span>
+          <span>{busy ? 'Đang lưu…' : 'Lưu đãi ngộ'}</span>
         </button>
       </div>
     </form>

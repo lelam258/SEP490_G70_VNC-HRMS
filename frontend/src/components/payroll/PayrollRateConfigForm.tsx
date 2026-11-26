@@ -38,7 +38,6 @@ function slugify(text: string): string {
 export default function PayrollRateConfigForm({
   initial,
   positions,
-  staffList = [],
   onSave,
   onClose,
   busy,
@@ -60,12 +59,11 @@ export default function PayrollRateConfigForm({
     return '';
   });
 
-  // General & Target
-  const [targetType, setTargetType] = useState<'all' | 'position' | 'staff'>(
-    initial?.staffId ? 'staff' : initial?.positionId ? 'position' : 'all'
+  // General & Target (chỉ áp dụng Toàn phòng khám hoặc Theo chức danh)
+  const [targetType, setTargetType] = useState<'all' | 'position'>(
+    initial?.positionId ? 'position' : 'all'
   );
   const [positionId, setPositionId] = useState(initial?.positionId || '');
-  const [staffId, setStaffId] = useState(initial?.staffId || '');
 
   // Rate Value
   const [unit, setUnit] = useState<'vnd' | 'percent' | 'days'>(initial?.unit || 'vnd');
@@ -118,10 +116,9 @@ export default function PayrollRateConfigForm({
 
   const isDirty = useMemo(() => {
     if (!initial) return true;
-    const initialTargetType = initial.staffId ? 'staff' : initial.positionId ? 'position' : 'all';
+    const initialTargetType = initial.positionId ? 'position' : 'all';
     if (targetType !== initialTargetType) return true;
     if (targetType === 'position' && positionId !== (initial.positionId || '')) return true;
-    if (targetType === 'staff' && staffId !== (initial.staffId || '')) return true;
     if (unit !== initial.unit) return true;
 
     const currentVal = unit === 'vnd' ? moneyValue : unit === 'percent' ? Number(percentVal) : Number(daysVal);
@@ -139,7 +136,7 @@ export default function PayrollRateConfigForm({
     if ((effectiveTo || '') !== (initial.effectiveTo || '')) return true;
 
     return false;
-  }, [targetType, positionId, staffId, unit, moneyValue, percentVal, daysVal, isCustom, customName, selectedPreset, description, effectiveFrom, effectiveTo, initial, isInitialPreset]);
+  }, [targetType, positionId, unit, moneyValue, percentVal, daysVal, isCustom, customName, selectedPreset, description, effectiveFrom, effectiveTo, initial, isInitialPreset]);
 
   useEffect(() => {
     onDirtyChange?.(isDirty);
@@ -169,9 +166,6 @@ export default function PayrollRateConfigForm({
 
     if (targetType === 'position' && !positionId) {
       errors.positionId = 'Vui lòng chọn chức danh áp dụng.';
-    }
-    if (targetType === 'staff' && !staffId) {
-      errors.staffId = 'Vui lòng chọn nhân viên áp dụng.';
     }
 
     let finalVal = 0;
@@ -206,7 +200,7 @@ export default function PayrollRateConfigForm({
     void onSave({
       code: resolvedCode,
       positionId: targetType === 'position' ? positionId : null,
-      staffId: targetType === 'staff' ? staffId : null,
+      staffId: null,
       value: finalVal,
       unit,
       description: (isCustom ? customName.trim() : description.trim()) || null,
@@ -284,14 +278,14 @@ export default function PayrollRateConfigForm({
               <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                 Phạm vi áp dụng <span className="text-rose-500">*</span>
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     setTargetType('all');
-                    setFieldErrors(prev => ({ ...prev, positionId: '', staffId: '' }));
+                    setFieldErrors(prev => ({ ...prev, positionId: '' }));
                   }}
-                  className={`flex items-center justify-center h-10 px-3 border rounded-lg text-xs font-medium transition-all text-center ${
+                  className={`flex items-center justify-center h-10 px-3 border rounded-lg text-xs font-medium transition-all text-center cursor-pointer ${
                     targetType === 'all'
                       ? 'border-sky-600 bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 font-semibold ring-1 ring-sky-500/20 shadow-xs'
                       : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -304,30 +298,15 @@ export default function PayrollRateConfigForm({
                   type="button"
                   onClick={() => {
                     setTargetType('position');
-                    setFieldErrors(prev => ({ ...prev, positionId: '', staffId: '' }));
+                    setFieldErrors(prev => ({ ...prev, positionId: '' }));
                   }}
-                  className={`flex items-center justify-center h-10 px-3 border rounded-lg text-xs font-medium transition-all text-center ${
+                  className={`flex items-center justify-center h-10 px-3 border rounded-lg text-xs font-medium transition-all text-center cursor-pointer ${
                     targetType === 'position'
                       ? 'border-sky-600 bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 font-semibold ring-1 ring-sky-500/20 shadow-xs'
                       : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                   }`}
                 >
                   Theo chức danh
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTargetType('staff');
-                    setFieldErrors(prev => ({ ...prev, positionId: '', staffId: '' }));
-                  }}
-                  className={`flex items-center justify-center h-10 px-3 border rounded-lg text-xs font-medium transition-all text-center ${
-                    targetType === 'staff'
-                      ? 'border-sky-600 bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 font-semibold ring-1 ring-sky-500/20 shadow-xs'
-                      : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  Theo nhân viên
                 </button>
               </div>
             </div>
@@ -352,39 +331,11 @@ export default function PayrollRateConfigForm({
                 >
                   <option value="">-- Chọn chức danh --</option>
                   {positions.map(p => (
-                    <option key={p.id} value={p.id}>{p.name + (p.scopeTag ? ' (' + p.scopeTag + ')' : '')}</option>
+                    <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
                 {fieldErrors.positionId && (
                   <p className="text-xs text-rose-500 mt-1">{fieldErrors.positionId}</p>
-                )}
-              </div>
-            )}
-
-            {targetType === 'staff' && (
-              <div>
-                <label htmlFor="rate-staff" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Nhân viên áp dụng <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  id="rate-staff"
-                  required
-                  value={staffId}
-                  onChange={e => {
-                    setStaffId(e.target.value);
-                    if (fieldErrors.staffId) setFieldErrors(prev => ({ ...prev, staffId: '' }));
-                  }}
-                  className={`w-full h-10 rounded-lg border ${
-                    fieldErrors.staffId ? 'border-rose-500' : 'border-slate-300 dark:border-slate-700'
-                  } bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
-                >
-                  <option value="">-- Chọn nhân viên --</option>
-                  {staffList.map(s => (
-                    <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-                  ))}
-                </select>
-                {fieldErrors.staffId && (
-                  <p className="text-xs text-rose-500 mt-1">{fieldErrors.staffId}</p>
                 )}
               </div>
             )}
@@ -446,7 +397,7 @@ export default function PayrollRateConfigForm({
                     style={{ paddingRight: '36px', boxSizing: 'border-box' }}
                     className={`w-full h-10 rounded-lg border ${
                       fieldErrors.value ? 'border-rose-500' : 'border-slate-300 dark:border-slate-700'
-                    } bg-white dark:bg-slate-800 px-3 text-sm text-left font-[tabular-nums] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
+                    } bg-white dark:bg-slate-800 px-3 text-sm text-left tabular-nums text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
                   />
                   <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400 text-sm font-medium select-none">
                     %
@@ -470,7 +421,7 @@ export default function PayrollRateConfigForm({
                     style={{ paddingRight: '56px', boxSizing: 'border-box' }}
                     className={`w-full h-10 rounded-lg border ${
                       fieldErrors.value ? 'border-rose-500' : 'border-slate-300 dark:border-slate-700'
-                    } bg-white dark:bg-slate-800 px-3 text-sm text-left font-[tabular-nums] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
+                    } bg-white dark:bg-slate-800 px-3 text-sm text-left tabular-nums text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
                   />
                   <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400 text-xs font-medium select-none">
                     ngày

@@ -503,6 +503,11 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
             .Where(p => p.PayMonth == payMonth && staffIds.Contains(p.StaffId))
             .ToDictionaryAsync(p => p.StaffId, ct);
 
+        var publishedPlans = await Vnc.HRMS.Services.PublishedAttendancePlans.Load(db, monthStart, monthEnd, ct);
+        var scheduledNightDatesByStaff = publishedPlans
+            .Where(x => x.Shift == "evening")
+            .ToLookup(x => x.StaffId, x => x.Date);
+
         return new PayrollCalculationContext(
             AttendanceLocked: attendanceLocked,
             ProceduresVerified: proceduresVerified,
@@ -529,7 +534,8 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
             DeductUnionFeeBeforeTax: taxPolicy.DeductUnionFeeBeforeTax,
             DeductOtherBeforeTax: taxPolicy.DeductOtherBeforeTax,
             FlatTaxBase: taxPolicy.FlatTaxBase,
-            ExistingPayslipsByStaff: existingPayslips
+            ExistingPayslipsByStaff: existingPayslips,
+            ScheduledNightDatesByStaff: scheduledNightDatesByStaff
         );
     }
 
@@ -598,9 +604,13 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
             .ToListAsync(ct);
         var leaveTypesIsPaid = await db.LeaveTypes.AsNoTracking()
             .ToDictionaryAsync(x => x.Code, x => x.IsPaid, ct);
+        var publishedPlans = await Vnc.HRMS.Services.PublishedAttendancePlans.Load(db, monthStart, monthEnd, ct);
+        var scheduledNightDates = publishedPlans
+            .Where(x => x.StaffId == ps.StaffId && x.Shift == "evening")
+            .Select(x => x.Date);
 
         var attMetrics = PayrollPeriodRules.ComputeStaffAttendanceMetrics(
-            monthStart, monthEnd, records, onCalls, leaves, leaveTypesIsPaid);
+            monthStart, monthEnd, records, onCalls, leaves, leaveTypesIsPaid, scheduledNightDates);
 
         var hasUnverifiedProc = await (
             from pa in db.ProcedureAssignments.AsNoTracking()
@@ -663,11 +673,12 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
 
         var taxPolicy = await LoadTaxAndInsuranceParametersAsync(monthStart, monthEnd, ct);
         decimal grossPay = ps.GrossPay ?? 0m;
+        decimal taxableGrossPay = Math.Max(0m, grossPay - split.MaternityPay);
         decimal insBase = ps.InsuranceSalaryBase ?? 0m;
         bool hasInsurance = (ps.InsuranceDeduction ?? 0m) > 0m && insBase > 0m;
 
         var formulaResult = PayrollFormula.Calculate(new PayrollFormulaInput(
-            TotalIncome: grossPay,
+            TotalIncome: taxableGrossPay,
             InsuranceSalary: hasInsurance ? insBase : 0m,
             IsUnionMember: unionFeeDeduction > 0m,
             DependentCount: ps.DependentCount ?? staff?.DependentCount ?? 0,
@@ -839,4 +850,65 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
             flatBase
         );
     }
+
+    private static readonly string[] FinalizedPeriodStatuses = ["finalized", "locked", "paid"];
+
+    public async Task<Guid?> FindStaffIdByUserIdAsync(Guid userId, CancellationToken ct)
+    {
+        return await db.Staff.AsNoTracking()
+            .Where(s => s.UserId == userId)
+            .Select(s => (Guid?)s.StaffId)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    public async Task<List<MyPayslipSummaryDto>> ListFinalizedPayslipsByStaffAsync(
+        Guid staffId, int? year, CancellationToken ct)
+    {
+        var yearPrefix = year.HasValue ? $"{year.Value:D4}-" : null;
+
+        var rows = await (
+            from ps in db.Payslips.AsNoTracking()
+            join period in db.PayrollLocks.AsNoTracking() on ps.PayMonth equals period.PayMonth
+            where ps.StaffId == staffId
+                && period.Status != null
+                && FinalizedPeriodStatuses.Contains(period.Status.ToLower())
+                && (ps.IsLocked == true || (ps.Status != null && FinalizedPeriodStatuses.Contains(ps.Status.ToLower())))
+                && (yearPrefix == null || ps.PayMonth.StartsWith(yearPrefix))
+            orderby ps.PayMonth descending
+            select new
+            {
+                ps.PayslipId,
+                ps.PayMonth,
+                FinalizedAt = ps.FinalizedAt ?? ps.LockedAt ?? period.LockedAt,
+                WorkDays = ps.WorkDays ?? 0m,
+                BasePay = ps.BasePay ?? 0m,
+                AllowanceTotal = ps.AllowanceTotal ?? 0m,
+                CommissionTotal = ps.CommissionTotal ?? 0m,
+                GrossPay = ps.GrossPay ?? 0m,
+                InsuranceDeduction = ps.InsuranceDeduction ?? 0m,
+                TaxDeduction = ps.TaxDeduction ?? 0m,
+                OtherDeduction = ps.OtherDeduction ?? 0m,
+                NetPay = ps.NetPay ?? 0m
+            }
+        ).ToListAsync(ct);
+
+        return rows.Select(r => new MyPayslipSummaryDto(
+            PayslipId: r.PayslipId,
+            PayMonth: r.PayMonth,
+            FinalizedAt: r.FinalizedAt,
+            WorkDays: r.WorkDays,
+            BasePay: r.BasePay,
+            AllowanceTotal: r.AllowanceTotal,
+            CommissionTotal: r.CommissionTotal,
+            GrossPay: r.GrossPay,
+            TotalDeductions: r.InsuranceDeduction + r.TaxDeduction + r.OtherDeduction,
+            NetPay: r.NetPay
+        )).ToList();
+    }
+
+    public Task<Payslip?> FindPayslipByIdAsync(Guid payslipId, CancellationToken ct)
+        => db.Payslips.AsNoTracking().SingleOrDefaultAsync(x => x.PayslipId == payslipId, ct);
+
+    public Task<Payslip?> FindPayslipByMonthAndStaffAsync(string payMonth, Guid staffId, CancellationToken ct)
+        => db.Payslips.AsNoTracking().SingleOrDefaultAsync(x => x.PayMonth == payMonth && x.StaffId == staffId, ct);
 }

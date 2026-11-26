@@ -1,3 +1,15 @@
+export function rememberAttendanceMonth(month: string) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return;
+  try { sessionStorage.setItem('vnc.hrms.attendance.month', month); } catch { /* URL filters still work without storage. */ }
+}
+
+export function lastAttendanceMonth(fallback: string) {
+  try {
+    const month = sessionStorage.getItem('vnc.hrms.attendance.month');
+    return month && /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? month : fallback;
+  } catch { return fallback; }
+}
+
 export const attendanceLabels: Record<string, string> = {
   main: 'Ca chính', noon: 'Trực trưa', evening: 'Trực tối', morning: 'Ca sáng', afternoon: 'Ca chiều',
   imported: 'Đã nhập · Chưa xác nhận', pending: 'Chờ xác nhận', reconciled: 'Đã đối chiếu · Chờ xác nhận',

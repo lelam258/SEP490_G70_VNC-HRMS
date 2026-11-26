@@ -158,7 +158,7 @@ export default function SchedulesPage() {
   const staff = scheduleStaff(options, facilityId, departmentId);
   const actionRow = action?.row;
   return <section className="schedule-page schedule-workspace workspace-list-page">
-    <header className="schedule-page-header"><div><span className="eyebrow">VNC · NHÂN SỰ</span><h1>Lịch làm việc</h1><p>{manager ? 'Lập lịch tuần kế tiếp · Chốt trước 00:00 thứ Hai' : globalReader ? 'Theo dõi lịch làm việc tại các cơ sở' : 'Lịch cá nhân đã công bố'}</p></div>
+    <header className="schedule-page-header"><div><h1>Lịch làm việc</h1></div>
       {manager && <div className="schedule-primary-actions">{currentStatus?.closed
         ? <button id="schedule-reopen" disabled={unavailable || !permissions.canReopen} onClick={() => openAction('reopen')}><Icon name="edit" size={16} />Mở lại tuần</button>
         : <button disabled={unavailable || !permissions.canPublish} onClick={() => openAction('publish')}><Icon name="check" size={16} />{currentStatus?.isCorrection ? 'Chốt lại tuần' : 'Chốt tuần'}</button>}

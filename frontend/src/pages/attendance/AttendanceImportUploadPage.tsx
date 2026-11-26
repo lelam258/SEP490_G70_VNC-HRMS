@@ -8,6 +8,7 @@ import { attendanceApi } from '../../services/attendanceApi';
 import { useAuthStore } from '../../store/useAuthStore';
 import type { AttendanceOptions, ImportAnalysis, ImportAnalysisQuery } from '../../types/attendance';
 import { clinicToday } from '../../utils/schedule';
+import { rememberAttendanceMonth } from '../../utils/attendance';
 
 const columns: [string, string][] = [['date', 'Ngày công'], ['device', 'Mã nhân viên trên máy'], ['in1', 'Vào lần 1'], ['out1', 'Ra lần 1'], ['in2', 'Vào lần 2'], ['out2', 'Ra lần 2'], ['in3', 'Vào lần 3'], ['out3', 'Ra lần 3'], ['hours', 'Tổng giờ máy báo'], ['late', 'Đi muộn'], ['early', 'Về sớm'], ['symbol', 'Ký hiệu công'], ['shift', 'Ca']];
 const initialQuery: ImportAnalysisQuery = { status: '', errorCode: '', page: 1, pageSize: 20 };
@@ -88,6 +89,7 @@ export default function AttendanceImportUploadPage() {
     const generation = request.current.generation;
     try {
       const result = await attendanceApi.upload(file, facilityId, month, deviceSource, mapping, dateOrder);
+      rememberAttendanceMonth(month);
       if (generation === request.current.generation) navigate(`/attendance/imports/${result.id}/preview`, { state: { notice: result.message } });
     } catch (cause) {
       if (generation === request.current.generation) {
@@ -98,7 +100,7 @@ export default function AttendanceImportUploadPage() {
   }
 
   return <AttendanceShell title="Nhập tệp chấm công" description="Đọc tệp để kiểm tra ngày công, nhân viên và các cặp Vào/Ra. Bạn có thể xem lỗi trước khi tạo đợt nhập."
-    actions={<Link className="button" to="/attendance/imports">Lịch sử nhập</Link>}>
+    actions={<Link className="button" to={`/attendance/imports?month=${month}`}>Lịch sử nhập</Link>}>
     <ResourceState {...options} />
     {error && <p className="alert error" role="alert">{error}</p>}
     <form className="operations-panel operations-form" onSubmit={submit}><fieldset disabled={staging || options.loading || !!options.error}>

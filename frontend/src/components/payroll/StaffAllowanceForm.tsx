@@ -154,7 +154,7 @@ export default function StaffAllowanceForm({
               >
                 {allowanceTypes.map(a => (
                   <option key={a.id} value={a.id}>
-                    {a.name} ({a.code})
+                    {a.name}
                   </option>
                 ))}
               </select>

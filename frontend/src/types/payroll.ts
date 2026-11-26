@@ -93,6 +93,12 @@ export interface UpdateTaxPolicyFlagsInput {
   flatTaxBase?: 'gross' | 'after_deductions';
 }
 
+export interface UpdateTaxDeductionsInput {
+  personalDeduction: number;
+  dependentDeduction: number;
+  taxFlatThreshold: number;
+}
+
 export interface TaxCalculationPreviewRequest {
   totalIncome: number;
   insuranceSalary: number;
@@ -307,6 +313,8 @@ export interface ContractSummary {
   status: string;
   /** Salary change scheduled to start after today (from the salary history), if any. */
   pendingSalaryChange?: ContractSalaryHistory | null;
+  staffStatus?: string;
+  staffDateLeft?: string | null;
 }
 
 export interface StaffAllowance {

@@ -245,7 +245,7 @@ public sealed class AttendanceRecordService(
         decimal actualHours;
         try {
             pairs = AttendanceRules.Pairs(request.WorkDate, request.Pairs);
-            actualHours = AttendanceRules.Hours(pairs, request.WorkDate);
+            actualHours = AttendanceRules.WorkHours(pairs, request.WorkDate, request.ShiftType);
         } catch (AppException ex) {
             throw new AppException(400, $"Dữ liệu giờ vào/ra không hợp lệ — {ex.Message}");
         }
@@ -456,7 +456,9 @@ public sealed class AttendanceRecordService(
             }
         }
 
-        var actualHours = AttendanceRules.Hours(resolvedPairs, record.WorkDate);
+        var actualHours = action == "accept_machine"
+            ? AttendanceRules.ImportWorkHours(resolvedPairs, record.WorkDate, record.ShiftType, importRowEntity?.ReportedHours).Hours
+            : AttendanceRules.WorkHours(resolvedPairs, record.WorkDate, record.ShiftType);
         var checkIn = resolvedPairs.Min(x => x.In)!.Value;
         var checkOut = resolvedPairs.Max(x => x.Out)!.Value;
         if (checkOut > access.Now.ToOffset(TimeSpan.FromHours(7)).DateTime)
@@ -495,6 +497,8 @@ public sealed class AttendanceRecordService(
         record.ActualHours = actualHours;
         if (action is "accept_manual" or "correct_time")
             record.Source = "manual";
+        else if (action == "accept_machine")
+            record.Source = "machine";
 
         var formattedNote = $"[{action}] {reason}";
         if (!string.IsNullOrWhiteSpace(supervisorText))
@@ -519,6 +523,100 @@ public sealed class AttendanceRecordService(
             actualHours = record.ActualHours,
             message = "Đã đối chiếu chấm công thành công và chuyển sang trạng thái Sẵn sàng xác nhận (Ready for Verification)."
         };
+    }
+
+    public async Task<BulkAttendanceReview> PreviewBulkVerify(ClaimsPrincipal user, BulkAttendanceSelection request, CancellationToken ct)
+    {
+        RequireHrStaffWithMsg38(user);
+        var (start, end) = AttendanceRules.Month(request.Month);
+        await access.RequireOpenMonth(request.Month, ct);
+        var byIds = request.Ids is { Length: > 0 };
+        if (byIds == (request.Filter is not null) || request.Ids?.Length > 1000)
+            throw new AppException(400, "Chọn danh sách bản ghi hoặc một bộ lọc; tối đa 1.000 dòng mỗi lần.");
+        var query = (await Scope(user, ct)).Where(r => r.WorkDate >= start && r.WorkDate <= end);
+        if (byIds) query = query.Where(r => request.Ids!.Contains(r.AttendanceId));
+        else {
+            var filter = request.Filter!;
+            if (filter.Month != request.Month) throw new AppException(400, "Tháng của bộ lọc không khớp tháng xác nhận.");
+            if (filter.FacilityId.HasValue) query = query.Where(r => r.FacilityId == filter.FacilityId);
+            if (filter.DepartmentId.HasValue) query = query.Where(r => r.DepartmentId == filter.DepartmentId);
+            if (filter.StaffId.HasValue) query = query.Where(r => r.StaffId == filter.StaffId);
+            if (!string.IsNullOrWhiteSpace(filter.Source)) query = query.Where(r => r.Source == filter.Source);
+            if (!string.IsNullOrWhiteSpace(filter.Status)) query = query.Where(r => r.ValidationStatus == filter.Status);
+            if (!string.IsNullOrWhiteSpace(filter.Search)) {
+                var search = AttendanceRules.Text(filter.Search, "Từ khóa", maximum: 100);
+                query = query.Where(r => db.Staff.Any(s => s.StaffId == r.StaffId && (s.StaffCode.Contains(search) || s.FullName.Contains(search))));
+            }
+            query = query.Where(r => r.ValidationStatus != "confirmed");
+        }
+        var records = await query.Take(1001).ToArrayAsync(ct);
+        if (records.Length > 1000) throw new AppException(400, "Có hơn 1.000 dòng. Hãy thu hẹp bộ lọc hoặc chọn ít dòng hơn.");
+        var staffIds = records.Select(r => r.StaffId).Distinct().ToArray();
+        var staff = await db.Staff.AsNoTracking().Where(s => staffIds.Contains(s.StaffId)).ToDictionaryAsync(s => s.StaffId, ct);
+        var plans = await imports.PublishedPlans(start, end, ct);
+        var planIds = plans.Select(p => p.Id).ToArray();
+        var assignments = await db.ScheduleAssignments.AsNoTracking().Where(a => planIds.Contains(a.Id)).ToArrayAsync(ct);
+        var leaves = await db.LeaveRequests.AsNoTracking().Where(l => staffIds.Contains(l.StaffId) && l.Status == "approved" && l.StartDate <= end && l.EndDate >= start).ToArrayAsync(ct);
+        var duties = await db.OnCallShifts.AsNoTracking().Where(d => staffIds.Contains(d.StaffId) && d.ShiftDate >= start && d.ShiftDate <= end && d.Status != "cancelled" && d.Status != "rejected").ToArrayAsync(ct);
+        var recordIds = records.Select(r => r.AttendanceId).ToArray();
+        var sourceRows = await db.AttendanceImportRows.AsNoTracking().Where(r => r.AttendanceId.HasValue && recordIds.Contains(r.AttendanceId.Value)).ToArrayAsync(ct);
+        var items = new List<BulkAttendanceReviewItem>(); var skipped = new List<BulkAttendanceFailure>();
+        foreach (var record in records.OrderBy(r => r.WorkDate).ThenBy(r => r.StaffCode)) {
+            try {
+                if (record.ValidationStatus is not ("imported" or "pending" or "reconciled")) throw new AppException(400, "Bản ghi đã xác nhận hoặc còn cần đối chiếu.");
+                if (!staff.TryGetValue(record.StaffId, out var person) || person.Status != "active") throw new AppException(400, "Nhân viên không còn hoạt động.");
+                if (!record.FacilityId.HasValue || string.IsNullOrWhiteSpace(record.ShiftType)) throw new AppException(400, "Thiếu cơ sở hoặc loại ca.");
+                var pairs = ParsePairs(record); AttendanceRules.Hours(pairs, record.WorkDate);
+                if (pairs.Max(p => p.Out) > access.Now.ToOffset(TimeSpan.FromHours(7)).DateTime) throw new AppException(400, "Giờ chấm công chưa diễn ra.");
+                var dayPlans = plans.Where(p => p.StaffId == record.StaffId && p.Date == record.WorkDate).ToArray();
+                var dayPlanIds = dayPlans.Select(p => p.Id).ToHashSet();
+                var live = assignments.Where(a => dayPlanIds.Contains(a.Id)).ToDictionary(a => a.Id);
+                var dayLeaves = leaves.Where(l => l.StaffId == record.StaffId && l.StartDate <= record.WorkDate && l.EndDate >= record.WorkDate).ToArray();
+                var dayDuties = duties.Where(d => d.StaffId == record.StaffId && d.ShiftDate == record.WorkDate).ToArray();
+                var source = sourceRows.FirstOrDefault(r => r.AttendanceId == record.AttendanceId);
+                if (record.ReconciledAt is null) {
+                    var machinePairs = source is null ? pairs : JsonSerializer.Deserialize<AttendanceTimePair[]>(source.TimePairsJson) ?? [];
+                    var check = InspectDiscrepancies(record, pairs, machinePairs, source, dayPlans, live, dayLeaves.Length > 0,
+                        dayDuties.Select(d => (d.ShiftCategory, d.SupervisorEvidence, d.Status)).ToArray());
+                    var issues = JsonSerializer.SerializeToElement(check.Discrepancies);
+                    if (issues.EnumerateArray().Any(i => i.GetProperty("severity").GetString() == "error"))
+                        throw new AppException(400, "Còn sai lệch nguồn/lịch/giờ hoặc nghỉ phép. Cần đối chiếu riêng trước khi xác nhận hàng loạt.");
+                }
+                var version = ComputeRecordVersion(record, dayPlans, live.Values, dayLeaves.Select(l => l.RequestId), dayDuties.Select(d => (d.ShiftId, d.Status, d.SupervisorEvidence)));
+                items.Add(new(record.AttendanceId, version, record.StaffCode, person.FullName, record.WorkDate, record.ShiftType, record.ActualHours));
+            } catch (AppException error) { skipped.Add(new(record.AttendanceId, record.StaffCode, record.WorkDate, error.Message)); }
+        }
+        if (byIds) foreach (var id in request.Ids!.Distinct().Except(recordIds)) skipped.Add(new(id, null, null, "Không tìm thấy bản ghi trong tháng đã chọn."));
+        return new(items.ToArray(), skipped.ToArray());
+    }
+
+    public async Task<BulkAttendanceResult> BulkVerify(ClaimsPrincipal user, BulkVerifyAttendanceRequest request, CancellationToken ct)
+    {
+        RequireHrStaffWithMsg38(user);
+        var (start, end) = AttendanceRules.Month(request.Month);
+        if (request.Items is null || request.Items.Length is < 1 or > 1000 || request.Items.Any(i => i is null || string.IsNullOrWhiteSpace(i.Version))
+            || request.Items.Select(i => i.Id).Distinct().Count() != request.Items.Length) throw new AppException(400, "Cần từ 1 đến 1.000 bản ghi duy nhất, kèm phiên bản đã xem trước.");
+        var reason = AttendanceRules.Text(request.Reason, "Ghi chú xác nhận", maximum: 1000);
+        await access.RequireOpenMonth(request.Month, ct);
+        var ids = request.Items.Select(i => i.Id).ToArray();
+        var eligibility = await PreviewBulkVerify(user, new BulkAttendanceSelection(request.Month, ids), ct);
+        var eligibleIds = eligibility.Items.Select(i => i.Id).ToHashSet();
+        var ineligible = eligibility.Skipped.ToDictionary(i => i.Id);
+        var rows = await db.AttendanceRecords.AsNoTracking().Where(r => ids.Contains(r.AttendanceId) && r.WorkDate >= start && r.WorkDate <= end).ToDictionaryAsync(r => r.AttendanceId, ct);
+        var confirmed = 0; var failed = new List<BulkAttendanceFailure>();
+        foreach (var item in request.Items) {
+            ct.ThrowIfCancellationRequested();
+            if (!eligibleIds.Contains(item.Id)) { failed.Add(ineligible.GetValueOrDefault(item.Id) ?? new(item.Id, null, null, "Bản ghi chưa đủ điều kiện xác nhận.")); continue; }
+            if (!rows.TryGetValue(item.Id, out var record)) { failed.Add(new(item.Id, null, null, "Không tìm thấy bản ghi trong tháng đã chọn.")); continue; }
+            // Each Verify owns its transaction and audit; failed tracked mutations must not leak to the next row.
+            db.ChangeTracker.Clear();
+            try {
+                await Verify(user, item.Id, new VerifyAttendanceRequest("confirm", reason, null, item.Version), ct);
+                confirmed++;
+            } catch (AppException error) { failed.Add(new(item.Id, record.StaffCode, record.WorkDate, error.Message)); }
+            finally { db.ChangeTracker.Clear(); }
+        }
+        return new(confirmed, failed.ToArray());
     }
 
     // 4.13 Verify Attendance Record
@@ -592,8 +690,16 @@ public sealed class AttendanceRecordService(
         var pairs = ParsePairs(record);
         if (pairs.Length == 0 || pairs.Any(x => x.In is null || x.Out is null))
             throw new AppException(400, "Bản ghi thiếu giờ Vào/Ra đầy đủ. Vui lòng đối chiếu trước khi xác nhận.");
+        if (pairs.Max(p => p.Out) > access.Now.ToOffset(TimeSpan.FromHours(7)).DateTime)
+            throw new AppException(400, "Giờ chấm công thực tế chưa diễn ra.");
 
-        try { record.ActualHours = AttendanceRules.Hours(pairs, record.WorkDate); }
+        try {
+            var sourceRow = record.Source is "machine" or "fingerprint"
+                ? await db.AttendanceImportRows.AsNoTracking().FirstOrDefaultAsync(x => x.AttendanceId == record.AttendanceId, ct) : null;
+            record.ActualHours = sourceRow is not null
+                ? AttendanceRules.ImportWorkHours(pairs, record.WorkDate, record.ShiftType, sourceRow.ReportedHours).Hours
+                : AttendanceRules.WorkHours(pairs, record.WorkDate, record.ShiftType);
+        }
         catch (AppException ex) { throw new AppException(400, $"Cặp giờ Vào/Ra không hợp lệ — {ex.Message}"); }
 
         if (leaves.Length > 0 && record.ReconciledAt is null)

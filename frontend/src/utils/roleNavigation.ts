@@ -1,9 +1,4 @@
-export function roleHome(role: string): string {
-  if (role === 'admin') return '/accounts';
-  if (role === 'hr_manager') return '/employees';
-  if (role === 'hr_staff') return '/schedules';
-  if (role === 'accountant') return '/payroll/parameters';
-  if (role === 'department_head') return '/compliance';
+export function roleHome(_role: string): string {
   return '/';
 }
 
