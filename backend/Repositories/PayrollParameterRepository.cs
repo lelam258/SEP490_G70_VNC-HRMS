@@ -299,6 +299,48 @@ public sealed class PayrollParameterRepository(AppDbContext db) : IPayrollParame
         return await GetTaxPolicySummaryAsync(ct);
     }
 
+    public async Task<TaxPolicySummaryDto> UpdateTaxDeductionsAsync(
+        UpdateTaxDeductionsRequest request, Guid updatedBy, CancellationToken ct)
+    {
+        var keys = new[] { "tax_personal_deduction", "tax_dependent_deduction", "tax_flat_threshold" };
+        var policies = await db.SystemPolicies
+            .Where(p => keys.Contains(p.PolicyKey))
+            .ToListAsync(ct);
+
+        void UpsertNumber(string key, decimal value, string description)
+        {
+            var strVal = Math.Round(value, 0, MidpointRounding.AwayFromZero)
+                .ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var existing = policies.FirstOrDefault(x => x.PolicyKey == key);
+            if (existing != null)
+            {
+                existing.PolicyValue = strVal;
+                existing.UpdatedBy = updatedBy == Guid.Empty ? null : updatedBy;
+                existing.UpdatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                db.SystemPolicies.Add(new SystemPolicy
+                {
+                    PolicyId = Guid.NewGuid(),
+                    PolicyKey = key,
+                    PolicyValue = strVal,
+                    ValueType = "decimal",
+                    Description = description,
+                    UpdatedBy = updatedBy == Guid.Empty ? null : updatedBy,
+                    UpdatedAt = DateTime.UtcNow
+                });
+            }
+        }
+
+        UpsertNumber("tax_personal_deduction", request.PersonalDeduction, "Mức giảm trừ gia cảnh bản thân (VNĐ/tháng)");
+        UpsertNumber("tax_dependent_deduction", request.DependentDeduction, "Mức giảm trừ người phụ thuộc (VNĐ/người/tháng)");
+        UpsertNumber("tax_flat_threshold", request.TaxFlatThreshold, "Ngưỡng khấu trừ thuế TNCN vãng lai 10% (VNĐ/lần chi trả)");
+
+        await db.SaveChangesAsync(ct);
+        return await GetTaxPolicySummaryAsync(ct);
+    }
+
     // =========================================================================
     // Payroll Rate Configs
     // =========================================================================

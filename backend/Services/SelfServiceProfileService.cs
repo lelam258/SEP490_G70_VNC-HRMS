@@ -120,6 +120,9 @@ public sealed class SelfServiceProfileService(
         return await GetProfileAsync(userId, ct);
     }
 
+    private const string Msg43 = "Ảnh đại diện chỉ hỗ trợ định dạng JPG hoặc PNG và dung lượng tối đa 2 MB.";
+    private const long MaxAvatarBytes = 2 * 1024 * 1024;
+
     public async Task<UserProfileDto> UploadAvatarAsync(Guid userId, IFormFile file, CancellationToken ct)
     {
         var staff = await repository.FindStaffByUserIdAsync(userId, ct)
@@ -130,10 +133,15 @@ public sealed class SelfServiceProfileService(
             throw new AppException(400, "Vui lòng chọn ảnh đại diện.");
         }
 
-        if (file.Length > 2 * 1024 * 1024)
+        if (file.Length > MaxAvatarBytes)
         {
-            throw new AppException(400, "Ảnh đại diện tối đa 2 MB.");
+            throw new AppException(400, Msg43);
         }
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!((extension is ".jpg" or ".jpeg" && file.ContentType == "image/jpeg")
+            || (extension == ".png" && file.ContentType == "image/png")))
+            throw new AppException(400, Msg43);
 
         await using var stream = file.OpenReadStream();
         var uploadResult = await fileService.UploadAsync(stream, file.FileName, file.ContentType, file.Length, ct);

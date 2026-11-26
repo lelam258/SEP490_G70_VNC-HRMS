@@ -4,6 +4,8 @@ import Alert from '../ui/Alert';
 import type { Department } from '../../services/departmentApi';
 import type { EmployeeDetail, UpdateEmployeeInput } from '../../types/accounts';
 import { formatDate, initials } from '../../utils/format';
+import { validateDependentCount, validateEmployeeProfile } from '../../utils/employeeRules';
+import { getMaxAdultDateOfBirth } from '../../utils/leaveRules';
 
 interface EmployeeProfileFormProps {
   employee: EmployeeDetail;
@@ -38,7 +40,8 @@ export default function EmployeeProfileForm({
   const [scopeOfPractice, setScopeOfPractice] = useState(employee.scopeOfPractice || '');
   const [dateJoined, setDateJoined] = useState(employee.dateJoined || '');
   const [dateLeft, setDateLeft] = useState(employee.dateLeft || '');
-  const [dependentCount, setDependentCount] = useState<number>(employee.dependentCount ?? 0);
+  const [dependentCount, setDependentCount] = useState(String(employee.dependentCount ?? 0));
+  const dependentError = validateDependentCount(dependentCount);
   const [status, setStatus] = useState(employee.status || 'active');
 
   const [error, setError] = useState('');
@@ -57,7 +60,7 @@ export default function EmployeeProfileForm({
     scopeOfPractice !== (employee.scopeOfPractice || '') ||
     dateJoined !== (employee.dateJoined || '') ||
     dateLeft !== (employee.dateLeft || '') ||
-    dependentCount !== (employee.dependentCount ?? 0) ||
+    dependentCount !== String(employee.dependentCount ?? 0) ||
     status !== (employee.status || 'active');
 
   function handleBack() {
@@ -71,15 +74,17 @@ export default function EmployeeProfileForm({
     if (readonly || !onSave || busy || saving) return;
 
     setError('');
+    if (dependentError) {
+      setError(dependentError);
+      document.getElementById('staff-dependents')?.focus();
+      return;
+    }
     const trimmedCode = code.trim();
     const trimmedName = name.trim();
 
-    if (!trimmedCode) {
-      setError('Mã nhân viên không được để trống.');
-      return;
-    }
-    if (!trimmedName) {
-      setError('Họ và tên nhân viên không được để trống.');
+    const invalid = validateEmployeeProfile({ code, name, email, phone, dateOfBirth, idCardNumber, dateJoined, dateLeft, dependentCount: Number(dependentCount) });
+    if (invalid) {
+      setError(invalid);
       return;
     }
 
@@ -98,7 +103,7 @@ export default function EmployeeProfileForm({
         scopeOfPractice: scopeOfPractice.trim() || null,
         dateJoined: dateJoined || null,
         dateLeft: dateLeft || null,
-        dependentCount: Number(dependentCount) >= 0 ? Number(dependentCount) : 0,
+        dependentCount: Number(dependentCount),
         status,
       });
       if (err) setError(err);
@@ -111,10 +116,11 @@ export default function EmployeeProfileForm({
   const departmentDisplay = currentDept?.name || employee.department || 'Chưa phân khoa';
 
   return (
-    <section className="account-form-page">
+    <section className="account-form-page workspace-content-page">
       <button className="text-button back-button" type="button" onClick={handleBack}>
         <Icon name="arrow" size={18} /> Danh sách nhân viên
       </button>
+
 
       <div className="page-heading">
         <div>
@@ -132,9 +138,11 @@ export default function EmployeeProfileForm({
           </button>
         )}
       </div>
+      <div className="workspace-section-body">
 
       <div className="form-layout">
-        <form onSubmit={handleSubmit} className="panel account-form" aria-label="Hồ sơ nhân viên">
+        <form onSubmit={handleSubmit} className="panel account-form workspace-form-panel" aria-label="Hồ sơ nhân viên">
+          <div className="workspace-form-fields">
           {/* Header Preview Banner */}
           <div className="employee-preview" style={{ margin: '20px 27px 0', border: '1px solid #dce8e5' }}>
             <span className="avatar" style={{ width: 50, height: 50, fontSize: 16 }}>
@@ -223,6 +231,8 @@ export default function EmployeeProfileForm({
                 <label htmlFor="staff-dob">Ngày sinh</label>
                 <input
                   id="staff-dob"
+                  min="1940-01-01"
+                  max={getMaxAdultDateOfBirth()}
                   type={readonly ? 'text' : 'date'}
                   value={readonly ? (dateOfBirth ? formatDate(dateOfBirth) : 'Chưa cập nhật') : dateOfBirth}
                   readOnly={readonly}
@@ -238,7 +248,8 @@ export default function EmployeeProfileForm({
                   id="staff-idcard"
                   value={idCardNumber}
                   readOnly={readonly}
-                  maxLength={20}
+                  maxLength={12}
+                  pattern="[0-9]{12}"
                   placeholder="Số căn cước công dân"
                   onChange={e => setIdCardNumber(e.target.value)}
                 />
@@ -248,6 +259,7 @@ export default function EmployeeProfileForm({
                 <label htmlFor="staff-phone">Số điện thoại liên hệ</label>
                 <input
                   id="staff-phone"
+                  pattern="0[0-9]{9}"
                   type="tel"
                   value={phone}
                   readOnly={readonly}
@@ -350,6 +362,7 @@ export default function EmployeeProfileForm({
                 <label htmlFor="staff-left">Ngày nghỉ việc (nếu có)</label>
                 <input
                   id="staff-left"
+                  min={dateJoined || undefined}
                   type={readonly ? 'text' : 'date'}
                   value={readonly ? (dateLeft ? formatDate(dateLeft) : 'Đang làm việc') : dateLeft}
                   readOnly={readonly}
@@ -362,14 +375,16 @@ export default function EmployeeProfileForm({
               <label htmlFor="staff-dependents">Số người phụ thuộc giảm trừ gia cảnh</label>
               <input
                 id="staff-dependents"
-                type="number"
-                min={0}
-                max={20}
+                type="text"
+                inputMode="numeric"
                 value={dependentCount}
                 readOnly={readonly}
-                onChange={e => setDependentCount(Number(e.target.value))}
+                onChange={e => setDependentCount(e.target.value)}
+                aria-invalid={!readonly && !!dependentError}
+                aria-describedby="staff-dependents-hint staff-dependents-error"
               />
-              <p className="field-hint">Dùng để tính mức giảm trừ thuế TNCN trên bảng lương.</p>
+              {!readonly && dependentError && <p id="staff-dependents-error" className="field-error" role="alert">{dependentError}</p>}
+              <p id="staff-dependents-hint" className="field-hint">Nhập số nguyên không âm. Dùng để tính mức giảm trừ thuế TNCN trên bảng lương.</p>
             </div>
           </div>
 
@@ -402,6 +417,7 @@ export default function EmployeeProfileForm({
           </div>
 
           {/* Actions */}
+          </div>
           {!readonly && (
             <div className="form-actions">
               <button type="button" className="button" disabled={saving || busy} onClick={handleBack}>
@@ -423,7 +439,7 @@ export default function EmployeeProfileForm({
           <p>Hồ sơ nhân viên là dữ liệu gốc của toàn bộ hệ thống quản lý nhân sự VNC Clinic.</p>
           <ul>
             <li>
-              <strong>Mã nhân viên</strong> là duy nhất trong toàn hệ thống, dùng để cấp tài khoản và đồng bộ máy chấm công.
+              <strong>Mã nhân viên</strong> là duy nhất trong toàn hệ thống. Mã đăng ký trên máy chấm công được HR Staff xác nhận riêng tại mục Liên kết mã máy chấm công.
             </li>
             <li>
               <strong>Khoa/phòng</strong> xác định luồng duyệt chấm công, phân ca trực và cấu trúc sơ đồ tổ chức.
@@ -439,6 +455,7 @@ export default function EmployeeProfileForm({
             Để cấp tài khoản đăng nhập cho nhân viên mới, Quản trị viên (Administrator) sẽ liên kết hồ sơ này trong mục Quản lý tài khoản.
           </div>
         </aside>
+      </div>
       </div>
     </section>
   );

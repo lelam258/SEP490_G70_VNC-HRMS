@@ -95,6 +95,11 @@ public sealed record UpdateTaxPolicyFlagsRequest(
     bool? DeductOtherBeforeTax,
     string? FlatTaxBase);
 
+public sealed record UpdateTaxDeductionsRequest(
+    decimal PersonalDeduction,
+    decimal DependentDeduction,
+    decimal TaxFlatThreshold);
+
 /// <summary>Request to preview PIT & Take-Home 6-step calculation.</summary>
 public sealed record TaxCalculationPreviewRequest(
     decimal TotalIncome,

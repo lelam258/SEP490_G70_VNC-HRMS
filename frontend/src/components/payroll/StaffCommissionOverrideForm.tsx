@@ -11,6 +11,7 @@ import type {
 interface StaffCommissionOverrideFormProps {
   initial?: StaffCommissionOverride;
   services: ProcedureServiceOption[];
+  staffList?: { id: string; code: string; name: string }[];
   onSave: (value: SaveStaffCommissionOverrideInput) => Promise<void>;
   onClose: () => void;
   busy: boolean;
@@ -42,6 +43,7 @@ const TIME_CONDITIONS = [
 export default function StaffCommissionOverrideForm({
   initial,
   services,
+  staffList = [],
   onSave,
   onClose,
   busy,
@@ -52,6 +54,7 @@ export default function StaffCommissionOverrideForm({
 
   const [staffId, setStaffId] = useState(initial?.staffId || '');
   const [staffName, setStaffName] = useState(initial?.staffName || '');
+  const [staffFilter, setStaffFilter] = useState('');
   const [targetMode, setTargetMode] = useState<'service' | 'category'>(
     initial?.serviceCategory && !initial?.serviceId ? 'category' : 'service'
   );
@@ -125,7 +128,7 @@ export default function StaffCommissionOverrideForm({
 
     const errors: Record<string, string> = {};
     if (!staffId.trim()) {
-      errors.staffId = 'Vui lòng nhập mã định danh nhân viên.';
+      errors.staffId = 'Vui lòng chọn nhân viên áp dụng đơn giá riêng.';
     }
 
     let finalVal = 0;
@@ -161,9 +164,9 @@ export default function StaffCommissionOverrideForm({
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col h-full">
-      {/* Scrollable Body */}
-      <div className="px-6 py-5 space-y-6 flex-1 overflow-y-auto max-h-[calc(85vh-130px)]">
+    <form onSubmit={submit} className="flex flex-col">
+      {/* Body */}
+      <div className="px-6 py-5 space-y-6">
         {/* Inactive Banner */}
         {initial?.status === 'inactive' && (
           <div className="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
@@ -180,40 +183,98 @@ export default function StaffCommissionOverrideForm({
             Thông tin nhân viên & Dịch vụ áp dụng
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
-            <div>
-              <label htmlFor="override-staffid" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Mã định danh Nhân viên (GUID) <span className="text-rose-500">*</span>
-              </label>
-              <input
-                id="override-staffid"
-                type="text"
-                required
-                value={staffId}
-                onChange={e => {
-                  setStaffId(e.target.value);
-                  if (fieldErrors.staffId) setFieldErrors(prev => ({ ...prev, staffId: '' }));
-                }}
-                placeholder="Nhập GUID nhân viên"
-                className={`w-full h-10 rounded-lg border ${
-                  fieldErrors.staffId ? 'border-rose-500' : 'border-slate-300 dark:border-slate-700'
-                } bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
-              />
-              {fieldErrors.staffId && <p className="text-xs text-rose-500 mt-1">{fieldErrors.staffId}</p>}
-            </div>
+            {staffList.length > 0 ? (
+              <div className="col-span-1 sm:col-span-2 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label htmlFor="override-staffid" className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Chọn Nhân viên áp dụng <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={staffFilter}
+                    onChange={(e) => setStaffFilter(e.target.value)}
+                    placeholder="Lọc nhanh theo mã hoặc tên NV..."
+                    className="h-7 w-52 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                </div>
+                <select
+                  id="override-staffid"
+                  required
+                  value={staffId}
+                  onChange={(e) => {
+                    const nextId = e.target.value;
+                    setStaffId(nextId);
+                    const matched = staffList.find((s) => s.id === nextId);
+                    if (matched) setStaffName(matched.name);
+                    if (fieldErrors.staffId) setFieldErrors((prev) => ({ ...prev, staffId: '' }));
+                  }}
+                  className={`w-full h-10 rounded-lg border ${
+                    fieldErrors.staffId ? 'border-rose-500' : 'border-slate-300 dark:border-slate-700'
+                  } bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
+                >
+                  <option value="">-- Chọn nhân viên y tế --</option>
+                  {initial?.staffId && !staffList.some((s) => s.id === initial.staffId) && (
+                    <option value={initial.staffId}>
+                      {initial.staffCode ? `${initial.staffCode} - ` : ''}
+                      {initial.staffName || initial.staffId}
+                    </option>
+                  )}
+                  {staffList
+                    .filter((s) => {
+                      const q = staffFilter.trim().toLowerCase();
+                      if (!q) return true;
+                      return (
+                        s.code.toLowerCase().includes(q) ||
+                        s.name.toLowerCase().includes(q) ||
+                        s.id === staffId
+                      );
+                    })
+                    .map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.code} - {s.name}
+                      </option>
+                    ))}
+                </select>
+                {fieldErrors.staffId && <p className="text-xs text-rose-500 mt-1">{fieldErrors.staffId}</p>}
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label htmlFor="override-staffid" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Mã định danh Nhân viên <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    id="override-staffid"
+                    type="text"
+                    required
+                    value={staffId}
+                    onChange={e => {
+                      setStaffId(e.target.value);
+                      if (fieldErrors.staffId) setFieldErrors(prev => ({ ...prev, staffId: '' }));
+                    }}
+                    placeholder="Nhập mã định danh nhân viên"
+                    className={`w-full h-10 rounded-lg border ${
+                      fieldErrors.staffId ? 'border-rose-500' : 'border-slate-300 dark:border-slate-700'
+                    } bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
+                  />
+                  {fieldErrors.staffId && <p className="text-xs text-rose-500 mt-1">{fieldErrors.staffId}</p>}
+                </div>
 
-            <div>
-              <label htmlFor="override-staffname" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Tên nhân viên (tham khảo)
-              </label>
-              <input
-                id="override-staffname"
-                type="text"
-                value={staffName}
-                onChange={e => setStaffName(e.target.value)}
-                placeholder="VD: BS. Nguyễn Văn A"
-                className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border"
-              />
-            </div>
+                <div>
+                  <label htmlFor="override-staffname" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Tên nhân viên (tham khảo)
+                  </label>
+                  <input
+                    id="override-staffname"
+                    type="text"
+                    value={staffName}
+                    onChange={e => setStaffName(e.target.value)}
+                    placeholder="VD: BS. Nguyễn Văn A"
+                    className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border"
+                  />
+                </div>
+              </>
+            )}
 
             {/* Phạm vi áp dụng */}
             <div className="col-span-1 sm:col-span-2">
@@ -221,7 +282,7 @@ export default function StaffCommissionOverrideForm({
                 Phạm vi áp dụng <span className="text-rose-500">*</span>
               </label>
               <div className="grid grid-cols-2 gap-2">
-                <label className={`flex items-center justify-center h-9 px-3 border rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                <label className={`flex items-center justify-center h-10 px-3 text-center border rounded-lg text-xs font-medium cursor-pointer transition-colors ${
                   targetMode === 'service'
                     ? 'border-sky-600 bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 font-semibold'
                     : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -235,7 +296,7 @@ export default function StaffCommissionOverrideForm({
                   />
                   <span>Theo dịch vụ cụ thể</span>
                 </label>
-                <label className={`flex items-center justify-center h-9 px-3 border rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                <label className={`flex items-center justify-center h-10 px-3 text-center border rounded-lg text-xs font-medium cursor-pointer transition-colors ${
                   targetMode === 'category'
                     ? 'border-sky-600 bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 font-semibold'
                     : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -377,11 +438,12 @@ export default function StaffCommissionOverrideForm({
                       if (fieldErrors.value) setFieldErrors(prev => ({ ...prev, value: '' }));
                     }}
                     placeholder="VD: 10"
+                    style={{ paddingRight: '36px', boxSizing: 'border-box' }}
                     className={`w-full h-10 rounded-lg border ${
                       fieldErrors.value ? 'border-rose-500' : 'border-slate-300 dark:border-slate-700'
-                    } bg-white dark:bg-slate-800 px-3 pr-8 text-sm text-right font-[tabular-nums] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
+                    } bg-white dark:bg-slate-800 px-3 text-sm text-left font-[tabular-nums] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
                   />
-                  <span className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400 text-sm font-medium select-none">
+                  <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400 text-sm font-medium select-none">
                     %
                   </span>
                 </div>
@@ -424,7 +486,7 @@ export default function StaffCommissionOverrideForm({
       </div>
 
       {/* Modal Footer */}
-      <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 flex items-center justify-end gap-3 flex-shrink-0">
+      <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex items-center justify-end gap-3 sticky bottom-0 z-10">
         <button
           type="button"
           disabled={busy}

@@ -158,9 +158,9 @@ public static class PayrollFormula
             {
                 // GB-23: Thu nhập tính thuế = 0 và thuế = 0 khi thu nhập sau trừ <= tổng giảm trừ
                 taxableIncome = 0m;
-                taxableIncomeNote = "Thu nhập tính thuế bằng 0 do thu nhập sau trừ không vượt quá tổng giảm trừ gia cảnh (GB-23).";
+                taxableIncomeNote = "Thu nhập tính thuế bằng 0 do thu nhập sau trừ không vượt quá tổng giảm trừ gia cảnh.";
                 pitTax = 0m;
-                taxNote = "Thuế TNCN bằng 0 khi thu nhập tính thuế ≤ 0 (GB-23).";
+                taxNote = "Thuế TNCN bằng 0 khi thu nhập tính thuế ≤ 0.";
             }
             else
             {

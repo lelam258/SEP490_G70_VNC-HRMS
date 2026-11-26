@@ -14,6 +14,10 @@ export const cmeApi = {
     return (await axiosClient.get<StaffCmeSummary[]>('/cme-records/employees')).data;
   },
 
+  async listPending(): Promise<CmeRecord[]> {
+    return (await axiosClient.get<CmeRecord[]>('/cme-records/pending')).data;
+  },
+
   async listCertificateCyclesByStaff(staffId: string): Promise<CertificateCycle[]> {
     return (await axiosClient.get<CertificateCycle[]>(`/cme-records/employee/${staffId}/cycles`)).data;
   },
@@ -76,7 +80,8 @@ export const cmeApi = {
     return (await axiosClient.patch<CmeRecord>(`/cme-records/${id}/verify`, { verified })).data;
   },
 
-  async delete(id: string): Promise<void> {
-    await axiosClient.delete(`/cme-records/${id}`);
+  async delete(id: string, reason?: string): Promise<void> {
+    const query = reason && reason.trim() ? `?reason=${encodeURIComponent(reason.trim())}` : '';
+    await axiosClient.delete(`/cme-records/${id}${query}`);
   },
 };

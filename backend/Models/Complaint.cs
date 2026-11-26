@@ -5,6 +5,7 @@ public sealed class Complaint
     public Guid StaffId { get; set; }
     public Guid? DepartmentId { get; set; }
     public Guid? PayslipId { get; set; }
+    public string? PayMonth { get; set; }
     public string InquiryType { get; set; } = string.Empty;
     public string Subject { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;

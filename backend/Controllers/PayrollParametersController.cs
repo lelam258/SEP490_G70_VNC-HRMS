@@ -109,6 +109,11 @@ public sealed class PayrollParametersController(IPayrollParameterService service
     public Task<TaxDeductionPolicyDto> GetTaxDeductionPolicy(CancellationToken ct)
         => service.GetTaxDeductionPolicyAsync(ct);
 
+    [HttpPut("tax-deductions")]
+    public Task<TaxPolicySummaryDto> UpdateTaxDeductions(
+        [FromBody] UpdateTaxDeductionsRequest request, CancellationToken ct)
+        => service.UpdateTaxDeductionsAsync(request, ct);
+
     [HttpGet("tax-policy")]
     public Task<TaxPolicySummaryDto> GetTaxPolicySummary(CancellationToken ct)
         => service.GetTaxPolicySummaryAsync(ct);

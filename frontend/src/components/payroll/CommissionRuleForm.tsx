@@ -30,6 +30,7 @@ interface CommissionRuleFormProps {
   services: ProcedureServiceOption[];
   positions: PositionOption[];
   onSave: (value: SaveCommissionRuleInput) => Promise<void>;
+  onResetToDefault?: (ruleId: string) => Promise<void>;
   onClose: () => void;
   busy: boolean;
   error?: string;
@@ -41,12 +42,14 @@ export default function CommissionRuleForm({
   services,
   positions,
   onSave,
+  onResetToDefault,
   onClose,
   busy,
   error,
   onDirtyChange,
 }: CommissionRuleFormProps) {
-  const isEdit = Boolean(initial);
+  const isEdit = Boolean(initial?.id);
+  const [confirmingReset, setConfirmingReset] = useState(false);
 
   const [targetMode, setTargetMode] = useState<'service' | 'category'>(
     initial?.serviceCategory && !initial?.serviceId ? 'category' : 'service'
@@ -167,9 +170,9 @@ export default function CommissionRuleForm({
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col h-full">
-      {/* Scrollable Body */}
-      <div className="px-6 py-5 space-y-6 flex-1 overflow-y-auto max-h-[calc(85vh-130px)]">
+    <form onSubmit={submit} className="flex flex-col">
+      {/* Body */}
+      <div className="px-6 py-5 space-y-6">
         {/* Inactive Banner */}
         {initial?.status === 'inactive' && (
           <div className="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
@@ -192,7 +195,7 @@ export default function CommissionRuleForm({
                 Phạm vi áp dụng <span className="text-rose-500">*</span>
               </label>
               <div className="grid grid-cols-2 gap-2">
-                <label className={`flex items-center justify-center h-9 px-3 border rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                <label className={`flex items-center justify-center h-10 px-3 text-center border rounded-lg text-xs font-medium cursor-pointer transition-colors ${
                   targetMode === 'service'
                     ? 'border-sky-600 bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 font-semibold'
                     : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -206,7 +209,7 @@ export default function CommissionRuleForm({
                   />
                   <span>Theo dịch vụ cụ thể</span>
                 </label>
-                <label className={`flex items-center justify-center h-9 px-3 border rounded-lg text-xs font-medium cursor-pointer transition-colors ${
+                <label className={`flex items-center justify-center h-10 px-3 text-center border rounded-lg text-xs font-medium cursor-pointer transition-colors ${
                   targetMode === 'category'
                     ? 'border-sky-600 bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 font-semibold'
                     : 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -380,11 +383,12 @@ export default function CommissionRuleForm({
                       if (fieldErrors.value) setFieldErrors(prev => ({ ...prev, value: '' }));
                     }}
                     placeholder="VD: 10"
+                    style={{ paddingRight: '36px', boxSizing: 'border-box' }}
                     className={`w-full h-10 rounded-lg border ${
                       fieldErrors.value ? 'border-rose-500' : 'border-slate-300 dark:border-slate-700'
-                    } bg-white dark:bg-slate-800 px-3 pr-8 text-sm text-right font-[tabular-nums] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
+                    } bg-white dark:bg-slate-800 px-3 text-sm text-left font-[tabular-nums] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
                   />
-                  <span className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400 text-sm font-medium select-none">
+                  <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400 text-sm font-medium select-none">
                     %
                   </span>
                 </div>
@@ -429,25 +433,63 @@ export default function CommissionRuleForm({
       </div>
 
       {/* Modal Footer */}
-      <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 flex items-center justify-end gap-3 flex-shrink-0">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={handleCancel}
-          className="h-10 px-4 rounded-lg border border-sky-600 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950 font-medium text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1"
-        >
-          Hủy
-        </button>
-        <button
-          type="submit"
-          disabled={busy || !isDirty}
-          className="h-10 px-5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-medium text-sm shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1"
-        >
-          {busy && (
-            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin flex-shrink-0" />
+      <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex items-center justify-between gap-3 sticky bottom-0 z-10">
+        <div>
+          {isEdit && initial && initial.status !== 'inactive' && onResetToDefault && (
+            confirmingReset ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-rose-600 font-medium">Xác nhận hủy mức này?</span>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void onResetToDefault(initial.id)}
+                  className="h-8 px-3 rounded-md bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium transition-colors"
+                >
+                  {busy ? 'Đang hủy…' : 'Đồng ý hủy'}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setConfirmingReset(false)}
+                  className="h-8 px-2.5 rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 text-xs font-medium transition-colors"
+                >
+                  Không
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setConfirmingReset(true)}
+                className="h-10 px-3.5 rounded-lg border border-rose-200 bg-rose-50/60 text-rose-600 hover:bg-rose-100/80 hover:border-rose-300 font-medium text-xs transition-colors"
+                title="Gỡ mức hoa hồng của vai trò này để trở về mặc định (+ Thêm)"
+              >
+                Hủy mức hoa hồng (Về mặc định)
+              </button>
+            )
           )}
-          <span>{busy ? 'Đang lưu…' : isEdit ? 'Cập nhật' : 'Lưu quy tắc'}</span>
-        </button>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={handleCancel}
+            className="h-10 px-4 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 font-medium text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1"
+          >
+            Đóng
+          </button>
+          <button
+            type="submit"
+            disabled={busy || !isDirty}
+            className="h-10 px-5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-medium text-sm shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1"
+          >
+            {busy && (
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin flex-shrink-0" />
+            )}
+            <span>{busy ? 'Đang lưu…' : isEdit ? 'Cập nhật' : 'Lưu quy tắc'}</span>
+          </button>
+        </div>
       </div>
     </form>
   );

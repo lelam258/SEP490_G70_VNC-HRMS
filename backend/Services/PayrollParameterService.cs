@@ -607,6 +607,44 @@ public sealed class PayrollParameterService(
         return newSummary;
     }
 
+    public async Task<TaxPolicySummaryDto> UpdateTaxDeductionsAsync(
+        UpdateTaxDeductionsRequest request, CancellationToken ct)
+    {
+        if (request.PersonalDeduction <= 0m)
+        {
+            throw new AppException(400, "Mức giảm trừ bản thân phải lớn hơn 0.");
+        }
+        if (request.DependentDeduction < 0m)
+        {
+            throw new AppException(400, "Mức giảm trừ người phụ thuộc không được âm.");
+        }
+        if (request.TaxFlatThreshold < 0m)
+        {
+            throw new AppException(400, "Ngưỡng khấu trừ vãng lai không được âm.");
+        }
+
+        var oldSummary = await repository.GetTaxPolicySummaryAsync(ct);
+        var oldSnapshot = new
+        {
+            oldSummary.PersonalDeduction,
+            oldSummary.DependentDeduction,
+            oldSummary.TaxFlatThreshold
+        };
+
+        var newSummary = await repository.UpdateTaxDeductionsAsync(request, Guid.Empty, ct);
+        var newSnapshot = new
+        {
+            newSummary.PersonalDeduction,
+            newSummary.DependentDeduction,
+            newSummary.TaxFlatThreshold
+        };
+
+        auditHelper.Log("update", "TaxDeductions", Guid.Empty, oldSnapshot, newSnapshot);
+        await unitOfWork.SaveChangesAsync(ct);
+
+        return newSummary;
+    }
+
     public async Task<TaxCalculationResultDto> PreviewTaxCalculationAsync(TaxCalculationPreviewRequest request, CancellationToken ct)
     {
         var summary = await repository.GetTaxPolicySummaryAsync(ct);
@@ -696,8 +734,8 @@ public sealed class PayrollParameterService(
 
     public async Task<PayrollRateConfigDto> CreateRateConfigAsync(SavePayrollRateConfigRequest request, Guid? creatorId, CancellationToken ct)
     {
-        var code = PayrollParameterRules.RequireOption(request.Code, PayrollParameterRules.RateConfigCodes, "Mã tham số trực/công");
-        var unit = PayrollParameterRules.RequireOption(request.Unit, PayrollParameterRules.RateConfigUnits, "Đơn vị tính");
+        var code = PayrollParameterRules.NormalizeRateConfigCode(request.Code);
+        var unit = PayrollParameterRules.NormalizeRateConfigUnit(request.Unit);
         PayrollParameterRules.EnsureTypedValue(unit == "percent" ? "percent" : "fixed", request.Value, "Giá trị tham số");
         PayrollParameterRules.EnsureEffectiveRange(request.EffectiveFrom, request.EffectiveTo);
         var status = PayrollParameterRules.NormalizeStatus(request.Status);
@@ -779,8 +817,8 @@ public sealed class PayrollParameterService(
         var entity = await repository.FindRateConfigAsync(id, ct)
             ?? throw new AppException(404, "Không tìm thấy tham số trực / công đoàn.");
 
-        var code = PayrollParameterRules.RequireOption(request.Code, PayrollParameterRules.RateConfigCodes, "Mã tham số trực/công");
-        var unit = PayrollParameterRules.RequireOption(request.Unit, PayrollParameterRules.RateConfigUnits, "Đơn vị tính");
+        var code = PayrollParameterRules.NormalizeRateConfigCode(request.Code);
+        var unit = PayrollParameterRules.NormalizeRateConfigUnit(request.Unit);
         PayrollParameterRules.EnsureTypedValue(unit == "percent" ? "percent" : "fixed", request.Value, "Giá trị tham số");
         PayrollParameterRules.EnsureEffectiveRange(request.EffectiveFrom, request.EffectiveTo);
         var status = PayrollParameterRules.NormalizeStatus(request.Status);

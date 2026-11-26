@@ -16,9 +16,13 @@ export const authApi = {
   },
   async me() { return (await axiosClient.get<CurrentUser>('/auth/me')).data; },
   async logout() {
-    // An expired access token must not prevent revocation of the refresh cookie.
-    await publicClient.post('/auth/logout', {});
-    useAuthStore.getState().setSession(null);
+    try {
+      await publicClient.post('/auth/logout', {});
+    } catch (err) {
+      console.warn('Backend logout encountered error, proceeding with local logout:', err);
+    } finally {
+      useAuthStore.getState().setSession(null);
+    }
   },
   async changePassword(currentPassword: string, newPassword: string) {
     await axiosClient.post('/auth/change-password', { currentPassword, newPassword });

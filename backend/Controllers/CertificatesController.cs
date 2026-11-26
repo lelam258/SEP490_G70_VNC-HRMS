@@ -7,12 +7,16 @@ using Vnc.HRMS.Services.Interfaces;
 
 namespace Vnc.HRMS.Controllers;
 
-[ApiController, Authorize(Roles = $"{AccountRoles.HrManager},{AccountRoles.Administrator}"), Route("api/certificates")]
+[ApiController, Authorize(Roles = AccountRoles.HrManager), Route("api/certificates")]
 public sealed class CertificatesController(ICertificateService certificates) : ControllerBase
 {
     [HttpGet("employees")]
     public Task<StaffCertificateSummaryDto[]> ListStaffSummaries(CancellationToken ct) =>
         certificates.ListStaffSummariesAsync(ct);
+
+    [HttpGet("pending")]
+    public Task<CertificateDto[]> ListPending(CancellationToken ct) =>
+        certificates.ListPendingCertificatesAsync(ct);
 
     [HttpGet("employee/{staffId:guid}")]
     public Task<CertificateDto[]> ListByStaff(Guid staffId, CancellationToken ct) =>
@@ -33,6 +37,17 @@ public sealed class CertificatesController(ICertificateService certificates) : C
     [HttpPut("{id:guid}")]
     public Task<CertificateDto> Update(Guid id, [FromBody] UpdateCertificateRequest request, CancellationToken ct) =>
         certificates.UpdateAsync(id, request, ct);
+
+    [HttpPatch("{id:guid}/status")]
+    public Task<CertificateDto> UpdateStatus(Guid id, [FromBody] UpdateCertificateStatusRequest request, CancellationToken ct) =>
+        certificates.UpdateStatusAsync(id, request.Status, ct);
+
+    [HttpPost("{id:guid}/review")]
+    public Task<CertificateDto> Review(Guid id, [FromBody] ReviewCertificateRequest request, CancellationToken ct)
+    {
+        Guid? currentUserId = Guid.TryParse(User.FindFirstValue("sub"), out var uid) ? uid : null;
+        return certificates.ReviewAsync(id, request, currentUserId, ct);
+    }
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
