@@ -66,6 +66,7 @@ export default function EmployeeDetailPage() {
       departments={departments}
       onBack={() => navigate('/employees')}
       onEdit={() => navigate(`/employees/${id}/edit`)}
+      onManageDependents={() => navigate(`/employees/${id}/dependents`)}
     />
   );
 }

@@ -4,7 +4,7 @@ import Alert from '../ui/Alert';
 import type { Department } from '../../services/departmentApi';
 import type { EmployeeDetail, UpdateEmployeeInput } from '../../types/accounts';
 import { formatDate, initials } from '../../utils/format';
-import { validateDependentCount, validateEmployeeProfile } from '../../utils/employeeRules';
+import { validateEmployeeProfile } from '../../utils/employeeRules';
 import { getMaxAdultDateOfBirth } from '../../utils/leaveRules';
 
 interface EmployeeProfileFormProps {
@@ -13,6 +13,7 @@ interface EmployeeProfileFormProps {
   mode: 'detail' | 'edit';
   onBack: () => void;
   onEdit?: () => void;
+  onManageDependents?: () => void;
   onSave?: (value: UpdateEmployeeInput) => Promise<string | null>;
   busy?: boolean;
 }
@@ -23,6 +24,7 @@ export default function EmployeeProfileForm({
   mode,
   onBack,
   onEdit,
+  onManageDependents,
   onSave,
   busy = false,
 }: EmployeeProfileFormProps) {
@@ -40,8 +42,7 @@ export default function EmployeeProfileForm({
   const [scopeOfPractice, setScopeOfPractice] = useState(employee.scopeOfPractice || '');
   const [dateJoined, setDateJoined] = useState(employee.dateJoined || '');
   const [dateLeft, setDateLeft] = useState(employee.dateLeft || '');
-  const [dependentCount, setDependentCount] = useState(String(employee.dependentCount ?? 0));
-  const dependentError = validateDependentCount(dependentCount);
+  const dependentCount = employee.dependentCount ?? 0;
   const [status, setStatus] = useState(employee.status || 'active');
 
   const [error, setError] = useState('');
@@ -60,7 +61,6 @@ export default function EmployeeProfileForm({
     scopeOfPractice !== (employee.scopeOfPractice || '') ||
     dateJoined !== (employee.dateJoined || '') ||
     dateLeft !== (employee.dateLeft || '') ||
-    dependentCount !== String(employee.dependentCount ?? 0) ||
     status !== (employee.status || 'active');
 
   function handleBack() {
@@ -69,20 +69,22 @@ export default function EmployeeProfileForm({
     }
   }
 
+  function handleManageDependents() {
+    if (!onManageDependents) return;
+    if (readonly || !isDirty || window.confirm('Bạn có thay đổi chưa lưu. Bạn có chắc muốn chuyển sang trang người phụ thuộc?')) {
+      onManageDependents();
+    }
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (readonly || !onSave || busy || saving) return;
 
     setError('');
-    if (dependentError) {
-      setError(dependentError);
-      document.getElementById('staff-dependents')?.focus();
-      return;
-    }
     const trimmedCode = code.trim();
     const trimmedName = name.trim();
 
-    const invalid = validateEmployeeProfile({ code, name, email, phone, dateOfBirth, idCardNumber, dateJoined, dateLeft, dependentCount: Number(dependentCount) });
+    const invalid = validateEmployeeProfile({ code, name, email, phone, dateOfBirth, idCardNumber, dateJoined, dateLeft, dependentCount });
     if (invalid) {
       setError(invalid);
       return;
@@ -103,7 +105,7 @@ export default function EmployeeProfileForm({
         scopeOfPractice: scopeOfPractice.trim() || null,
         dateJoined: dateJoined || null,
         dateLeft: dateLeft || null,
-        dependentCount: Number(dependentCount),
+        dependentCount,
         status,
       });
       if (err) setError(err);
@@ -371,20 +373,30 @@ export default function EmployeeProfileForm({
               </div>
             </div>
 
-            <div style={{ marginTop: 20, maxWidth: 300 }}>
+            <div style={{ marginTop: 20 }}>
               <label htmlFor="staff-dependents">Số người phụ thuộc giảm trừ gia cảnh</label>
-              <input
-                id="staff-dependents"
-                type="text"
-                inputMode="numeric"
-                value={dependentCount}
-                readOnly={readonly}
-                onChange={e => setDependentCount(e.target.value)}
-                aria-invalid={!readonly && !!dependentError}
-                aria-describedby="staff-dependents-hint staff-dependents-error"
-              />
-              {!readonly && dependentError && <p id="staff-dependents-error" className="field-error" role="alert">{dependentError}</p>}
-              <p id="staff-dependents-hint" className="field-hint">Nhập số nguyên không âm. Dùng để tính mức giảm trừ thuế TNCN trên bảng lương.</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <input
+                  id="staff-dependents"
+                  type="text"
+                  value={String(dependentCount)}
+                  readOnly
+                  style={{ maxWidth: 200 }}
+                  aria-describedby="staff-dependents-hint"
+                />
+                {onManageDependents && (
+                  <button
+                    type="button"
+                    className="button primary"
+                    onClick={handleManageDependents}
+                  >
+                    <Icon name="plus" size={16} /> Thêm người phụ thuộc
+                  </button>
+                )}
+              </div>
+              <p id="staff-dependents-hint" className="field-hint">
+                Số lượng được tự động tổng hợp từ danh sách người phụ thuộc đang quản lý. Dùng để tính mức giảm trừ thuế TNCN trên bảng lương.
+              </p>
             </div>
           </div>
 

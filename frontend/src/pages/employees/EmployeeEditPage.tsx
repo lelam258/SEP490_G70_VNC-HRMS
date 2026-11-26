@@ -78,6 +78,7 @@ export default function EmployeeEditPage() {
       employee={employee}
       departments={departments}
       onBack={() => navigate(`/employees/${id}`)}
+      onManageDependents={() => navigate(`/employees/${id}/dependents`)}
       onSave={handleSave}
     />
   );

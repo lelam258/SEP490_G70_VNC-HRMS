@@ -136,8 +136,6 @@ public sealed class EmployeeService(IEmployeeRepository employees, IDepartmentRe
         employee.ScopeOfPractice = string.IsNullOrWhiteSpace(request.ScopeOfPractice) ? null : request.ScopeOfPractice.Trim();
         employee.DateJoined = joined;
         employee.DateLeft = request.DateLeft;
-        if (request.DependentCount.HasValue && request.DependentCount.Value >= 0)
-            employee.DependentCount = request.DependentCount.Value;
         employee.Status = request.Status;
         employee.UpdatedAt = DateTime.UtcNow;
 

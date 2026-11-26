@@ -95,5 +95,59 @@ public static class EmployeesModelConfiguration
         contractSalaryHistory.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
         contractSalaryHistory.HasIndex(x => new { x.ContractId, x.EffectiveFrom });
         contractSalaryHistory.HasOne<Contract>().WithMany().HasForeignKey(x => x.ContractId).OnDelete(DeleteBehavior.Restrict);
+
+        var dependent = modelBuilder.Entity<Dependent>();
+        dependent.ToTable("dependents", "dbo", table =>
+        {
+            table.HasCheckConstraint("CK_dependents_gender", "[gender] IN ('male', 'female', 'other')");
+        });
+        dependent.HasKey(x => x.DependentId);
+        dependent.Property(x => x.DependentId).HasColumnName("dependent_id").HasDefaultValueSql("NEWID()");
+        dependent.Property(x => x.FullName).HasColumnName("full_name").HasMaxLength(100);
+        dependent.Property(x => x.DateOfBirth).HasColumnName("date_of_birth");
+        dependent.Property(x => x.Gender).HasColumnName("gender").HasMaxLength(10);
+        dependent.Property(x => x.IdCardNumber).HasColumnName("id_card_number").HasMaxLength(20);
+        dependent.Property(x => x.TaxCode).HasColumnName("tax_code").HasMaxLength(20);
+        dependent.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
+        dependent.HasIndex(x => x.IdCardNumber).IsUnique().HasFilter("[id_card_number] IS NOT NULL");
+        dependent.HasIndex(x => x.TaxCode).IsUnique().HasFilter("[tax_code] IS NOT NULL");
+
+        var staffDependent = modelBuilder.Entity<StaffDependent>();
+        staffDependent.ToTable("staff_dependents", "dbo", table =>
+        {
+            table.HasCheckConstraint("CK_staff_dependents_relationship", "[relationship] IN ('father', 'mother', 'child', 'spouse', 'other')");
+        });
+        staffDependent.HasKey(x => x.StaffDependentId);
+        staffDependent.Property(x => x.StaffDependentId).HasColumnName("staff_dependent_id").HasDefaultValueSql("NEWID()");
+        staffDependent.Property(x => x.RegisteredBy).HasColumnName("registered_by");
+        staffDependent.Property(x => x.DependentId).HasColumnName("dependent_id");
+        staffDependent.Property(x => x.StaffId).HasColumnName("staff_id");
+        staffDependent.Property(x => x.Relationship).HasColumnName("relationship").HasMaxLength(20);
+        staffDependent.Property(x => x.IsActive).HasColumnName("is_active").HasDefaultValue(true).HasSentinel(true);
+        staffDependent.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
+        staffDependent.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
+        staffDependent.HasIndex(x => x.StaffId);
+        staffDependent.HasIndex(x => new { x.StaffId, x.DependentId }).IsUnique().HasFilter("[is_active] = 1");
+        staffDependent.HasOne<Vnc.HRMS.Models.Users.User>().WithMany().HasForeignKey(x => x.RegisteredBy).OnDelete(DeleteBehavior.Restrict);
+        staffDependent.HasOne<Dependent>().WithMany().HasForeignKey(x => x.DependentId).OnDelete(DeleteBehavior.Restrict);
+        staffDependent.HasOne<Staff>().WithMany().HasForeignKey(x => x.StaffId).OnDelete(DeleteBehavior.Restrict);
+
+        var dependentDoc = modelBuilder.Entity<DependentDocument>();
+        dependentDoc.ToTable("dependent_documents", "dbo", table =>
+        {
+            table.HasCheckConstraint("CK_dependent_documents_status", "[verification_status] IN ('pending', 'verified', 'rejected', 'expired')");
+        });
+        dependentDoc.HasKey(x => x.DocumentId);
+        dependentDoc.Property(x => x.DocumentId).HasColumnName("document_id").HasDefaultValueSql("NEWID()");
+        dependentDoc.Property(x => x.StaffDependentId).HasColumnName("staff_dependent_id");
+        dependentDoc.Property(x => x.DocumentType).HasColumnName("document_type").HasMaxLength(50);
+        dependentDoc.Property(x => x.FileName).HasColumnName("file_name").HasMaxLength(255);
+        dependentDoc.Property(x => x.FileUrl).HasColumnName("file_url").HasMaxLength(500);
+        dependentDoc.Property(x => x.VerificationStatus).HasColumnName("verification_status").HasMaxLength(20).HasDefaultValue("pending");
+        dependentDoc.Property(x => x.UploadedAt).HasColumnName("uploaded_at").HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
+        dependentDoc.Property(x => x.VerifiedBy).HasColumnName("verified_by");
+        dependentDoc.HasIndex(x => x.StaffDependentId);
+        dependentDoc.HasOne<StaffDependent>().WithMany().HasForeignKey(x => x.StaffDependentId).OnDelete(DeleteBehavior.Restrict);
+        dependentDoc.HasOne<Vnc.HRMS.Models.Users.User>().WithMany().HasForeignKey(x => x.VerifiedBy).OnDelete(DeleteBehavior.Restrict);
     }
 }

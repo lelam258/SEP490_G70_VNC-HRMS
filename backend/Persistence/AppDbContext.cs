@@ -18,6 +18,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Times
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<Staff> Staff => Set<Staff>();
+    public DbSet<Dependent> Dependents => Set<Dependent>();
+    public DbSet<StaffDependent> StaffDependents => Set<StaffDependent>();
+    public DbSet<DependentDocument> DependentDocuments => Set<DependentDocument>();
     public DbSet<Contract> Contracts => Set<Contract>();
     public DbSet<ContractSalaryHistory> ContractSalaryHistories => Set<ContractSalaryHistory>();
     public DbSet<Degree> Degrees => Set<Degree>();

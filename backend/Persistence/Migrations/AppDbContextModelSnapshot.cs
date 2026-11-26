@@ -1435,6 +1435,121 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.ToTable("degrees", "dbo");
                 });
 
+            modelBuilder.Entity("Vnc.HRMS.Models.Employees.Dependent", b =>
+                {
+                    b.Property<Guid>("DependentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("dependent_id")
+                        .HasDefaultValueSql("NEWID()");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<DateOnly>("DateOfBirth")
+                        .HasColumnType("date")
+                        .HasColumnName("date_of_birth");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("full_name");
+
+                    b.Property<string>("Gender")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)")
+                        .HasColumnName("gender");
+
+                    b.Property<string>("IdCardNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("id_card_number");
+
+                    b.Property<string>("TaxCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("tax_code");
+
+                    b.HasKey("DependentId");
+
+                    b.HasIndex("IdCardNumber")
+                        .IsUnique()
+                        .HasFilter("[id_card_number] IS NOT NULL");
+
+                    b.HasIndex("TaxCode")
+                        .IsUnique()
+                        .HasFilter("[tax_code] IS NOT NULL");
+
+                    b.ToTable("dependents", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_dependents_gender", "[gender] IN ('male', 'female', 'other')");
+                        });
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.Employees.DependentDocument", b =>
+                {
+                    b.Property<Guid>("DocumentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("document_id")
+                        .HasDefaultValueSql("NEWID()");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("document_type");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("file_name");
+
+                    b.Property<string>("FileUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("file_url");
+
+                    b.Property<Guid>("StaffDependentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("staff_dependent_id");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("uploaded_at")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("VerificationStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("pending")
+                        .HasColumnName("verification_status");
+
+                    b.Property<Guid?>("VerifiedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("verified_by");
+
+                    b.HasKey("DocumentId");
+
+                    b.HasIndex("StaffDependentId");
+
+                    b.HasIndex("VerifiedBy");
+
+                    b.ToTable("dependent_documents", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_dependent_documents_status", "[verification_status] IN ('pending', 'verified', 'rejected', 'expired')");
+                        });
+                });
+
             modelBuilder.Entity("Vnc.HRMS.Models.Employees.Staff", b =>
                 {
                     b.Property<Guid>("StaffId")
@@ -1585,6 +1700,68 @@ namespace Vnc.HRMS.Persistence.Migrations
                             t.HasCheckConstraint("CK_staff_1", "[date_left] IS NULL OR [date_left] >= [date_joined]");
 
                             t.HasCheckConstraint("CK_staff_2", "[dependent_count] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.Employees.StaffDependent", b =>
+                {
+                    b.Property<Guid>("StaffDependentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("staff_dependent_id")
+                        .HasDefaultValueSql("NEWID()");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<Guid>("DependentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("dependent_id");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<Guid>("RegisteredBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("registered_by");
+
+                    b.Property<string>("Relationship")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("relationship");
+
+                    b.Property<Guid>("StaffId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("staff_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2(0)")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.HasKey("StaffDependentId");
+
+                    b.HasIndex("DependentId");
+
+                    b.HasIndex("RegisteredBy");
+
+                    b.HasIndex("StaffId");
+
+                    b.HasIndex("StaffId", "DependentId")
+                        .IsUnique()
+                        .HasFilter("[is_active] = 1");
+
+                    b.ToTable("staff_dependents", "dbo", t =>
+                        {
+                            t.HasCheckConstraint("CK_staff_dependents_relationship", "[relationship] IN ('father', 'mother', 'child', 'spouse', 'other')");
                         });
                 });
 
@@ -3656,6 +3833,20 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Vnc.HRMS.Models.Employees.DependentDocument", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.Employees.StaffDependent", null)
+                        .WithMany()
+                        .HasForeignKey("StaffDependentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Vnc.HRMS.Models.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("VerifiedBy")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("Vnc.HRMS.Models.Employees.Staff", b =>
                 {
                     b.HasOne("Vnc.HRMS.Models.Users.User", null)
@@ -3681,6 +3872,27 @@ namespace Vnc.HRMS.Persistence.Migrations
                     b.HasOne("Vnc.HRMS.Models.Users.User", null)
                         .WithOne("Employee")
                         .HasForeignKey("Vnc.HRMS.Models.Employees.Staff", "UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Vnc.HRMS.Models.Employees.StaffDependent", b =>
+                {
+                    b.HasOne("Vnc.HRMS.Models.Employees.Dependent", null)
+                        .WithMany()
+                        .HasForeignKey("DependentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Vnc.HRMS.Models.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("RegisteredBy")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Vnc.HRMS.Models.Employees.Staff", null)
+                        .WithMany()
+                        .HasForeignKey("StaffId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

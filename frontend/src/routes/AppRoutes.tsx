@@ -11,6 +11,8 @@ import AccountEditPage from '../pages/accounts/AccountEditPage';
 import EmployeeListPage from '../pages/employees/EmployeeListPage';
 import EmployeeDetailPage from '../pages/employees/EmployeeDetailPage';
 import EmployeeEditPage from '../pages/employees/EmployeeEditPage';
+import EmployeeDependentsPage from '../pages/employees/EmployeeDependentsPage';
+import EmployeeDependentFormPage from '../pages/employees/EmployeeDependentFormPage';
 import DepartmentPage from '../pages/departments/DepartmentPage';
 import ContractListPage from '../pages/contracts/ContractListPage';
 import ContractCreatePage from '../pages/contracts/ContractCreatePage';
@@ -109,6 +111,9 @@ export default function AppRoutes() {
             <Route path="/employees" element={<EmployeeListPage />} />
             <Route path="/employees/:id" element={<EmployeeDetailPage />} />
             <Route path="/employees/:id/edit" element={<EmployeeEditPage />} />
+            <Route path="/employees/:id/dependents" element={<EmployeeDependentsPage />} />
+            <Route path="/employees/:id/dependents/new" element={<EmployeeDependentFormPage />} />
+            <Route path="/employees/:id/dependents/:dependentId/edit" element={<EmployeeDependentFormPage />} />
             <Route path="/departments" element={<DepartmentPage />} />
             <Route path="/contracts" element={<ContractListPage />} />
             <Route path="/contracts/new" element={<ContractCreatePage />} />

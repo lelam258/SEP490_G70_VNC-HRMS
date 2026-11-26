@@ -35,6 +35,7 @@ public static class DependencyInjection
         services.AddScoped<IAccountRecoveryService, AccountRecoveryService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IEmployeeService, EmployeeService>();
+        services.AddScoped<IEmployeeDependentService, EmployeeDependentService>();
         services.AddScoped<IDepartmentService, DepartmentService>();
         services.AddScoped<ICertificateService, CertificateService>();
         services.AddScoped<ICmeRecordService, CmeRecordService>();
