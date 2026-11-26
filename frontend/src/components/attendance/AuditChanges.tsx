@@ -71,9 +71,5 @@ export default function AuditChanges({ before, after, references = {} }: { befor
         <td>{key in newFields ? display(newFields[key], key, references) : 'Không ghi nhận'}</td>
       </tr>)}</tbody>
     </table></div> : <p>Sự kiện không lưu nội dung trước/sau thay đổi.</p>}
-    <details className="audit-raw"><summary>Xem JSON chi tiết</summary>
-      <h4>Trước thay đổi</h4><pre className="operations-json">{JSON.stringify(before, null, 2) ?? '—'}</pre>
-      <h4>Sau thay đổi</h4><pre className="operations-json">{JSON.stringify(after, null, 2) ?? '—'}</pre>
-    </details>
   </section>;
 }

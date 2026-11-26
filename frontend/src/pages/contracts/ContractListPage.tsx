@@ -58,7 +58,7 @@ export default function ContractListPage() {
 
   return <section className="directory-page directory-contracts workspace-list-page" aria-labelledby="contract-page-title">
     <header className="directory-heading">
-      <div><span className="eyebrow">QUẢN LÝ NHÂN SỰ</span><h1 id="contract-page-title">Hợp đồng lao động</h1><p>Tra cứu hợp đồng lao động của nhân viên phòng khám.</p></div>
+      <div><span className="eyebrow">QUẢN LÝ NHÂN SỰ</span><h1 id="contract-page-title">Hợp đồng lao động</h1></div>
       <button className="button primary" disabled={loading} onClick={() => navigate('/contracts/new')}><Icon name="plus" size={17} />Tạo hợp đồng</button>
     </header>
     {error && <Alert>{error}</Alert>}

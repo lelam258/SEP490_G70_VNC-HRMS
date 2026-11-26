@@ -38,21 +38,6 @@ function getStatusBadgeClass(status: string): string {
   }
 }
 
-function getEventDotClass(action: string): string {
-  switch (action.toLowerCase()) {
-    case 'finalize':
-    case 'confirm':
-      return 'bg-emerald-500 ring-emerald-100';
-    case 'calculate':
-    case 'review_all_valid':
-      return 'bg-teal-600 ring-teal-100';
-    case 'reopen':
-      return 'bg-amber-500 ring-amber-100';
-    default:
-      return 'bg-slate-400 ring-slate-100';
-  }
-}
-
 function formatMonthLabel(payMonth: string): string {
   const parts = payMonth.split('-');
   return parts.length === 2 ? `Tháng ${Number(parts[1])}/${parts[0]}` : payMonth;
@@ -101,7 +86,6 @@ export default function PayrollHistoryPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [selectedDetail, setSelectedDetail] = useState<PayrollHistoryDetail | null>(null);
-  const [showAllEvents, setShowAllEvents] = useState(false);
 
   const loadHistory = useCallback(async () => {
     setLoading(true);
@@ -137,7 +121,6 @@ export default function PayrollHistoryPage() {
     setDetailOpen(true);
     setDetailLoading(true);
     setSelectedDetail(null);
-    setShowAllEvents(false);
     try {
       const detail = await payrollHistoryApi.getMonthDetail(payMonth, departmentId || undefined);
       setSelectedDetail(detail);
@@ -406,158 +389,85 @@ export default function PayrollHistoryPage() {
               ? `Chi tiết lịch sử ${formatMonthLabel(selectedDetail.summary.payMonth)}`
               : 'Đang tải chi tiết lịch sử...'
           }
-          subtitle={
-            selectedDetail && (
-              <div className="flex flex-wrap items-center gap-2 mt-1">
-                <span
-                  className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${getStatusBadgeClass(selectedDetail.summary.status)}`}
-                >
-                  {STATUS_LABELS[selectedDetail.summary.status] || selectedDetail.summary.status}
-                </span>
-                {selectedDetail.summary.isLate && (
-                  <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                    Trễ hạn
-                  </span>
-                )}
-                <span className="text-xs text-slate-500">
-                  {selectedDetail.summary.runCount} lần chạy tính lương
-                </span>
-                {selectedDetail.summary.hasWarning && selectedDetail.summary.warningMessage && (
-                  <span className="text-xs text-amber-700">
-                    · {selectedDetail.summary.warningMessage}
-                  </span>
-                )}
-              </div>
-            )
-          }
           onClose={() => setDetailOpen(false)}
           maxWidth="820px"
         >
           {detailLoading ? (
-            <div className="py-4 space-y-3 animate-pulse">
+            <div className="p-4 space-y-3 animate-pulse">
               <div className="h-5 bg-slate-200 rounded w-1/3" />
               <div className="h-24 bg-slate-100 rounded" />
             </div>
           ) : (
             selectedDetail && (
-              <div className="space-y-5 text-xs">
-                {/* Tổng hợp theo Khoa / Phòng ban */}
-                <section className="space-y-2">
-                  <h3 className="text-[13px] font-semibold text-slate-800 m-0">
+              <div className="space-y-4 text-xs">
+                {selectedDetail.summary.hasWarning && selectedDetail.summary.warningMessage && (
+                  <Alert variant="warning">{selectedDetail.summary.warningMessage}</Alert>
+                )}
+
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-slate-600 mb-2">
                     Tổng hợp theo Khoa / Phòng ban
                   </h3>
                   {selectedDetail.departmentBreakdowns.length === 0 ? (
-                    <p className="text-slate-500 italic m-0">Chưa có dữ liệu phiếu lương trong kỳ này.</p>
+                    <p className="text-slate-500 italic">Chưa có dữ liệu phiếu lương trong kỳ này.</p>
                   ) : (
                     <div className="overflow-x-auto border border-slate-200 rounded-lg">
                       <table className="w-full text-left border-collapse">
-                        <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
+                        <thead className="bg-slate-50 text-slate-600">
                           <tr>
-                            <th className="font-semibold" style={{ padding: '8px 12px', height: 'auto' }}>Khoa / Phòng</th>
-                            <th className="font-semibold text-right" style={{ padding: '8px 12px', height: 'auto' }}>NV</th>
-                            <th className="font-semibold text-right" style={{ padding: '8px 12px', height: 'auto' }}>Công</th>
-                            <th className="font-semibold text-right" style={{ padding: '8px 12px', height: 'auto' }}>Hoa hồng</th>
-                            <th className="font-semibold text-right" style={{ padding: '8px 12px', height: 'auto' }}>Tổng Gross</th>
-                            <th className="font-semibold text-right" style={{ padding: '8px 12px', height: 'auto' }}>Thực lĩnh</th>
+                            <th className="px-3 py-2 font-semibold">Khoa / Phòng</th>
+                            <th className="px-3 py-2 font-semibold text-right">NV</th>
+                            <th className="px-3 py-2 font-semibold text-right">Công</th>
+                            <th className="px-3 py-2 font-semibold text-right">Hoa hồng</th>
+                            <th className="px-3 py-2 font-semibold text-right">Tổng Gross</th>
+                            <th className="px-3 py-2 font-semibold text-right">Thực lĩnh</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 bg-white">
+                        <tbody className="divide-y divide-slate-100">
                           {selectedDetail.departmentBreakdowns.map((b) => (
-                            <tr key={b.departmentId || b.departmentName} className="hover:bg-slate-50/70">
-                              <td className="font-medium text-slate-800" style={{ padding: '8px 12px', height: 'auto' }}>
-                                {b.departmentName}
-                              </td>
-                              <td className="text-right tabular-nums text-slate-700" style={{ padding: '8px 12px', height: 'auto' }}>
-                                {b.employeeCount}
-                              </td>
-                              <td className="text-right tabular-nums text-slate-700" style={{ padding: '8px 12px', height: 'auto' }}>
-                                {b.totalWorkDays}
-                              </td>
-                              <td className="text-right tabular-nums text-slate-700" style={{ padding: '8px 12px', height: 'auto' }}>
-                                {formatVnd(b.totalCommission)}
-                              </td>
-                              <td className="text-right tabular-nums text-slate-700" style={{ padding: '8px 12px', height: 'auto' }}>
-                                {formatVnd(b.totalGrossPay)}
-                              </td>
-                              <td className="text-right tabular-nums font-semibold text-teal-700" style={{ padding: '8px 12px', height: 'auto' }}>
+                            <tr key={b.departmentId || b.departmentName}>
+                              <td className="px-3 py-2 font-medium text-slate-800">{b.departmentName}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">{b.employeeCount}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">{b.totalWorkDays}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">{formatVnd(b.totalCommission)}</td>
+                              <td className="px-3 py-2 text-right tabular-nums">{formatVnd(b.totalGrossPay)}</td>
+                              <td className="px-3 py-2 text-right tabular-nums font-semibold text-teal-700">
                                 {formatVnd(b.totalNetPay)}
                               </td>
                             </tr>
                           ))}
                         </tbody>
-                        <tfoot className="bg-slate-50/80 border-t border-slate-200 font-semibold text-slate-900">
-                          <tr>
-                            <td style={{ padding: '8px 12px', height: 'auto' }}>Tổng cộng</td>
-                            <td className="text-right tabular-nums" style={{ padding: '8px 12px', height: 'auto' }}>
-                              {selectedDetail.summary.employeeCount}
-                            </td>
-                            <td className="text-right tabular-nums" style={{ padding: '8px 12px', height: 'auto' }}>
-                              {selectedDetail.summary.totalWorkDays}
-                            </td>
-                            <td className="text-right tabular-nums" style={{ padding: '8px 12px', height: 'auto' }}>
-                              {formatVnd(selectedDetail.summary.totalCommission)}
-                            </td>
-                            <td className="text-right tabular-nums" style={{ padding: '8px 12px', height: 'auto' }}>
-                              {formatVnd(selectedDetail.summary.totalGrossPay)}
-                            </td>
-                            <td className="text-right tabular-nums text-teal-700" style={{ padding: '8px 12px', height: 'auto' }}>
-                              {formatVnd(selectedDetail.summary.totalNetPay)}
-                            </td>
-                          </tr>
-                        </tfoot>
                       </table>
                     </div>
                   )}
-                </section>
+                </div>
 
-                {/* Timeline nhật ký chạy & chốt kỳ lương (không dùng scroll lồng) */}
-                <section className="space-y-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-[13px] font-semibold text-slate-800 m-0">
-                      Nhật ký các lần tính & chốt ({selectedDetail.events.length})
-                    </h3>
-                    {selectedDetail.events.length > 5 && (
-                      <button
-                        type="button"
-                        onClick={() => setShowAllEvents((prev) => !prev)}
-                        className="text-xs font-semibold text-teal-700 hover:text-teal-800 bg-transparent border-0 cursor-pointer p-0"
-                      >
-                        {showAllEvents
-                          ? 'Thu gọn'
-                          : `Xem tất cả (${selectedDetail.events.length})`}
-                      </button>
-                    )}
-                  </div>
-
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-slate-600 mb-2">
+                    Nhật ký các lần tính & chốt kỳ lương ({selectedDetail.events.length})
+                  </h3>
                   {selectedDetail.events.length === 0 ? (
-                    <p className="text-slate-500 italic m-0">Chưa ghi nhận nhật ký chạy cho kỳ này.</p>
+                    <p className="text-slate-500 italic">Chưa ghi nhận nhật ký chạy cho kỳ này.</p>
                   ) : (
-                    <ol className="relative border-l border-slate-200 ml-2 pl-4 space-y-3 m-0 list-none">
-                      {(showAllEvents
-                        ? selectedDetail.events
-                        : selectedDetail.events.slice(0, 5)
-                      ).map((ev) => (
-                        <li key={ev.logId} className="relative">
-                          <span
-                            aria-hidden="true"
-                            className={`absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full ring-4 ${getEventDotClass(ev.action)}`}
-                          />
-                          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
-                            <span className="font-semibold text-slate-800">{ev.actionLabel}</span>
-                            <span className="text-[11px] text-slate-500 tabular-nums">
-                              {ev.actorName} · {formatVietnamDateTime(ev.createdAt)}
-                            </span>
+                    <ul className="space-y-2 m-0 p-0 list-none max-h-60 overflow-y-auto">
+                      {selectedDetail.events.map((ev) => (
+                        <li
+                          key={ev.logId}
+                          className="flex flex-wrap items-start justify-between gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50/60"
+                        >
+                          <div>
+                            <div className="font-semibold text-slate-800">{ev.actionLabel}</div>
+                            {ev.summary && <div className="text-slate-600 mt-0.5">{ev.summary}</div>}
                           </div>
-                          {ev.summary && (
-                            <p className="text-[11px] text-slate-600 mt-0.5 mb-0 leading-relaxed">
-                              {ev.summary}
-                            </p>
-                          )}
+                          <div className="text-right text-[11px] text-slate-500 tabular-nums">
+                            <div>{ev.actorName}</div>
+                            <div>{formatVietnamDateTime(ev.createdAt)}</div>
+                          </div>
                         </li>
                       ))}
-                    </ol>
+                    </ul>
                   )}
-                </section>
+                </div>
               </div>
             )
           )}

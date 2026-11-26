@@ -64,7 +64,7 @@ export default function AttendanceRecordListPage() {
   return (
     <AttendanceShell layout="list"
       title="Bảng chấm công"
-      description="Tra cứu ngày công, đối chiếu nguồn chấm công, nhập thủ công và xác nhận ngày công."
+      description=""
       actions={
         role === 'hr_staff' && (
           <>

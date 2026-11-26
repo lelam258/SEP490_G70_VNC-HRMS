@@ -638,7 +638,7 @@
 }
 
 .vnc .topbar-path span {
-  padding: 0 13px;
+  padding: 0 8px;
   color: #bcc7cf
 }
 
@@ -650,20 +650,22 @@
 .vnc .topbar-user {
   display: flex;
   align-items: center;
-  gap: 11px
+  gap: 8px
 }
 
 .vnc .topbar-user strong {
   display: block;
   font-size: 12px;
-  font-weight: 600
+  font-weight: 600;
+  line-height: 1.2
 }
 
 .vnc .topbar-user small {
   display: block;
   font-size: 10px;
   color: #8b9aa5;
-  margin-top: 2px
+  margin-top: 1px;
+  line-height: 1.2
 }
 
 .vnc .page-content {

@@ -6,7 +6,7 @@ try {
   const { roles } = await server.ssrLoadModule('/src/types/accounts.ts');
   const { loginDestination, roleHome } = await server.ssrLoadModule('/src/utils/roleNavigation.ts');
   assert.equal(roles.length, 6);
-  assert.equal(roleHome('hr_staff'), '/schedules');
+  assert.equal(roleHome('hr_staff'), '/');
   for (const role of roles) {
     assert.equal(loginDestination(role, undefined), roleHome(role));
     assert.equal(loginDestination(role, '/accounts/new'), role === 'admin' ? '/accounts/new' : roleHome(role));

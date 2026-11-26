@@ -534,9 +534,6 @@ export default function ComplianceDashboardPage() {
           <h1 className="text-2xl font-bold text-slate-900">
             Bảng theo dõi &amp; Báo cáo Tuân thủ Chứng chỉ &amp; CME
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Giám sát thời hạn chứng chỉ hành nghề (Certificate) và tiến độ đào tạo liên tục (CME) theo loại báo cáo, kỳ hạn và phạm vi thẩm quyền.
-          </p>
         </div>
 
         <div className="flex items-center gap-2.5">

@@ -1167,7 +1167,7 @@ export default function PayrollPeriodDetailPage() {
   ];
 
   return (
-    <div className="space-y-4 workspace-content-page">
+    <div className="space-y-4 pb-6">
       {notice && <Alert variant="success">{notice}</Alert>}
       {error && <Alert variant="error">{error}</Alert>}
 
@@ -1406,13 +1406,6 @@ export default function PayrollPeriodDetailPage() {
                 </span>
               </div>
             </div>
-
-            {detail.reopenReason && (
-              <div className="text-[11px] text-amber-800 bg-amber-50/80 border border-amber-200/80 rounded-lg px-2.5 py-1 flex items-center gap-1.5">
-                <strong className="shrink-0">Lý do mở lại kỳ:</strong>
-                <span>{detail.reopenReason}</span>
-              </div>
-            )}
           </div>
 
           {/* Lower Strip: 4 Compact Financial Metrics with Hairline Dividers */}

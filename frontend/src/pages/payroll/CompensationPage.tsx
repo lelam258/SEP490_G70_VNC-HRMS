@@ -653,14 +653,19 @@ export default function CompensationPage() {
       {detailsModalOpen && selectedContract && (
         <Modal
           title={`Thiết lập đãi ngộ - ${selectedContract.staffName} (${selectedContract.staffCode})`}
+          subtitle={
+            <span>
+              Hợp đồng: <strong className="text-slate-700">{selectedContract.contractCode || 'Chưa có mã'}</strong> · {selectedContract.contractType}
+            </span>
+          }
           busy={savingContract}
-          maxWidth="640px"
+          maxWidth="820px"
           onClose={() => setDetailsModalOpen(false)}
         >
-          <div className="px-6 py-4 space-y-6">
+          <div className="px-6 py-4 space-y-5">
             {/* Part 1: Contract base compensation form */}
             <div>
-              <h3 className="font-semibold text-slate-900 border-b pb-2 mb-3">1. Mức lương & Bảo hiểm hợp đồng</h3>
+              <h3 className="font-semibold text-slate-900 border-b border-slate-200 pb-2 mb-3">1. Mức lương & Bảo hiểm hợp đồng</h3>
               <ContractCompensationForm
                 key={contractFormVersion}
                 contract={selectedContract}
@@ -674,91 +679,114 @@ export default function CompensationPage() {
             </div>
 
             {/* Part 2: Staff allowances table */}
-            <div className="pt-4 border-t border-slate-200">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-slate-900">2. Các khoản phụ cấp đã gán cho nhân viên</h3>
-                <button
-                  type="button"
-                  className="button text-button text-sm"
-                  onClick={openCreateAllowanceModal}
-                >
-                  + Gán phụ cấp mới
-                </button>
-              </div>
+            {(() => {
+              const today = todayVn();
+              const isContractActive =
+                selectedContract.status === 'active' &&
+                (!selectedContract.effectiveTo || selectedContract.effectiveTo >= today);
+              const isStaffActive =
+                (!selectedContract.staffStatus || selectedContract.staffStatus === 'active') &&
+                (!selectedContract.staffDateLeft || selectedContract.staffDateLeft > today);
+              const canManageAllowances = isContractActive && isStaffActive;
 
-              {selectedContract.allowances.length === 0 ? (
-                <p className="text-sm text-slate-500 italic py-2">Nhân viên này chưa có khoản phụ cấp nào.</p>
-              ) : (
-                <div className="table-scroll">
-                  <table className="text-sm">
-                    <thead>
-                      <tr>
-                        <th>Mã</th>
-                        <th>Tên phụ cấp</th>
-                        <th>Cách tính</th>
-                        <th>Mức phụ cấp</th>
-                        <th>Hiệu lực</th>
-                        <th>Trạng thái</th>
-                        <th>Thao tác</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedContract.allowances.map(a => (
-                        <tr key={a.staffAllowanceId}>
-                          <td><strong>{a.allowanceCode}</strong></td>
-                          <td>{a.allowanceName}</td>
-                          <td>
-                            <span className="text-xs bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
-                              {formatCalcMethod(a.calcMethod)}
-                            </span>
-                          </td>
-                          <td>
-                            <strong>
-                              {a.valueType === 'fixed' ? formatVnd(a.amountValue) : `${a.amountValue}%`}
-                            </strong>
-                          </td>
-                          <td>
-                            {a.effectiveTo ? (
-                              <span>{formatDateOnly(a.effectiveFrom)} → {formatDateOnly(a.effectiveTo)}</span>
-                            ) : (
-                              <span>Từ {formatDateOnly(a.effectiveFrom)}</span>
-                            )}
-                          </td>
-                          <td>
-                            <span className={`inline-block text-[11px] px-2 py-0.5 rounded font-medium ${a.status === 'active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80' : 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
-                              {a.status === 'active' ? 'Đang áp dụng' : 'Đã ngừng'}
-                            </span>
-                          </td>
-                          <td>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                className="text-button text-xs"
-                                onClick={() => openEditAllowanceModal(a)}
-                              >
-                                Sửa
-                              </button>
-                              {a.status === 'active' && (
-                                <button
-                                  type="button"
-                                  className="text-button text-xs text-rose-600 hover:text-rose-800"
-                                  onClick={() => {
-                                    setDeactivatingAllowance(a);
-                                    setDeactivatingAllowanceError('');
-                                  }}
-                                >
-                                  Ngừng
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              return (
+                <div className="pt-4 border-t border-slate-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-slate-900">2. Các khoản phụ cấp đã gán cho nhân viên</h3>
+                    {canManageAllowances && (
+                      <button
+                        type="button"
+                        className="button text-button text-sm"
+                        onClick={openCreateAllowanceModal}
+                      >
+                        + Gán phụ cấp mới
+                      </button>
+                    )}
+                  </div>
+
+                  {!canManageAllowances && (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200/80 rounded-lg px-3 py-2 mb-3">
+                      {!isStaffActive
+                        ? 'Nhân viên đã nghỉ việc hoặc ngừng hoạt động; không thể gán thêm hoặc chỉnh sửa phụ cấp.'
+                        : 'Hợp đồng đã hết hạn hoặc ngừng hiệu lực; không thể gán thêm hoặc chỉnh sửa phụ cấp.'}
+                    </p>
+                  )}
+
+                  {selectedContract.allowances.length === 0 ? (
+                    <p className="text-sm text-slate-500 italic py-2">Nhân viên này chưa có khoản phụ cấp nào.</p>
+                  ) : (
+                    <div className="table-scroll">
+                      <table className="text-sm">
+                        <thead>
+                          <tr>
+                            <th>Tên phụ cấp</th>
+                            <th>Cách tính</th>
+                            <th>Mức phụ cấp</th>
+                            <th>Hiệu lực</th>
+                            <th>Trạng thái</th>
+                            <th>Thao tác</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedContract.allowances.map(a => (
+                            <tr key={a.staffAllowanceId}>
+                              <td>{a.allowanceName}</td>
+                              <td>
+                                <span className="text-xs bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
+                                  {formatCalcMethod(a.calcMethod)}
+                                </span>
+                              </td>
+                              <td>
+                                <strong>
+                                  {a.valueType === 'fixed' ? formatVnd(a.amountValue) : `${a.amountValue}%`}
+                                </strong>
+                              </td>
+                              <td>
+                                {a.effectiveTo ? (
+                                  <span>{formatDateOnly(a.effectiveFrom)} → {formatDateOnly(a.effectiveTo)}</span>
+                                ) : (
+                                  <span>Từ {formatDateOnly(a.effectiveFrom)}</span>
+                                )}
+                              </td>
+                              <td>
+                                <span className={`inline-block text-[11px] px-2 py-0.5 rounded font-medium ${a.status === 'active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80' : 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
+                                  {a.status === 'active' ? 'Đang áp dụng' : 'Đã ngừng'}
+                                </span>
+                              </td>
+                              <td>
+                                <div className="flex items-center gap-2">
+                                  {canManageAllowances && (
+                                    <button
+                                      type="button"
+                                      className="text-button text-xs"
+                                      onClick={() => openEditAllowanceModal(a)}
+                                    >
+                                      Sửa
+                                    </button>
+                                  )}
+                                  {a.status === 'active' && (
+                                    <button
+                                      type="button"
+                                      className="text-button text-xs text-rose-600 hover:text-rose-800"
+                                      onClick={() => {
+                                        setDeactivatingAllowance(a);
+                                        setDeactivatingAllowanceError('');
+                                      }}
+                                    >
+                                      Ngừng
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
           </div>
         </Modal>
       )}

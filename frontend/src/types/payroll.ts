@@ -313,6 +313,8 @@ export interface ContractSummary {
   status: string;
   /** Salary change scheduled to start after today (from the salary history), if any. */
   pendingSalaryChange?: ContractSalaryHistory | null;
+  staffStatus?: string;
+  staffDateLeft?: string | null;
 }
 
 export interface StaffAllowance {

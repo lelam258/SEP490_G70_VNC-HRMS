@@ -395,9 +395,6 @@ export default function CertificateListPage() {
         <div>
           <span className="eyebrow">HỒ SƠ NĂNG LỰC & CHỨNG CHỈ Y TẾ</span>
           <h1>Quản lý Bằng cấp & Chứng chỉ</h1>
-          <p className="muted">
-            Quản lý, thẩm định phê duyệt hồ sơ bằng cấp chuyên môn và chứng chỉ hành nghề của nhân sự phòng khám.
-          </p>
         </div>
       </div>
 

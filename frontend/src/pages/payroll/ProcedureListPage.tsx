@@ -1079,13 +1079,13 @@ export default function ProcedureListPage() {
               ? 'Phiếu thủ thuật theo Khoa phụ trách'
               : 'Phiếu thủ thuật y tế tôi lập / chỉ định'}
           </h1>
-          <p className="muted">
-            {viewScope === 'assigned'
-              ? 'Danh sách các ca thủ thuật bạn được phân công tham gia (Người thực hiện chính / Phụ mổ / Giúp việc). Khi hoàn thành ca, bấm Xác nhận hoàn thành.'
-              : isDeptHead && viewScope === 'department'
-              ? 'Xem tổng số ca thủ thuật trong toàn khoa và tình trạng xử lý của từng ca.'
-              : 'Theo dõi các ca thủ thuật bạn đã lập hoặc chỉ định và tình trạng phê duyệt của Kế toán.'}
-          </p>
+          {viewScope !== 'assigned' && (
+            <p className="muted">
+              {isDeptHead && viewScope === 'department'
+                ? 'Xem tổng số ca thủ thuật trong toàn khoa và tình trạng xử lý của từng ca.'
+                : 'Theo dõi các ca thủ thuật bạn đã lập hoặc chỉ định và tình trạng phê duyệt của Kế toán.'}
+            </p>
+          )}
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">

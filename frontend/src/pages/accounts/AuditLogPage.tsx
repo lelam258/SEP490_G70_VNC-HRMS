@@ -70,7 +70,6 @@ export default function AuditLogPage({ history = false }: { history?: boolean })
     {selected && <Modal title="Chi tiết sự kiện" onClose={() => setSelected('')} maxWidth="780px"><div className="operations-panel"><ResourceState {...detail} />{detail.data && <>
       <dl className="operations-detail"><div><dt>Thời gian</dt><dd>{instant(detail.data.createdAt)}</dd></div><div><dt>Người thao tác</dt><dd>{detail.data.actor || 'Hệ thống'}</dd></div><div><dt>Thao tác</dt><dd>{attendanceLabel(detail.data.action)}</dd></div><div><dt>Cơ sở</dt><dd>{facility(detail.data.facilityId)}</dd></div><div className="wide"><dt>Loại bản ghi</dt><dd>{entityName(detail.data.entityType)}</dd></div></dl>
       <AuditChanges before={detail.data.oldValue} after={detail.data.newValue} references={detail.data.references ?? {}} />
-      <p className="operations-note">Thông tin nhạy cảm đã được ẩn. Sự kiện chỉ được xem.</p>
       {detail.data.sourceUrl && <Link className="button" to={detail.data.sourceUrl}>Mở bản ghi nguồn</Link>}
     </>}<div className="form-actions"><button type="button" className="button" onClick={() => setSelected('')}>Đóng</button></div></div></Modal>}
   </>;
