@@ -16,7 +16,7 @@ public sealed class SessionSecurityMiddleware(RequestDelegate next)
             }
             var identity = (ClaimsIdentity)context.User.Identity;
             foreach (var claim in identity.FindAll("role").ToArray()) identity.RemoveClaim(claim);
-            identity.AddClaim(new("role", session.Role));
+            identity.AddClaim(new("role", AccountRoles.Normalize(session.Role)));
         }
         await next(context);
     }

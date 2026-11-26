@@ -242,6 +242,8 @@ public sealed class CompensationService(
         var contract = await repository.FindContractAsync(contractId, ct)
             ?? throw new AppException(404, "Không tìm thấy hợp đồng lao động.");
 
+        await EnsureEligibleForAllowanceChangeAsync(contract, ct);
+
         if (!await repository.AllowanceExistsAndActiveAsync(request.AllowanceId, ct))
         {
             throw new AppException(404, "Loại phụ cấp không tồn tại hoặc đã ngừng hoạt động.");
@@ -331,6 +333,8 @@ public sealed class CompensationService(
         {
             throw new AppException(404, "Phụ cấp không thuộc hợp đồng này.");
         }
+
+        await EnsureEligibleForAllowanceChangeAsync(contract, ct);
 
         if (entity.AllowanceId != request.AllowanceId && !await repository.AllowanceExistsAndActiveAsync(request.AllowanceId, ct))
         {
@@ -480,6 +484,28 @@ public sealed class CompensationService(
         catch (SqlException sql) when (sql.Number == 1205)
         {
             throw new AppException(409, "Dữ liệu đang được cập nhật đồng thời. Vui lòng thử lại.");
+        }
+    }
+
+    private async Task EnsureEligibleForAllowanceChangeAsync(Contract contract, CancellationToken ct)
+    {
+        var today = PayrollParameterRules.TodayVn();
+        if (!string.Equals(contract.Status, PayrollParameterRules.Active, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new AppException(400, "Chỉ có thể gán hoặc chỉnh sửa phụ cấp cho hợp đồng đang có hiệu lực.");
+        }
+
+        if (contract.EffectiveTo.HasValue && contract.EffectiveTo.Value < today)
+        {
+            throw new AppException(400, "Hợp đồng lao động đã hết hạn; không thể gán hoặc chỉnh sửa phụ cấp.");
+        }
+
+        var staff = await repository.FindStaffAsync(contract.StaffId, ct)
+            ?? throw new AppException(404, "Không tìm thấy thông tin nhân viên.");
+        if (!string.Equals(staff.Status, PayrollParameterRules.Active, StringComparison.OrdinalIgnoreCase)
+            || (staff.DateLeft.HasValue && staff.DateLeft.Value <= today))
+        {
+            throw new AppException(400, "Nhân viên đã nghỉ việc hoặc ngừng hoạt động; không thể gán hoặc chỉnh sửa phụ cấp.");
         }
     }
 }

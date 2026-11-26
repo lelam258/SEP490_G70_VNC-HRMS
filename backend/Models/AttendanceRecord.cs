@@ -23,4 +23,6 @@ public sealed class AttendanceRecord
     public DateTime? ConfirmedAt { get; set; }
     public Guid? PayslipId { get; set; }
     public DateTime? CreatedAt { get; set; }
+    public Guid? FacilityId { get; set; }
+    public string? TimePairsJson { get; set; }
 }

@@ -31,7 +31,7 @@ public sealed class MyProfileController(ISelfServiceProfileService profileServic
         => profileService.UpdateProfileAsync(GetCurrentUserId(), request, ct);
 
     [HttpPost("avatar")]
-    [RequestSizeLimit(3 * 1024 * 1024)]
+    [RequestSizeLimit(25 * 1024 * 1024)]
     public Task<UserProfileDto> UploadAvatar(IFormFile file, CancellationToken ct)
         => profileService.UploadAvatarAsync(GetCurrentUserId(), file, ct);
 }

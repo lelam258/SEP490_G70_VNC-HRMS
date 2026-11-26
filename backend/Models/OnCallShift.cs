@@ -15,4 +15,12 @@ public sealed class OnCallShift
     public string? RejectedReason { get; set; }
     public string? Note { get; set; }
     public DateTime? CreatedAt { get; set; }
+    public Guid? FacilityId { get; set; }
+    public Guid? ScheduleAssignmentId { get; set; }
+    public Guid? AttendanceEvidenceId { get; set; }
+    public string? SupervisorEvidence { get; set; }
+    public string? DeviationReason { get; set; }
+    public string? ReviewNote { get; set; }
+    public byte[] Version { get; set; } = [];
+    public DateTime UpdatedAt { get; set; }
 }

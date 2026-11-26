@@ -6,8 +6,8 @@ import { formatDate } from '../../utils/format';
 interface Props {
   record: CmeRecord;
   onClose: () => void;
-  onEdit: (record: CmeRecord) => void;
-  onToggleVerify: (record: CmeRecord) => void;
+  onEdit?: (record: CmeRecord) => void;
+  onToggleVerify?: (record: CmeRecord) => void;
   busy?: boolean;
 }
 
@@ -131,32 +131,41 @@ export default function CmeRecordDetailModal({
         )}
 
         <div className="mt-6 flex justify-between items-center gap-3 pt-4 border-t border-slate-200 flex-wrap">
-          <button
-            type="button"
-            className="button"
-            disabled={busy}
-            onClick={() => onToggleVerify(record)}
-          >
-            <Icon name="check" size={16} />
-            {record.verified ? 'Hủy xác minh' : 'Xác minh ngay'}
-          </button>
+          {onToggleVerify ? (
+            <button
+              type="button"
+              className={record.verified ? 'button secondary' : 'button primary'}
+              style={!record.verified ? { background: '#059669', borderColor: '#059669' } : undefined}
+              disabled={busy}
+              onClick={() => onToggleVerify(record)}
+            >
+              <Icon name={record.verified ? 'close' : 'check'} size={16} />
+              {busy
+                ? 'Đang xử lý...'
+                : record.verified
+                ? 'Hủy xác minh (Đưa về chờ thẩm định)'
+                : 'Phê duyệt & Xác minh hồ sơ'}
+            </button>
+          ) : <div />}
 
           <div className="flex gap-2">
             <button type="button" className="button" onClick={onClose} disabled={busy}>
               Đóng
             </button>
-            <button
-              type="button"
-              className="button primary"
-              disabled={busy}
-              onClick={() => {
-                onClose();
-                onEdit(record);
-              }}
-            >
-              <Icon name="edit" size={16} />
-              Chỉnh sửa
-            </button>
+            {onEdit && (
+              <button
+                type="button"
+                className="button primary"
+                disabled={busy}
+                onClick={() => {
+                  onClose();
+                  onEdit(record);
+                }}
+              >
+                <Icon name="edit" size={16} />
+                Chỉnh sửa
+              </button>
+            )}
           </div>
         </div>
       </div>

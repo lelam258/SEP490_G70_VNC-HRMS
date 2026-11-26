@@ -74,7 +74,9 @@ public sealed class CompensationRepository(AppDbContext db) : ICompensationRepos
                 x.Contract.EffectiveFrom,
                 x.Contract.EffectiveTo,
                 x.Contract.Status,
-                ToDto(ContractSalaryRules.NextAfter(timeline, today)));
+                ToDto(ContractSalaryRules.NextAfter(timeline, today)),
+                x.Staff.Status,
+                x.Staff.DateLeft);
         }).ToArray();
     }
 
@@ -133,7 +135,10 @@ public sealed class CompensationRepository(AppDbContext db) : ICompensationRepos
             contractInfo.Contract.EffectiveTo,
             contractInfo.Contract.Status,
             allowances,
-            ToDto(ContractSalaryRules.NextAfter(timeline, today)));
+            ToDto(ContractSalaryRules.NextAfter(timeline, today)),
+            null,
+            contractInfo.Staff.Status,
+            contractInfo.Staff.DateLeft);
     }
 
     public async Task<StaffAllowanceDto[]> ListStaffAllowancesAsync(Guid staffId, CancellationToken ct)

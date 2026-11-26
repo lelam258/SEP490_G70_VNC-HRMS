@@ -36,6 +36,7 @@ export interface CertificateCycle {
   certificateStatus: string;
   cycleStatus?: string;
   isCurrentCycle?: boolean;
+  hasCmeCreditsRequirement?: boolean;
 }
 
 export interface UpdateCmeCycleDatesInput {

@@ -181,37 +181,99 @@ export default function MyLeaveRequestsPage() {
     {
       key: 'actions',
       label: 'Thao tác',
+      className: 'text-center',
+      headerClassName: 'text-center',
       render: (r: LeaveRequestSummary) => (
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', justifyContent: 'center' }}>
           <button
             type="button"
-            className="button small secondary"
             onClick={() => handleOpenDetail(r.requestId)}
             title="Xem chi tiết"
+            style={{
+              height: '28px',
+              minHeight: 'unset',
+              width: '74px',
+              padding: '0 6px',
+              fontSize: '11px',
+              fontWeight: 500,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '4px',
+              borderRadius: '6px',
+              border: '1px solid #d1d5db',
+              background: '#ffffff',
+              color: '#374151',
+              cursor: 'pointer',
+              boxSizing: 'border-box',
+              transition: 'all 0.15s ease',
+            }}
+            className="hover:bg-slate-100 hover:border-slate-400"
           >
-            <Icon name="eye" size={14} /> Chi tiết
+            <Icon name="eye" size={12} />
+            <span>Chi tiết</span>
           </button>
           {r.status === 'pending' && (
             <button
               type="button"
-              className="button small secondary"
               onClick={() => navigate(`/me/leave-requests/${r.requestId}/edit`)}
               title="Sửa đơn"
+              style={{
+                height: '28px',
+                minHeight: 'unset',
+                width: '74px',
+                padding: '0 6px',
+                fontSize: '11px',
+                fontWeight: 500,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                borderRadius: '6px',
+                border: '1px solid #93c5fd',
+                background: '#eff6ff',
+                color: '#1d4ed8',
+                cursor: 'pointer',
+                boxSizing: 'border-box',
+                transition: 'all 0.15s ease',
+              }}
+              className="hover:bg-blue-100 hover:border-blue-400"
             >
-              <Icon name="edit" size={14} /> Sửa
+              <Icon name="edit" size={12} />
+              <span>Sửa</span>
             </button>
           )}
           {r.status === 'pending' && (
             <button
               type="button"
-              className="button small danger"
               onClick={() => {
                 setWithdrawingRequest(r);
                 setWithdrawError('');
               }}
               title="Thu hồi đơn"
+              style={{
+                height: '28px',
+                minHeight: 'unset',
+                width: '74px',
+                padding: '0 6px',
+                fontSize: '11px',
+                fontWeight: 500,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                borderRadius: '6px',
+                border: '1px solid #fca5a5',
+                background: '#fef2f2',
+                color: '#b91c1c',
+                cursor: 'pointer',
+                boxSizing: 'border-box',
+                transition: 'all 0.15s ease',
+              }}
+              className="hover:bg-rose-100 hover:border-rose-400"
             >
-              <Icon name="close" size={14} /> Thu hồi
+              <Icon name="close" size={12} />
+              <span>Thu hồi</span>
             </button>
           )}
         </div>
@@ -220,25 +282,21 @@ export default function MyLeaveRequestsPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 workspace-list-page">
       {notice && <Alert variant="success">{notice}</Alert>}
       {error && <Alert variant="error">{error}</Alert>}
 
-      <div className="panel" style={{ padding: '1.25rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
-          <div>
-            <h1 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>Đơn nghỉ phép của tôi</h1>
-            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--color-text-muted, #6b7280)' }}>
-              Theo dõi và quản lý các đơn xin nghỉ phép đã nộp
-            </p>
-          </div>
+      <div className="panel workspace-list-panel" style={{ padding: '1.25rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+          <h1 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>Đơn nghỉ phép của tôi</h1>
 
           <button
             type="button"
             className="button primary"
             onClick={() => navigate('/me/leave-requests/new')}
+            style={{ height: '34px', minHeight: '34px', padding: '0 12px', fontSize: '12px', gap: '6px' }}
           >
-            <Icon name="plus" /> Tạo đơn nghỉ phép
+            <Icon name="plus" size={14} /> Tạo đơn nghỉ phép
           </button>
         </div>
 

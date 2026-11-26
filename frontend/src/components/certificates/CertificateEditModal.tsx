@@ -1,6 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type ChangeEvent, type FormEvent } from 'react';
 import Modal from '../ui/Modal';
 import Alert from '../ui/Alert';
+import Icon from '../ui/Icon';
+import { fileApi } from '../../services/fileApi';
+import { todayVn } from '../../utils/format';
 import {
   type Certificate,
   type CertificateCategory,
@@ -27,7 +30,10 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
   const [issuingAuthority, setIssuingAuthority] = useState(certificate.issuingAuthority || '');
   const [issueDate, setIssueDate] = useState(certificate.issueDate || '');
   const [fileUrl, setFileUrl] = useState(certificate.fileUrl || '');
+  const [uploadedFileName, setUploadedFileName] = useState('');
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const todayStr = todayVn();
 
   // Degree fields
   const [degreeType, setDegreeType] = useState<string>(
@@ -36,12 +42,15 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
   const [major, setMajor] = useState<string>(
     certificate.major || DEGREE_MAJORS[0]
   );
-  const [verificationStatus, setVerificationStatus] = useState<string>(
-    certificate.verificationStatus || certificate.status || VERIFICATION_STATUSES[0].value
-  );
+  const [verificationStatus, setVerificationStatus] = useState<string>(() => {
+    const candidate = certificate.verificationStatus || certificate.status || VERIFICATION_STATUSES[0].value;
+    if (candidate === 'pending') return 'unverified';
+    return VERIFICATION_STATUSES.some(v => v.value === candidate) ? candidate : VERIFICATION_STATUSES[0].value;
+  });
   const [notes, setNotes] = useState(certificate.notes || '');
 
   // Certificate fields
+  const [certificateNumber, setCertificateNumber] = useState(certificate.certificateNumber || '');
   const [professionalDegree, setProfessionalDegree] = useState(
     certificate.professionalDegree || certificate.scopeOfPractice || ''
   );
@@ -55,7 +64,31 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
   const [cmeRequiredCredits, setCmeRequiredCredits] = useState<string>(
     certificate.cmeRequiredCredits != null ? String(certificate.cmeRequiredCredits) : ''
   );
-  const [status, setStatus] = useState(certificate.status || 'active');
+  const [status, setStatus] = useState<string>(() => {
+    const allowed = ['active', 'inactive', 'expired', 'suspended', 'revoked', 'pending', 'unverified', 'rejected'];
+    const rawStatus = certificate.status?.toLowerCase();
+    return rawStatus && allowed.includes(rawStatus) ? rawStatus : 'active';
+  });
+
+  async function handleFileUpload(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Tệp đính kèm không được vượt quá 10 MB.');
+      return;
+    }
+    setUploading(true);
+    setError('');
+    try {
+      const res = await fileApi.upload(file);
+      setFileUrl(res.url);
+      setUploadedFileName(file.name);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Tải lên tệp minh chứng thất bại.');
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -66,16 +99,40 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
       return;
     }
 
+    if (issueDate && issueDate > todayStr) {
+      setError('Ngày cấp không được vượt quá ngày hiện tại.');
+      return;
+    }
+
     if (category === 'certificate' && issueDate && expiryDate && expiryDate < issueDate) {
       setError('Ngày hết hạn phải lớn hơn hoặc bằng ngày cấp.');
       return;
+    }
+
+    let parsedMonths: number | null = null;
+    let parsedCredits: number | null = null;
+    if (category === 'certificate') {
+      if (cmeCycleMonths.trim() !== '') {
+        parsedMonths = parseInt(cmeCycleMonths, 10);
+        if (isNaN(parsedMonths) || parsedMonths <= 0) {
+          setError('Chu kỳ CME (tháng) phải lớn hơn 0 hoặc để trống.');
+          return;
+        }
+      }
+      if (cmeRequiredCredits.trim() !== '') {
+        parsedCredits = parseFloat(cmeRequiredCredits);
+        if (isNaN(parsedCredits) || parsedCredits <= 0) {
+          setError('Định mức tín chỉ CME phải lớn hơn 0 hoặc để trống.');
+          return;
+        }
+      }
     }
 
     try {
       const payload: UpdateCertificateInput = {
         category,
         certificateType: certificateType.trim(),
-        certificateNumber: null, // Bỏ số hiệu chứng chỉ theo yêu cầu
+        certificateNumber: category === 'degree' ? null : certificateNumber.trim() || null,
         issuingAuthority: issuingAuthority.trim() || null,
         issueDate: issueDate || null,
         fileUrl: fileUrl.trim() || null,
@@ -95,8 +152,8 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
         payload.professionalDegree = professionalDegree.trim() || null;
         payload.issuanceMethod = issuanceMethod.trim() || null;
         payload.expiryDate = expiryDate || null;
-        payload.cmeCycleMonths = cmeCycleMonths ? parseInt(cmeCycleMonths, 10) : null;
-        payload.cmeRequiredCredits = cmeRequiredCredits ? parseFloat(cmeRequiredCredits) : null;
+        payload.cmeCycleMonths = parsedMonths;
+        payload.cmeRequiredCredits = parsedCredits;
       }
 
       await onSave(certificate.certificateId, payload);
@@ -214,21 +271,40 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
               <input
                 id="edit-degree-issue-date"
                 type="date"
+                max={todayStr}
                 value={issueDate}
                 onChange={e => setIssueDate(e.target.value)}
-                disabled={busy}
+                disabled={busy || uploading}
               />
             </div>
 
             <div>
-              <label htmlFor="edit-degree-file">File bằng cấp (URL)</label>
-              <input
-                id="edit-degree-file"
-                placeholder="https://..."
-                value={fileUrl}
-                onChange={e => setFileUrl(e.target.value)}
-                disabled={busy}
-              />
+              <label htmlFor="edit-degree-file">Tệp scan / Đường dẫn bằng cấp</label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="edit-degree-file"
+                  placeholder="https://... hoặc tải tệp lên"
+                  value={fileUrl}
+                  onChange={e => setFileUrl(e.target.value)}
+                  disabled={busy || uploading}
+                />
+                <label className="button secondary text-xs py-2 px-2.5 cursor-pointer shrink-0">
+                  <Icon name="fileText" size={14} />
+                  <span>{uploading ? 'Đang tải...' : 'Chọn tệp'}</span>
+                  <input
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    className="sr-only"
+                    onChange={e => void handleFileUpload(e)}
+                    disabled={busy || uploading}
+                  />
+                </label>
+              </div>
+              {uploadedFileName && (
+                <span className="text-[11px] text-teal-700 mt-1 block truncate">
+                  Đã tải lên: {uploadedFileName}
+                </span>
+              )}
             </div>
 
             <div>
@@ -277,13 +353,24 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
             </div>
 
             <div>
+              <label htmlFor="edit-cert-number">Số hiệu CCHN / Chứng chỉ</label>
+              <input
+                id="edit-cert-number"
+                placeholder="VD: 012345/BYT-CCHN"
+                value={certificateNumber}
+                onChange={e => setCertificateNumber(e.target.value)}
+                disabled={busy || uploading}
+              />
+            </div>
+
+            <div>
               <label htmlFor="edit-cert-authority">Nơi cấp</label>
               <input
                 id="edit-cert-authority"
                 placeholder="VD: Sở Y Tế TP. Hà Nội, Bệnh viện Bạch Mai..."
                 value={issuingAuthority}
                 onChange={e => setIssuingAuthority(e.target.value)}
-                disabled={busy}
+                disabled={busy || uploading}
               />
             </div>
 
@@ -294,7 +381,7 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
                 placeholder="VD: Bác sĩ Đa khoa, Cử nhân Điều dưỡng..."
                 value={professionalDegree}
                 onChange={e => setProfessionalDegree(e.target.value)}
-                disabled={busy}
+                disabled={busy || uploading}
               />
             </div>
 
@@ -305,7 +392,7 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
                 placeholder="VD: Cấp lần đầu, Cấp lại, Cấp điều chỉnh..."
                 value={issuanceMethod}
                 onChange={e => setIssuanceMethod(e.target.value)}
-                disabled={busy}
+                disabled={busy || uploading}
               />
             </div>
 
@@ -314,9 +401,10 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
               <input
                 id="edit-cert-issue-date"
                 type="date"
+                max={todayStr}
                 value={issueDate}
                 onChange={e => setIssueDate(e.target.value)}
-                disabled={busy}
+                disabled={busy || uploading}
               />
             </div>
 
@@ -327,7 +415,7 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
                 type="date"
                 value={expiryDate}
                 onChange={e => setExpiryDate(e.target.value)}
-                disabled={busy}
+                disabled={busy || uploading}
               />
             </div>
 
@@ -337,24 +425,52 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
                 id="edit-cert-status"
                 value={status}
                 onChange={e => setStatus(e.target.value)}
-                disabled={busy}
+                disabled={busy || uploading}
               >
                 <option value="active">Đang hiệu lực (Active)</option>
+                <option value="inactive">Ngừng hoạt động (Inactive)</option>
                 <option value="expired">Đã hết hạn (Expired)</option>
                 <option value="suspended">Tạm đình chỉ (Suspended)</option>
                 <option value="revoked">Bị thu hồi (Revoked)</option>
+                {(status === 'pending' || certificate.status?.toLowerCase() === 'pending') && (
+                  <option value="pending">Chờ thẩm định (Pending)</option>
+                )}
+                {(status === 'unverified' || certificate.status?.toLowerCase() === 'unverified') && (
+                  <option value="unverified">Chờ xác minh (Unverified)</option>
+                )}
+                {(status === 'rejected' || certificate.status?.toLowerCase() === 'rejected') && (
+                  <option value="rejected">Từ chối xác minh (Rejected)</option>
+                )}
               </select>
             </div>
 
-            <div>
-              <label htmlFor="edit-cert-file">File chứng chỉ (URL)</label>
-              <input
-                id="edit-cert-file"
-                placeholder="https://..."
-                value={fileUrl}
-                onChange={e => setFileUrl(e.target.value)}
-                disabled={busy}
-              />
+            <div className="md:col-span-2">
+              <label htmlFor="edit-cert-file">Tệp scan / Đường dẫn chứng chỉ</label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="edit-cert-file"
+                  placeholder="https://... hoặc tải tệp lên"
+                  value={fileUrl}
+                  onChange={e => setFileUrl(e.target.value)}
+                  disabled={busy || uploading}
+                />
+                <label className="button secondary text-xs py-2 px-2.5 cursor-pointer shrink-0">
+                  <Icon name="fileText" size={14} />
+                  <span>{uploading ? 'Đang tải...' : 'Chọn tệp'}</span>
+                  <input
+                    type="file"
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    className="sr-only"
+                    onChange={e => void handleFileUpload(e)}
+                    disabled={busy || uploading}
+                  />
+                </label>
+              </div>
+              {uploadedFileName && (
+                <span className="text-[11px] text-teal-700 mt-1 block truncate">
+                  Đã tải lên: {uploadedFileName}
+                </span>
+              )}
             </div>
 
             <div>
@@ -362,11 +478,11 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
               <input
                 id="edit-cert-cme-months"
                 type="number"
-                min="0"
+                min="1"
                 placeholder="VD: 24"
                 value={cmeCycleMonths}
                 onChange={e => setCmeCycleMonths(e.target.value)}
-                disabled={busy}
+                disabled={busy || uploading}
               />
             </div>
 
@@ -376,21 +492,21 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
                 id="edit-cert-cme-credits"
                 type="number"
                 step="0.5"
-                min="0"
+                min="0.5"
                 placeholder="VD: 48"
                 value={cmeRequiredCredits}
                 onChange={e => setCmeRequiredCredits(e.target.value)}
-                disabled={busy}
+                disabled={busy || uploading}
               />
             </div>
           </div>
         )}
 
         <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-slate-200">
-          <button type="button" className="button" onClick={onClose} disabled={busy}>
+          <button type="button" className="button" onClick={onClose} disabled={busy || uploading}>
             Hủy
           </button>
-          <button type="submit" className="button primary" disabled={busy}>
+          <button type="submit" className="button primary" disabled={busy || uploading}>
             {busy ? 'Đang lưu…' : 'Lưu thay đổi'}
           </button>
         </div>

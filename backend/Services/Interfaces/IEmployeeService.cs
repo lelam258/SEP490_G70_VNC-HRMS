@@ -8,4 +8,5 @@ public interface IEmployeeService
     Task<EmployeeDto> GetAsync(Guid id, CancellationToken ct);
     Task<EmployeeDto> CreateAsync(CreateEmployeeRequest request, CancellationToken ct);
     Task<EmployeeDto> UpdateAsync(Guid id, UpdateEmployeeRequest request, CancellationToken ct);
+    Task<UnlinkedAccountDto[]> ListUnlinkedAccountsAsync(CancellationToken ct);
 }

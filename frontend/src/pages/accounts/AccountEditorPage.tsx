@@ -4,6 +4,7 @@ import { accountApi } from '../../services/accountApi';
 import { useAppStore } from '../../store/useAppStore';
 import type { AccountInput } from '../../types/accounts';
 import AccountForm from '../../components/accounts/AccountForm';
+import AccountAccessAction from '../../components/accounts/AccountAccessAction';
 import Alert from '../../components/ui/Alert';
 
 export default function AccountEditorPage({ mode }: { mode: 'create' | 'detail' | 'edit' }) {
@@ -22,5 +23,6 @@ export default function AccountEditorPage({ mode }: { mode: 'create' | 'detail' 
   if (loadError) return <Alert>{loadError}<button className="button" onClick={() => void reload()}>Tải lại</button></Alert>;
   if (mode !== 'create' && !account) return <Alert>Không tìm thấy tài khoản.</Alert>;
   return <AccountForm key={`${mode}-${id}-${account?.version || ''}`} mode={mode} account={account} accounts={accounts} employees={employees}
+    accessAction={account && <AccountAccessAction account={account} onChanged={message => { useAppStore.getState().setNotice(message); void reload(); }} />}
     onBack={() => navigate('/accounts')} onEdit={() => navigate(`/accounts/${id}/edit`)} onSave={save} />;
 }

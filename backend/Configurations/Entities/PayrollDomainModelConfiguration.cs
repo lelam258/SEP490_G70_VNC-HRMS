@@ -245,7 +245,8 @@ public static class PayrollDomainModelConfiguration
             entity.Property(x => x.ComplaintId).HasColumnName("complaint_id").HasColumnType("uniqueidentifier").HasDefaultValueSql("NEWID()");
             entity.Property(x => x.StaffId).HasColumnName("staff_id").HasColumnType("uniqueidentifier");
             entity.Property(x => x.DepartmentId).HasColumnName("department_id").HasColumnType("uniqueidentifier");
-            entity.Property(x => x.PayslipId).HasColumnName("payslip_id").HasColumnType("uniqueidentifier");
+            entity.Property(x => x.PayslipId).HasColumnName("payslip_id").HasColumnType("uniqueidentifier");
+            entity.Property(x => x.PayMonth).HasColumnName("pay_month").HasColumnType("nvarchar(7)");
             entity.Property(x => x.InquiryType).HasColumnName("inquiry_type").HasColumnType("nvarchar(30)");
             entity.Property(x => x.Subject).HasColumnName("subject").HasColumnType("nvarchar(200)");
             entity.Property(x => x.Description).HasColumnName("description").HasColumnType("nvarchar(max)");
@@ -312,7 +313,9 @@ public static class PayrollDomainModelConfiguration
         modelBuilder.Entity<ProcedureAssignment>().HasOne<Payslip>().WithMany().HasForeignKey(x => x.PayslipId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<Complaint>().HasOne<Payslip>().WithMany().HasForeignKey(x => x.PayslipId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<PayslipAllowance>().HasOne<AllowanceType>().WithMany().HasForeignKey(x => x.AllowanceId).OnDelete(DeleteBehavior.Restrict);
-        modelBuilder.Entity<Payslip>().HasIndex(x => new { x.PayMonth, x.Status, x.DepartmentId }).HasDatabaseName("IX_payslips_pay_month_status");
+        modelBuilder.Entity<Payslip>().HasIndex(x => new { x.PayMonth, x.Status, x.DepartmentId }).HasDatabaseName("IX_payslips_pay_month_status");
+        modelBuilder.Entity<Complaint>().HasIndex(x => new { x.PayMonth, x.Status }).HasDatabaseName("IX_complaints_pay_month_status");
+        modelBuilder.Entity<Complaint>().HasIndex(x => new { x.StaffId, x.SubmittedAt }).HasDatabaseName("IX_complaints_staff_submitted");
         modelBuilder.Entity<StaffAllowance>().HasIndex(x => new { x.StaffId, x.Status, x.EffectiveFrom, x.EffectiveTo }).HasDatabaseName("IX_staff_allowances_staff_effective");
         modelBuilder.Entity<PayslipDeduction>().HasIndex(x => new { x.PayslipId, x.DeductionType }).HasDatabaseName("IX_payslip_deductions_payslip");
             modelBuilder.Entity<CommissionRule>().HasOne<Position>().WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict);

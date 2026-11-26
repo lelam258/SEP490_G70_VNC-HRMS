@@ -93,9 +93,9 @@ export default function TaxBracketForm({
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col h-full">
-      {/* Scrollable Body */}
-      <div className="px-6 py-5 space-y-6 flex-1 overflow-y-auto max-h-[calc(85vh-130px)]">
+    <form onSubmit={submit} className="flex flex-col">
+      {/* Body */}
+      <div className="px-6 py-5 space-y-6">
         {/* Inactive Banner */}
         {initial?.status === 'inactive' && (
           <div className="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
@@ -178,11 +178,12 @@ export default function TaxBracketForm({
                     }
                   }}
                   placeholder="VD: 5"
+                  style={{ paddingRight: '36px', boxSizing: 'border-box' }}
                   className={`w-full h-10 rounded-lg border ${
                     fieldErrors.rate ? 'border-rose-500' : 'border-slate-300 dark:border-slate-700'
-                  } bg-white dark:bg-slate-800 px-3 pr-8 text-sm text-right font-[tabular-nums] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
+                  } bg-white dark:bg-slate-800 px-3 text-sm text-left font-[tabular-nums] text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-sky-500 box-border`}
                 />
-                <span className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400 text-sm font-medium select-none">
+                <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400 text-sm font-medium select-none">
                   %
                 </span>
               </div>
@@ -224,7 +225,7 @@ export default function TaxBracketForm({
       </div>
 
       {/* Modal Footer */}
-      <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 flex items-center justify-end gap-3 flex-shrink-0">
+      <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex items-center justify-end gap-3 sticky bottom-0 z-10">
         <button
           type="button"
           disabled={busy}
