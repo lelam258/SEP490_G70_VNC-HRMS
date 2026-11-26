@@ -21,7 +21,9 @@ public sealed record ContractSummaryDto(
     DateOnly EffectiveFrom,
     DateOnly? EffectiveTo,
     string Status,
-    ContractSalaryHistoryDto? PendingSalaryChange = null);
+    ContractSalaryHistoryDto? PendingSalaryChange = null,
+    string StaffStatus = "active",
+    DateOnly? StaffDateLeft = null);
 
 public sealed record StaffAllowanceDto(
     Guid StaffAllowanceId,
@@ -62,7 +64,9 @@ public sealed record ContractCompensationDto(
     string Status,
     StaffAllowanceDto[] Allowances,
     ContractSalaryHistoryDto? PendingSalaryChange = null,
-    IReadOnlyList<string>? AffectedOpenPeriods = null);
+    IReadOnlyList<string>? AffectedOpenPeriods = null,
+    string StaffStatus = "active",
+    DateOnly? StaffDateLeft = null);
 
 public sealed record UpdateContractCompensationRequest(
     string? SalaryType,

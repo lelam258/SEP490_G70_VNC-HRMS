@@ -579,7 +579,7 @@ public sealed class AttendanceRecordService(
                     var check = InspectDiscrepancies(record, pairs, machinePairs, source, dayPlans, live, dayLeaves.Length > 0,
                         dayDuties.Select(d => (d.ShiftCategory, d.SupervisorEvidence, d.Status)).ToArray());
                     var issues = JsonSerializer.SerializeToElement(check.Discrepancies);
-                    if (issues.EnumerateArray().Any(i => i.GetProperty("severity").GetString() is "error" or "warning"))
+                    if (issues.EnumerateArray().Any(i => i.GetProperty("severity").GetString() == "error"))
                         throw new AppException(400, "Còn sai lệch nguồn/lịch/giờ hoặc nghỉ phép. Cần đối chiếu riêng trước khi xác nhận hàng loạt.");
                 }
                 var version = ComputeRecordVersion(record, dayPlans, live.Values, dayLeaves.Select(l => l.RequestId), dayDuties.Select(d => (d.ShiftId, d.Status, d.SupervisorEvidence)));

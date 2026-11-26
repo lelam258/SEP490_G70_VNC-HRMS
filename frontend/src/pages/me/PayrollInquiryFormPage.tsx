@@ -139,11 +139,11 @@ export default function PayrollInquiryFormPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs: Record<string, string> = {};
-    if (!inquiryType) errs.inquiryType = 'Trường này là bắt buộc.';
-    if (!payMonth) errs.payMonth = 'Trường này là bắt buộc.';
-    if (!subject.trim()) errs.subject = 'Trường này là bắt buộc.';
+    if (!inquiryType) errs.inquiryType = 'Vui lòng chọn phân loại thắc mắc.';
+    if (!payMonth) errs.payMonth = 'Vui lòng chọn kỳ lương liên quan.';
+    if (!subject.trim()) errs.subject = 'Vui lòng nhập tiêu đề thắc mắc.';
     else if (subject.trim().length > 200) errs.subject = 'Tiêu đề tối đa 200 ký tự.';
-    if (!description.trim()) errs.description = 'Trường này là bắt buộc.';
+    if (!description.trim()) errs.description = 'Vui lòng nhập nội dung chi tiết.';
 
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) return;
@@ -314,7 +314,7 @@ export default function PayrollInquiryFormPage() {
               onClick={() => fileInputRef.current?.click()}
               className="h-8 px-3 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer disabled:opacity-50"
             >
-              {uploadingFile ? 'Đang tải lên...' : '+ Chọn tệp minh chứng'}
+              {uploadingFile ? 'Đang tải lên...' : 'Đính kèm tệp'}
             </button>
           </div>
 

@@ -74,35 +74,35 @@ export default function DashboardPage() {
   }).format(new Date());
 
   return (
-    <div className="space-y-6 workspace-content-page">
+    <div className="space-y-4 pb-4">
       {/* 1. Welcome Banner Card */}
       <section
         style={{
           background: 'linear-gradient(135deg, #0369a1 0%, #0284c7 50%, #0f766e 100%)',
           color: '#ffffff',
         }}
-        className="p-6 sm:p-7 rounded-2xl shadow-md relative overflow-hidden"
+        className="px-5 py-4 rounded-2xl shadow-sm relative overflow-hidden"
       >
         {/* Họa tiết nền trang trí */}
         <div className="absolute right-0 top-0 -mt-6 -mr-6 w-64 h-64 bg-white/10 rounded-full pointer-events-none blur-2xl" />
         <div className="absolute right-32 bottom-0 -mb-8 w-48 h-48 bg-teal-300/15 rounded-full pointer-events-none blur-xl" />
 
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-5">
-          <div className="flex items-center gap-4">
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
             {/* Avatar chữ cái đại diện */}
             <div
               style={{
                 backgroundColor: 'rgba(255, 255, 255, 0.22)',
-                border: '2px solid rgba(255, 255, 255, 0.45)',
+                border: '1.5px solid rgba(255, 255, 255, 0.45)',
                 color: '#ffffff',
               }}
-              className="w-14 h-14 rounded-2xl backdrop-blur-md flex items-center justify-center font-bold text-xl shadow-sm shrink-0"
+              className="w-11 h-11 rounded-xl backdrop-blur-md flex items-center justify-center font-bold text-base shadow-xs shrink-0"
             >
               {user.name.slice(0, 2).toUpperCase()}
             </div>
             <div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 style={{ color: '#ffffff', margin: 0 }} className="text-xl sm:text-2xl font-bold tracking-tight">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 style={{ color: '#ffffff', margin: 0 }} className="text-base sm:text-lg font-bold tracking-tight">
                   Xin chào, {user.name} 👋
                 </h1>
                 <span
@@ -111,13 +111,13 @@ export default function DashboardPage() {
                     color: '#ffffff',
                     border: '1px solid rgba(255, 255, 255, 0.4)',
                   }}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold backdrop-blur-xs"
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold backdrop-blur-xs"
                 >
-                  <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
                   Trực tuyến
                 </span>
               </div>
-              <p style={{ color: '#e0f2fe', margin: '4px 0 0 0' }} className="text-xs sm:text-sm font-medium capitalize">
+              <p style={{ color: '#e0f2fe', margin: '2px 0 0 0' }} className="text-xs font-medium capitalize">
                 {todayFormatted} · Vai trò: <strong style={{ color: '#ffffff' }}>{roleLabels[user.role as Role] || user.role}</strong>
               </p>
             </div>
@@ -134,7 +134,7 @@ export default function DashboardPage() {
                   fontWeight: 600,
                   boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                 }}
-                className="h-10 px-5 rounded-xl hover:bg-sky-50 text-xs transition-all flex items-center gap-1.5"
+                className="h-9 px-4 rounded-lg hover:bg-sky-50 text-xs transition-all flex items-center gap-1.5"
               >
                 <span>Xem kỳ lương</span>
                 <span aria-hidden="true">→</span>
@@ -151,7 +151,7 @@ export default function DashboardPage() {
                   fontWeight: 600,
                   boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                 }}
-                className="h-10 px-5 rounded-xl hover:bg-sky-50 text-xs transition-all flex items-center gap-1.5"
+                className="h-9 px-4 rounded-lg hover:bg-sky-50 text-xs transition-all flex items-center gap-1.5"
               >
                 <span>Quản lý tài khoản</span>
                 <span aria-hidden="true">→</span>
@@ -168,7 +168,7 @@ export default function DashboardPage() {
                   fontWeight: 600,
                   boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                 }}
-                className="h-10 px-5 rounded-xl hover:bg-sky-50 text-xs transition-all flex items-center gap-1.5"
+                className="h-9 px-4 rounded-lg hover:bg-sky-50 text-xs transition-all flex items-center gap-1.5"
               >
                 <span>Hồ sơ nhân viên</span>
                 <span aria-hidden="true">→</span>
@@ -185,7 +185,7 @@ export default function DashboardPage() {
                   fontWeight: 600,
                   boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                 }}
-                className="h-10 px-5 rounded-xl hover:bg-sky-50 text-xs transition-all flex items-center gap-1.5"
+                className="h-9 px-4 rounded-lg hover:bg-sky-50 text-xs transition-all flex items-center gap-1.5"
               >
                 <span>Compliance</span>
                 <span aria-hidden="true">→</span>
@@ -194,26 +194,26 @@ export default function DashboardPage() {
           )}
         </div>
       </section>
-      <div className="workspace-section-body">
+      <div className="space-y-4">
 
       {/* 2. Bốn thẻ KPI Metrics Card (Chỉ số nghiệp vụ chính) */}
       {user.role === 'accountant' && (
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           {/* Card 1: Tổng hợp đồng */}
           <Link
             to="/payroll/compensation"
-            className="panel p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs hover:shadow-md hover:border-sky-300 transition-all group cursor-pointer block"
+            className="panel p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs hover:shadow-md hover:border-sky-300 transition-all group cursor-pointer block"
           >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Hợp đồng nhân sự</span>
-              <div className="w-9 h-9 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center group-hover:bg-sky-600 group-hover:text-white transition-colors">
-                <Icon name="fileText" size={18} />
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Hợp đồng nhân sự</span>
+              <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center group-hover:bg-sky-600 group-hover:text-white transition-colors">
+                <Icon name="fileText" size={16} />
               </div>
             </div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+            <div className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-0.5 tabular-nums">
               {activeContractsCount} <span className="text-xs font-normal text-slate-500">nhân sự</span>
             </div>
-            <div className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+            <div className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
               <span>●</span> 100% đang có hiệu lực
             </div>
           </Link>
@@ -221,18 +221,18 @@ export default function DashboardPage() {
           {/* Card 2: Quỹ lương gần nhất */}
           <Link
             to="/payroll/periods"
-            className="panel p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs hover:shadow-md hover:border-emerald-300 transition-all group cursor-pointer block"
+            className="panel p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs hover:shadow-md hover:border-emerald-300 transition-all group cursor-pointer block"
           >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Quỹ lương tháng gần nhất</span>
-              <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                <Icon name="calendar" size={18} />
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Quỹ lương tháng gần nhất</span>
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                <Icon name="calendar" size={16} />
               </div>
             </div>
-            <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mb-1">
+            <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400 mb-0.5 tabular-nums">
               {latestApprovedPeriod ? formatVnd(latestApprovedPeriod.totalNetPay) : '349.415.000 ₫'}
             </div>
-            <div className="text-xs text-slate-500">
+            <div className="text-[11px] text-slate-500">
               Kỳ {latestApprovedPeriod ? formatMonthDisplay(latestApprovedPeriod.payMonth) : 'Tháng 02/2026'} · Đã duyệt
             </div>
           </Link>
@@ -240,18 +240,18 @@ export default function DashboardPage() {
           {/* Card 3: Kỳ lương đang mở */}
           <Link
             to={latestDraftPeriod ? `/payroll/periods/${latestDraftPeriod.payMonth}` : '/payroll/periods'}
-            className="panel p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs hover:shadow-md hover:border-amber-300 transition-all group cursor-pointer block"
+            className="panel p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs hover:shadow-md hover:border-amber-300 transition-all group cursor-pointer block"
           >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Kỳ lương hiện tại</span>
-              <div className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-colors">
-                <Icon name="clock" size={18} />
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Kỳ lương hiện tại</span>
+              <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                <Icon name="clock" size={16} />
               </div>
             </div>
-            <div className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-1">
+            <div className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-0.5">
               {latestDraftPeriod ? formatMonthDisplay(latestDraftPeriod.payMonth) : 'Tháng 03/2026'}
             </div>
-            <div className="text-xs text-amber-700 font-medium">
+            <div className="text-[11px] text-amber-700 font-medium">
               Trạng thái: {latestDraftPeriod ? (STATUS_BADGES[latestDraftPeriod.status]?.label || latestDraftPeriod.status) : 'Bản nháp'}
             </div>
           </Link>
@@ -259,18 +259,18 @@ export default function DashboardPage() {
           {/* Card 4: Tham số lương */}
           <Link
             to="/payroll/parameters"
-            className="panel p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs hover:shadow-md hover:border-indigo-300 transition-all group cursor-pointer block"
+            className="panel p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs hover:shadow-md hover:border-indigo-300 transition-all group cursor-pointer block"
           >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Quy tắc & Tham số</span>
-              <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                <Icon name="sliders" size={18} />
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Quy tắc & Tham số</span>
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                <Icon name="sliders" size={16} />
               </div>
             </div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-1">
+            <div className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-0.5 tabular-nums">
               37 <span className="text-xs font-normal text-slate-500">quy tắc</span>
             </div>
-            <div className="text-xs text-slate-500">
+            <div className="text-[11px] text-slate-500">
               Phụ cấp, BHXH, Thuế, Hoa hồng
             </div>
           </Link>
@@ -278,16 +278,16 @@ export default function DashboardPage() {
       )}
 
       {/* 3. Nội dung chính: 2 Cột Desktop */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Cột trái: Bảng Kỳ lương gần đây (chiếm 2 cột) */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-4">
           <section className="panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xs overflow-hidden">
-            <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <div>
-                <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 m-0">
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 m-0">
                   Kỳ tính lương gần đây
                 </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-[11px] text-slate-500 mt-0.5">
                   Theo dõi tiến độ tính lương và số tiền chi trả các tháng
                 </p>
               </div>
@@ -370,30 +370,30 @@ export default function DashboardPage() {
           </section>
 
           {/* Cơ sở y tế trực thuộc */}
-          <section className="panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-2xs">
+          <section className="panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-2xs">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3 flex items-center gap-2">
               <Icon name="building" size={16} />
               <span>Phân bổ nhân sự theo Cơ sở Y tế</span>
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div className="p-3.5 rounded-lg border border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-3 rounded-lg border border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
                 <div>
                   <div className="font-semibold text-xs text-slate-800">Cơ sở 1 - Phòng khám Đa khoa Quốc tế</div>
                   <div className="text-[11px] text-slate-500 mt-0.5">Bác sĩ, Điều dưỡng, Khoa chẩn đoán hình ảnh</div>
                 </div>
                 <div className="text-right shrink-0 ml-3">
-                  <span className="text-base font-bold text-sky-700">15</span>
+                  <span className="text-sm font-bold text-sky-700">15</span>
                   <div className="text-[10px] text-slate-500">nhân sự</div>
                 </div>
               </div>
 
-              <div className="p-3.5 rounded-lg border border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
+              <div className="p-3 rounded-lg border border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
                 <div>
                   <div className="font-semibold text-xs text-slate-800">Cơ sở 2 - Trung tâm Kỹ thuật cao</div>
                   <div className="text-[11px] text-slate-500 mt-0.5">Khoa Xét nghiệm, Dược, Kế toán & Hành chính</div>
                 </div>
                 <div className="text-right shrink-0 ml-3">
-                  <span className="text-base font-bold text-sky-700">10</span>
+                  <span className="text-sm font-bold text-sky-700">10</span>
                   <div className="text-[10px] text-slate-500">nhân sự</div>
                 </div>
               </div>
@@ -402,9 +402,9 @@ export default function DashboardPage() {
         </div>
 
         {/* Cột phải: Lối tắt thao tác nhanh & Tiện ích (chiếm 1 cột) */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Quick Actions Panel */}
-          <section className="panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-2xs">
+          <section className="panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-2xs">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3 flex items-center gap-2">
               <Icon name="sliders" size={16} />
               <span>Lối tắt nghiệp vụ</span>

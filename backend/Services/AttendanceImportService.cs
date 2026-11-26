@@ -204,7 +204,7 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
                 DepartmentId = staff.DepartmentId, FacilityId = batch.FacilityId, DeviceEnrollId = row.DeviceEnrollId,
                 ImportId = batch.ImportId, WorkDate = row.WorkDate!.Value, ShiftType = row.ShiftType,
                 CheckIn = pairs.Min(x => x.In), CheckOut = pairs.Max(x => x.Out), TimePairsJson = row.TimePairsJson, ActualHours = row.ActualHours,
-                Source = row.CorrectionReason is null ? "machine" : "manual", ValidationStatus = row.ValidationStatus == "warning" ? "flagged" : "imported",
+                Source = row.CorrectionReason is null ? "machine" : "manual", ValidationStatus = "imported",
                 Note = row.ValidationNote, ReconcileNote = row.CorrectionReason };
             db.AttendanceRecords.Add(record);
             row.AttendanceId = record.AttendanceId; row.ValidationStatus = "committed";

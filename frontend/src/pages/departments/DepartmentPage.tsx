@@ -217,7 +217,6 @@ export default function DepartmentPage() {
         <div>
           <span className="eyebrow">CƠ CẤU TỔ CHỨC</span>
           <h1 id="department-page-title">Khoa/phòng</h1>
-          <p>Quản lý các đơn vị chuyên môn, bộ phận và phân bổ cơ sở của phòng khám.</p>
         </div>
         <button
           className="button primary"

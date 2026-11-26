@@ -58,15 +58,19 @@ a { text-decoration: none; }
 }
 
 .vnc .topbar {
-  min-height: 64px;
+  min-height: 50px;
   height: auto;
-  padding-block: 10px;
+  padding-block: 6px;
+  padding-inline: 24px;
   flex-shrink: 0;
   position: sticky;
   top: 0;
   z-index: 10;
   background: #fff;
 }
+.vnc .topbar .button { height: 32px; min-height: 32px; padding: 0 10px; }
+.vnc .topbar .avatar.small { width: 30px; height: 30px; font-size: 11px; }
+.vnc .topbar .icon-button { width: 34px; height: 34px; }
 .vnc .page-content {
   padding: 20px 28px; margin: 0 auto; min-width: 0; min-height: 0;
   width: 100%; flex: 1 1 0; overflow: auto; overscroll-behavior: contain;
