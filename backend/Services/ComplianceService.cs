@@ -143,6 +143,7 @@ public sealed class ComplianceService(
         var contractsByStaff = allContracts.ToLookup(c => c.StaffId);
 
         var allCerts = await db.Certificates.AsNoTracking()
+            .Where(c => c.IsActive)
             .OrderBy(c => c.ExpiryDate)
             .ThenByDescending(c => c.IssueDate)
             .ToArrayAsync(ct);

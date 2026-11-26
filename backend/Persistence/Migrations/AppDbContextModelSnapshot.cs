@@ -737,6 +737,18 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .HasColumnType("nvarchar(500)")
                         .HasColumnName("file_url");
 
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsPrimary")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_primary");
+
                     b.Property<DateOnly?>("IssueDate")
                         .HasColumnType("date")
                         .HasColumnName("issue_date");
@@ -775,7 +787,10 @@ namespace Vnc.HRMS.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[certificate_number] IS NOT NULL");
 
-                    b.HasIndex("StaffId");
+                    b.HasIndex("StaffId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_certificates_staff_primary_active")
+                        .HasFilter("[is_primary] = 1 AND [is_active] = 1");
 
                     b.HasIndex("ExpiryDate", "Status")
                         .HasDatabaseName("IX_certificates_expiry_date");

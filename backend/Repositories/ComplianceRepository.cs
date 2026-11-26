@@ -6,7 +6,7 @@ public sealed class ComplianceRepository(AppDbContext db)
 {
     public async Task<object> CertificatesAsync(int page, int pageSize, Guid? departmentId, CancellationToken ct)
     {
-        var query = db.Certificates.AsNoTracking();
+        var query = db.Certificates.AsNoTracking().Where(c => c.IsActive);
         if (departmentId.HasValue)
         {
             var deptStaffIds = db.Staff.AsNoTracking()

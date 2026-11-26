@@ -10,6 +10,9 @@ interface Props {
   onClose: () => void;
   onEdit?: (cert: Certificate) => void;
   onToggleStatus?: (cert: Certificate) => void;
+  onToggleDegreePrimary?: (cert: Certificate) => void;
+  onToggleDegreeActive?: (cert: Certificate) => void;
+  hasOtherActivePrimary?: boolean;
   onReview?: (cert: Certificate, action: 'approve' | 'reject', reason?: string) => Promise<void>;
   busyReview?: boolean;
 }
@@ -43,6 +46,9 @@ export default function CertificateDetailModal({
   onClose,
   onEdit,
   onToggleStatus,
+  onToggleDegreePrimary,
+  onToggleDegreeActive,
+  hasOtherActivePrimary = false,
   onReview,
   busyReview = false,
 }: Props) {
@@ -51,6 +57,8 @@ export default function CertificateDetailModal({
   const [reasonError, setReasonError] = useState('');
 
   const isDegree = certificate.category === 'degree';
+  const isDegreeInactive = isDegree && certificate.isActive === false;
+  const isDegreePrimary = isDegree && Boolean(certificate.isPrimary);
   const isExpired = certificate.expiryDate ? certificate.expiryDate.slice(0, 10) < todayVn() : false;
 
   const isPendingReview =
@@ -138,6 +146,21 @@ export default function CertificateDetailModal({
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${categoryBadgeClass}`}>
                   {isDegree ? 'Bằng cấp' : 'Chứng chỉ'}
                 </span>
+                {isDegreePrimary && !isDegreeInactive && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-300">
+                    <Icon name="star" size={12} />
+                    Bằng chính
+                  </span>
+                )}
+                {isDegreePrimary && isDegreeInactive && (
+                  <span
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-dashed border-slate-300"
+                    title="Dấu bằng chính chỉ hiển thị tượng trưng do bằng cấp đang ngừng hoạt động. Khi kích hoạt lại, dấu này sẽ biến mất."
+                  >
+                    <Icon name="star" size={12} />
+                    Bằng chính (tượng trưng)
+                  </span>
+                )}
                 <h3 className="text-lg font-semibold text-slate-800">
                   {certificate.certificateType}
                 </h3>
@@ -148,9 +171,9 @@ export default function CertificateDetailModal({
                 </p>
               )}
             </div>
-            <span className={`status-badge ${isDegree ? verClass : certStatusClass}`}>
+            <span className={`status-badge ${isDegree ? (isDegreeInactive ? 'inactive' : verClass) : certStatusClass}`}>
               <i />
-              {isDegree ? verLabel : certStatusLabel}
+              {isDegree ? (isDegreeInactive ? 'Ngừng hoạt động' : verLabel) : certStatusLabel}
             </span>
           </div>
 
@@ -326,7 +349,50 @@ export default function CertificateDetailModal({
               <div />
             )}
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
+              {isDegree && !isRejected && !isDegreeInactive && onToggleDegreePrimary && (
+                <button
+                  type="button"
+                  className={`button text-xs flex items-center gap-1.5 ${
+                    isDegreePrimary
+                      ? 'secondary text-amber-800 border-amber-300 bg-amber-50'
+                      : 'secondary text-slate-700'
+                  }`}
+                  onClick={() => {
+                    onClose();
+                    onToggleDegreePrimary(certificate);
+                  }}
+                  disabled={busyReview || (!isDegreePrimary && hasOtherActivePrimary)}
+                  title={
+                    !isDegreePrimary && hasOtherActivePrimary
+                      ? 'Đã có bằng chính đang hoạt động. Vui lòng bỏ gắn dấu bằng đó trước khi đổi.'
+                      : isDegreePrimary
+                      ? 'Bỏ gắn dấu bằng chính'
+                      : 'Gắn làm bằng chính'
+                  }
+                >
+                  <Icon name="star" size={14} />
+                  {isDegreePrimary ? 'Bỏ bằng chính' : 'Gắn bằng chính'}
+                </button>
+              )}
+              {isDegree && !isRejected && onToggleDegreeActive && (
+                <button
+                  type="button"
+                  className={`button text-xs flex items-center gap-1.5 ${
+                    isDegreeInactive
+                      ? 'secondary text-teal-700'
+                      : 'danger'
+                  }`}
+                  onClick={() => {
+                    onClose();
+                    onToggleDegreeActive(certificate);
+                  }}
+                  disabled={busyReview}
+                >
+                  <Icon name="power" size={14} />
+                  {isDegreeInactive ? 'Kích hoạt lại' : 'Ngừng hoạt động'}
+                </button>
+              )}
               {!isDegree && !isPendingReview && !isRejected && onToggleStatus && (
                 <button
                   type="button"

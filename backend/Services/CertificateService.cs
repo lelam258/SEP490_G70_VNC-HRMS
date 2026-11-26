@@ -242,7 +242,7 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
                 staff.Email,
                 staff.Status,
                 staff.AvatarUrl,
-                CertificateCount = db.Certificates.Count(c => c.StaffId == staff.StaffId)
+                CertificateCount = db.Certificates.Count(c => c.StaffId == staff.StaffId && c.IsActive)
             }
         ).OrderBy(s => s.StaffCode).ToArrayAsync(ct);
 
@@ -259,15 +259,15 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
         )).ToArray();
     }
 
-    public async Task<CertificateDto[]> ListByStaffIdAsync(Guid staffId, CancellationToken ct = default)
+    public async Task<CertificateDto[]> ListByStaffIdAsync(Guid staffId, bool includeInactiveDegrees = false, CancellationToken ct = default)
     {
         var query = await (
             from cert in db.Certificates.AsNoTracking()
             join staff in db.Staff.AsNoTracking() on cert.StaffId equals staff.StaffId
             join dept in db.Departments.AsNoTracking() on cert.DepartmentId equals dept.DepartmentId into depts
             from dept in depts.DefaultIfEmpty()
-            where cert.StaffId == staffId
-            orderby cert.IssueDate descending, cert.CreatedAt descending
+            where cert.StaffId == staffId && (includeInactiveDegrees || cert.IsActive)
+            orderby cert.IsActive descending, cert.IsPrimary descending, cert.IssueDate descending, cert.CreatedAt descending
             select new
             {
                 cert.CertificateId,
@@ -285,6 +285,8 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
                 cert.CmeCycleMonths,
                 cert.CmeRequiredCredits,
                 Status = cert.Status ?? "active",
+                cert.IsPrimary,
+                cert.IsActive,
                 cert.FileUrl,
                 cert.CreatedAt,
                 cert.UpdatedAt
@@ -322,19 +324,21 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
                 notes,
                 profDeg,
                 method,
-                rejectionReason
+                rejectionReason,
+                c.IsPrimary,
+                c.IsActive
             );
         }).ToArray();
     }
 
-    public async Task<CertificateDto> GetAsync(Guid id, CancellationToken ct = default)
+    public async Task<CertificateDto> GetAsync(Guid id, bool includeInactiveDegrees = false, CancellationToken ct = default)
     {
         var item = await (
             from cert in db.Certificates.AsNoTracking()
             join staff in db.Staff.AsNoTracking() on cert.StaffId equals staff.StaffId
             join dept in db.Departments.AsNoTracking() on cert.DepartmentId equals dept.DepartmentId into depts
             from dept in depts.DefaultIfEmpty()
-            where cert.CertificateId == id
+            where cert.CertificateId == id && (includeInactiveDegrees || cert.IsActive)
             select new
             {
                 cert.CertificateId,
@@ -352,6 +356,8 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
                 cert.CmeCycleMonths,
                 cert.CmeRequiredCredits,
                 Status = cert.Status ?? "active",
+                cert.IsPrimary,
+                cert.IsActive,
                 cert.FileUrl,
                 cert.CreatedAt,
                 cert.UpdatedAt
@@ -387,7 +393,9 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
             notes,
             profDeg,
             method,
-            rejectionReason
+            rejectionReason,
+            item.IsPrimary,
+            item.IsActive
         );
     }
 
@@ -451,6 +459,8 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
             CmeCycleMonths = isDegree ? null : request.CmeCycleMonths,
             CmeRequiredCredits = isDegree ? null : request.CmeRequiredCredits,
             Status = status,
+            IsPrimary = false,
+            IsActive = true,
             FileUrl = string.IsNullOrWhiteSpace(request.FileUrl) ? null : request.FileUrl.Trim(),
             UploadedBy = currentUserId,
             CreatedAt = now,
@@ -485,7 +495,7 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
 
         await tx.CommitAsync(ct);
 
-        return await GetAsync(entity.CertificateId, ct);
+        return await GetAsync(entity.CertificateId, includeInactiveDegrees: true, ct);
     }
 
     public async Task<CertificateDto> UpdateAsync(Guid id, UpdateCertificateRequest request, CancellationToken ct = default)
@@ -493,6 +503,8 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
         await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var entity = await db.Certificates.SingleOrDefaultAsync(c => c.CertificateId == id, ct)
             ?? throw new AppException(404, "Không tìm thấy chứng chỉ.");
+        if (!entity.IsActive)
+            throw new AppException(404, "Không tìm thấy chứng chỉ.");
 
         if (string.IsNullOrWhiteSpace(request.CertificateType))
             throw new AppException(400, "Tên văn bằng / chứng chỉ là bắt buộc.");
@@ -598,7 +610,7 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
         await unitOfWork.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
-        return await GetAsync(id, ct);
+        return await GetAsync(id, includeInactiveDegrees: false, ct);
     }
 
     public async Task<CertificateDto> UpdateStatusAsync(Guid id, string status, CancellationToken ct = default)
@@ -647,7 +659,84 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
         await unitOfWork.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
-        return await GetAsync(id, ct);
+        return await GetAsync(id, includeInactiveDegrees: false, ct);
+    }
+
+    public async Task<CertificateDto> SetDegreePrimaryAsync(Guid id, Guid staffId, bool isPrimary, CancellationToken ct = default)
+    {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+        var entity = await db.Certificates.SingleOrDefaultAsync(c => c.CertificateId == id, ct)
+            ?? throw new AppException(404, "Không tìm thấy bằng cấp.");
+
+        if (entity.StaffId != staffId)
+            throw new AppException(403, "Bạn không có quyền thao tác trên bằng cấp này.");
+
+        var (cat, _, _) = CertificateCategoryHelper.Parse(entity.CertificateType);
+        if (cat != "degree")
+            throw new AppException(400, "Chỉ áp dụng gắn dấu bằng chính cho bằng cấp.", "category");
+
+        if (!entity.IsActive)
+            throw new AppException(409, "Không thể thay đổi dấu bằng chính cho bằng cấp đang ngừng hoạt động.");
+
+        if (string.Equals(entity.Status, "rejected", StringComparison.OrdinalIgnoreCase))
+            throw new AppException(409, "Không thể gắn dấu bằng chính cho bằng cấp đã bị từ chối.");
+
+        if (isPrimary)
+        {
+            var hasOtherActivePrimary = await db.Certificates.AnyAsync(
+                c => c.StaffId == staffId && c.CertificateId != id && c.IsActive && c.IsPrimary,
+                ct);
+            if (hasOtherActivePrimary)
+                throw new AppException(409, "Bạn đã gắn dấu bằng chính cho một bằng cấp khác đang hoạt động. Vui lòng bỏ gắn dấu bằng đó trước khi đổi.");
+
+            entity.IsPrimary = true;
+        }
+        else
+        {
+            entity.IsPrimary = false;
+        }
+
+        entity.UpdatedAt = DateTime.UtcNow;
+        await unitOfWork.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
+        return await GetAsync(id, includeInactiveDegrees: true, ct);
+    }
+
+    public async Task<CertificateDto> SetDegreeActiveAsync(Guid id, Guid staffId, bool isActive, CancellationToken ct = default)
+    {
+        await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
+        var entity = await db.Certificates.SingleOrDefaultAsync(c => c.CertificateId == id, ct)
+            ?? throw new AppException(404, "Không tìm thấy bằng cấp.");
+
+        if (entity.StaffId != staffId)
+            throw new AppException(403, "Bạn không có quyền thao tác trên bằng cấp này.");
+
+        var (cat, _, _) = CertificateCategoryHelper.Parse(entity.CertificateType);
+        if (cat != "degree")
+            throw new AppException(400, "Chỉ áp dụng ngừng hoạt động / kích hoạt lại cho bằng cấp.", "category");
+
+        if (string.Equals(entity.Status, "rejected", StringComparison.OrdinalIgnoreCase))
+            throw new AppException(409, "Không thể thay đổi trạng thái hoạt động của bằng cấp đã bị từ chối.");
+
+        if (!isActive)
+        {
+            // Giữ nguyên IsPrimary (nếu có) để hiển thị tượng trưng cho chủ sở hữu,
+            // đồng thời không còn chặn việc gắn dấu bằng chính cho bằng đang hoạt động khác.
+            entity.IsActive = false;
+        }
+        else if (!entity.IsActive)
+        {
+            // Khi kích hoạt lại bằng cấp đã ngừng hoạt động, xóa dấu bằng chính cũ.
+            entity.IsActive = true;
+            entity.IsPrimary = false;
+        }
+
+        entity.UpdatedAt = DateTime.UtcNow;
+        await unitOfWork.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
+        return await GetAsync(id, includeInactiveDegrees: true, ct);
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
@@ -683,7 +772,7 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
             join staff in db.Staff.AsNoTracking() on cert.StaffId equals staff.StaffId
             join dept in db.Departments.AsNoTracking() on cert.DepartmentId equals dept.DepartmentId into depts
             from dept in depts.DefaultIfEmpty()
-            where pendingStatuses.Contains((cert.Status ?? "active").ToLower())
+            where cert.IsActive && pendingStatuses.Contains((cert.Status ?? "active").ToLower())
             orderby cert.CreatedAt descending
             select new
             {
@@ -702,6 +791,8 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
                 cert.CmeCycleMonths,
                 cert.CmeRequiredCredits,
                 Status = cert.Status ?? "unverified",
+                cert.IsPrimary,
+                cert.IsActive,
                 cert.FileUrl,
                 cert.CreatedAt,
                 cert.UpdatedAt
@@ -739,7 +830,9 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
                 notes,
                 profDeg,
                 method,
-                rejectionReason
+                rejectionReason,
+                c.IsPrimary,
+                c.IsActive
             );
         }).ToArray();
     }
@@ -749,6 +842,8 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
         await using var tx = await unitOfWork.BeginTransactionAsync(ct, IsolationLevel.Serializable);
         var entity = await db.Certificates.SingleOrDefaultAsync(c => c.CertificateId == id, ct)
             ?? throw new AppException(404, "Không tìm thấy chứng chỉ hoặc bằng cấp.");
+        if (!entity.IsActive)
+            throw new AppException(404, "Không tìm thấy chứng chỉ hoặc bằng cấp.");
         if (entity.Status is not ("pending" or "unverified"))
             throw new AppException(409, "Chỉ thẩm định hồ sơ đang chờ xác minh. Vui lòng tải lại danh sách.");
 
@@ -848,7 +943,7 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
         await unitOfWork.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
-        return await GetAsync(entity.CertificateId, ct);
+        return await GetAsync(entity.CertificateId, includeInactiveDegrees: false, ct);
     }
 
     private async Task EnsureDepartmentAsync(Guid? departmentId, CancellationToken ct)

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { myCertificateApi } from '../../services/myCertificateApi';
+import { useAuthStore } from '../../store/useAuthStore';
 import type { Certificate, CertificateCategory } from '../../types/certificates';
 import { formatDate, todayVn } from '../../utils/format';
 import Alert from '../../components/ui/Alert';
@@ -71,6 +72,8 @@ function normalizeCertificate(raw: Partial<Certificate>): Certificate {
     professionalDegree: raw.professionalDegree || null,
     issuanceMethod: raw.issuanceMethod || null,
     rejectionReason: raw.rejectionReason || null,
+    isPrimary: Boolean(raw.isPrimary),
+    isActive: raw.isActive ?? true,
   };
 }
 
@@ -123,6 +126,9 @@ function getExpiryInfo(expiryDateStr: string | null | undefined): ExpiryInfo {
 }
 
 export default function MyCertificateListPage() {
+  const userRole = useAuthStore((s) => s.session?.user.role);
+  const canManageOwnDegrees = userRole === 'employee' || userRole === 'department_head';
+
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -134,11 +140,14 @@ export default function MyCertificateListPage() {
   const [savingCreate, setSavingCreate] = useState(false);
   const [deletingCert, setDeletingCert] = useState<Certificate | null>(null);
   const [busyDelete, setBusyDelete] = useState(false);
+  const [busyDegreeId, setBusyDegreeId] = useState<string | null>(null);
+  const [togglingDegree, setTogglingDegree] = useState<Certificate | null>(null);
+  const [busyToggleActive, setBusyToggleActive] = useState(false);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'degree' | 'certificate'>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'valid' | 'expiring_soon' | 'expired'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'valid' | 'expiring_soon' | 'expired' | 'inactive'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
   // Dynamic table pagination: shrink-to-fit rows, auto-paginate before viewport scroll
@@ -199,6 +208,53 @@ export default function MyCertificateListPage() {
     }
   };
 
+  const activePrimaryDegree = useMemo(
+    () => certificates.find((c) => c.category === 'degree' && c.isActive !== false && c.isPrimary) ?? null,
+    [certificates]
+  );
+
+  const handleToggleDegreePrimary = async (cert: Certificate) => {
+    setError('');
+    setNotice('');
+    setBusyDegreeId(cert.certificateId);
+    try {
+      const nextPrimary = !cert.isPrimary;
+      await myCertificateApi.setPrimary(cert.certificateId, nextPrimary);
+      setNotice(
+        nextPrimary
+          ? `Đã gắn "${cert.certificateType}" làm bằng chính.`
+          : `Đã bỏ gắn dấu bằng chính cho "${cert.certificateType}".`
+      );
+      await loadData();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Cập nhật dấu bằng chính thất bại.');
+    } finally {
+      setBusyDegreeId(null);
+    }
+  };
+
+  const handleConfirmToggleDegreeActive = async () => {
+    if (!togglingDegree) return;
+    setError('');
+    setNotice('');
+    setBusyToggleActive(true);
+    try {
+      const nextActive = togglingDegree.isActive === false;
+      await myCertificateApi.setActive(togglingDegree.certificateId, nextActive);
+      setNotice(
+        nextActive
+          ? `Đã kích hoạt lại bằng cấp "${togglingDegree.certificateType}".`
+          : `Đã ngừng hoạt động bằng cấp "${togglingDegree.certificateType}". Các vai trò khác sẽ không còn nhìn thấy bằng cấp này.`
+      );
+      setTogglingDegree(null);
+      await loadData();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Cập nhật trạng thái hoạt động bằng cấp thất bại.');
+    } finally {
+      setBusyToggleActive(false);
+    }
+  };
+
   // Statistics
   const stats = useMemo(() => {
     let degrees = 0;
@@ -214,7 +270,9 @@ export default function MyCertificateListPage() {
         certs++;
       }
 
+      const isDegreeInactive = c.category === 'degree' && c.isActive === false;
       const isNonActive =
+        isDegreeInactive ||
         c.status === 'inactive' ||
         c.status === 'rejected' ||
         c.verificationStatus === 'rejected' ||
@@ -254,21 +312,27 @@ export default function MyCertificateListPage() {
 
       // Status filter
       if (statusFilter !== 'all') {
-        const isNonActive =
-          c.status === 'inactive' ||
-          c.status === 'rejected' ||
-          c.verificationStatus === 'rejected' ||
-          c.status === 'pending' ||
-          c.status === 'unverified' ||
-          c.verificationStatus === 'unverified' ||
-          c.status === 'revoked' ||
-          c.status === 'suspended';
-        if (isNonActive) return false;
-        const info = getExpiryInfo(c.expiryDate);
-        const isExpiredCert = c.status === 'expired' || info.state === 'expired';
-        if (statusFilter === 'valid' && (isExpiredCert || info.state === 'expiring_soon')) return false;
-        if (statusFilter === 'expiring_soon' && (isExpiredCert || info.state !== 'expiring_soon')) return false;
-        if (statusFilter === 'expired' && !isExpiredCert) return false;
+        const isDegreeInactive = c.category === 'degree' && c.isActive === false;
+        if (statusFilter === 'inactive') {
+          if (!isDegreeInactive && c.status !== 'inactive') return false;
+        } else {
+          const isNonActive =
+            isDegreeInactive ||
+            c.status === 'inactive' ||
+            c.status === 'rejected' ||
+            c.verificationStatus === 'rejected' ||
+            c.status === 'pending' ||
+            c.status === 'unverified' ||
+            c.verificationStatus === 'unverified' ||
+            c.status === 'revoked' ||
+            c.status === 'suspended';
+          if (isNonActive) return false;
+          const info = getExpiryInfo(c.expiryDate);
+          const isExpiredCert = c.status === 'expired' || info.state === 'expired';
+          if (statusFilter === 'valid' && (isExpiredCert || info.state === 'expiring_soon')) return false;
+          if (statusFilter === 'expiring_soon' && (isExpiredCert || info.state !== 'expiring_soon')) return false;
+          if (statusFilter === 'expired' && !isExpiredCert) return false;
+        }
       }
 
       // Search keyword
@@ -510,6 +574,7 @@ export default function MyCertificateListPage() {
             <option value="valid">Còn hiệu lực / Vô thời hạn</option>
             <option value="expiring_soon">Sắp hết hạn (≤ 90 ngày)</option>
             <option value="expired">Đã hết hạn</option>
+            <option value="inactive">Ngừng hoạt động</option>
           </select>
         </div>
 
@@ -595,28 +660,62 @@ export default function MyCertificateListPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredList.map((cert) => {
             const isDegree = cert.category === 'degree';
+            const isDegreeInactive = isDegree && cert.isActive === false;
+            const isDegreePrimary = isDegree && Boolean(cert.isPrimary);
+            const isRejected = cert.status === 'rejected' || cert.verificationStatus === 'rejected';
+            const hasOtherActivePrimary =
+              Boolean(activePrimaryDegree) && activePrimaryDegree?.certificateId !== cert.certificateId;
             const expiryInfo = getExpiryInfo(cert.expiryDate);
 
             return (
               <div
                 key={cert.certificateId}
-                className="bg-white rounded-xl border border-slate-200 hover:border-slate-300 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between overflow-hidden group"
+                className={`rounded-xl border shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between overflow-hidden group ${
+                  isDegreeInactive
+                    ? 'bg-slate-50/80 border-slate-200 opacity-80'
+                    : isDegreePrimary
+                    ? 'bg-white border-amber-300 ring-1 ring-amber-200/70'
+                    : 'bg-white border-slate-200 hover:border-slate-300'
+                }`}
               >
                 {/* Card Top / Badges */}
                 <div className="p-5 flex-1">
                   <div className="flex items-start justify-between gap-2 mb-3">
-                    <span
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
-                        isDegree
-                          ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                          : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      }`}
-                    >
-                      <Icon name={isDegree ? 'award' : 'shield'} size={12} />
-                      {isDegree ? 'Bằng cấp' : 'Chứng chỉ'}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
+                          isDegree
+                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}
+                      >
+                        <Icon name={isDegree ? 'award' : 'shield'} size={12} />
+                        {isDegree ? 'Bằng cấp' : 'Chứng chỉ'}
+                      </span>
 
-                    {cert.status === 'rejected' || cert.verificationStatus === 'rejected' ? (
+                      {isDegreePrimary && !isDegreeInactive && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-300">
+                          <Icon name="star" size={11} />
+                          Bằng chính
+                        </span>
+                      )}
+
+                      {isDegreePrimary && isDegreeInactive && (
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-500 border border-dashed border-slate-300"
+                          title="Dấu bằng chính chỉ hiển thị tượng trưng do bằng cấp đang ngừng hoạt động. Khi kích hoạt lại, dấu này sẽ biến mất."
+                        >
+                          <Icon name="star" size={11} />
+                          Bằng chính (tượng trưng)
+                        </span>
+                      )}
+                    </div>
+
+                    {isDegreeInactive ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                        Ngừng hoạt động
+                      </span>
+                    ) : isRejected ? (
                       <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
                         <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
                         Bị từ chối
@@ -738,7 +837,48 @@ export default function MyCertificateListPage() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 flex-wrap justify-end">
+                    {canManageOwnDegrees && isDegree && !isRejected && !isDegreeInactive && (
+                      <button
+                        type="button"
+                        className={`p-1.5 rounded-lg border text-xs transition-colors flex items-center gap-1 ${
+                          isDegreePrimary
+                            ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                            : hasOtherActivePrimary
+                            ? 'bg-slate-50 text-slate-300 border-slate-200 cursor-not-allowed'
+                            : 'bg-white text-slate-600 border-slate-200 hover:text-amber-700 hover:border-amber-300 hover:bg-amber-50'
+                        }`}
+                        onClick={() => void handleToggleDegreePrimary(cert)}
+                        disabled={busyDegreeId === cert.certificateId || (!isDegreePrimary && hasOtherActivePrimary)}
+                        title={
+                          !isDegreePrimary && hasOtherActivePrimary
+                            ? `Đã có bằng chính (${activePrimaryDegree?.certificateType}). Bỏ gắn dấu bằng đó trước khi đổi.`
+                            : isDegreePrimary
+                            ? 'Bỏ gắn dấu bằng chính'
+                            : 'Gắn làm bằng chính'
+                        }
+                      >
+                        <Icon name="star" size={13} />
+                        <span className="text-[11px] font-medium">
+                          {isDegreePrimary ? 'Bỏ chính' : 'Bằng chính'}
+                        </span>
+                      </button>
+                    )}
+                    {canManageOwnDegrees && isDegree && !isRejected && (
+                      <button
+                        type="button"
+                        className={`p-1.5 rounded-lg transition-colors ${
+                          isDegreeInactive
+                            ? 'text-teal-700 hover:bg-teal-50'
+                            : 'text-amber-600 hover:text-red-600 hover:bg-red-50'
+                        }`}
+                        onClick={() => setTogglingDegree(cert)}
+                        disabled={busyToggleActive}
+                        title={isDegreeInactive ? 'Kích hoạt lại bằng cấp' : 'Ngừng hoạt động bằng cấp'}
+                      >
+                        <Icon name="power" size={14} />
+                      </button>
+                    )}
                     {(cert.verificationStatus === 'unverified' || cert.status === 'pending' || cert.status === 'unverified' || cert.status === 'rejected') && (
                       <button
                         type="button"
@@ -783,21 +923,46 @@ export default function MyCertificateListPage() {
               <tbody className="divide-y divide-slate-100">
                 {paginatedTableList.map((cert) => {
                   const isDegree = cert.category === 'degree';
+                  const isDegreeInactive = isDegree && cert.isActive === false;
+                  const isDegreePrimary = isDegree && Boolean(cert.isPrimary);
+                  const isRejected = cert.status === 'rejected' || cert.verificationStatus === 'rejected';
+                  const hasOtherActivePrimary =
+                    Boolean(activePrimaryDegree) && activePrimaryDegree?.certificateId !== cert.certificateId;
                   const expiryInfo = getExpiryInfo(cert.expiryDate);
 
                   return (
-                    <tr key={cert.certificateId} className="hover:bg-slate-50/70 transition-colors">
+                    <tr
+                      key={cert.certificateId}
+                      className={`hover:bg-slate-50/70 transition-colors ${isDegreeInactive ? 'opacity-75 bg-slate-50/50' : ''}`}
+                    >
                       <td className="py-3 px-4 whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
-                            isDegree
-                              ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          }`}
-                        >
-                          <Icon name={isDegree ? 'award' : 'shield'} size={11} />
-                          {isDegree ? 'Bằng cấp' : 'Chứng chỉ'}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                              isDegree
+                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}
+                          >
+                            <Icon name={isDegree ? 'award' : 'shield'} size={11} />
+                            {isDegree ? 'Bằng cấp' : 'Chứng chỉ'}
+                          </span>
+                          {isDegreePrimary && !isDegreeInactive && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-300">
+                              <Icon name="star" size={10} />
+                              Bằng chính
+                            </span>
+                          )}
+                          {isDegreePrimary && isDegreeInactive && (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500 border border-dashed border-slate-300"
+                              title="Dấu bằng chính chỉ hiển thị tượng trưng do bằng cấp đang ngừng hoạt động."
+                            >
+                              <Icon name="star" size={10} />
+                              Bằng chính (tượng trưng)
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td className="py-3 px-4 font-medium text-slate-900 max-w-xs">
@@ -820,7 +985,11 @@ export default function MyCertificateListPage() {
                       </td>
 
                       <td className="py-3 px-4 whitespace-nowrap">
-                        {cert.status === 'rejected' || cert.verificationStatus === 'rejected' ? (
+                        {isDegreeInactive ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                            Ngừng hoạt động
+                          </span>
+                        ) : isRejected ? (
                           <div>
                             <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
                               <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
@@ -881,6 +1050,44 @@ export default function MyCertificateListPage() {
 
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
+                          {canManageOwnDegrees && isDegree && !isRejected && !isDegreeInactive && (
+                            <button
+                              type="button"
+                              className={`p-1.5 rounded-lg border transition-colors ${
+                                isDegreePrimary
+                                  ? 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                                  : hasOtherActivePrimary
+                                  ? 'text-slate-300 border-slate-200 cursor-not-allowed'
+                                  : 'text-slate-500 border-slate-200 hover:text-amber-700 hover:bg-amber-50'
+                              }`}
+                              onClick={() => void handleToggleDegreePrimary(cert)}
+                              disabled={busyDegreeId === cert.certificateId || (!isDegreePrimary && hasOtherActivePrimary)}
+                              title={
+                                !isDegreePrimary && hasOtherActivePrimary
+                                  ? `Đã có bằng chính (${activePrimaryDegree?.certificateType}). Bỏ gắn dấu bằng đó trước khi đổi.`
+                                  : isDegreePrimary
+                                  ? 'Bỏ gắn dấu bằng chính'
+                                  : 'Gắn làm bằng chính'
+                              }
+                            >
+                              <Icon name="star" size={13} />
+                            </button>
+                          )}
+                          {canManageOwnDegrees && isDegree && !isRejected && (
+                            <button
+                              type="button"
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                isDegreeInactive
+                                  ? 'text-teal-700 hover:bg-teal-50'
+                                  : 'text-amber-600 hover:text-red-600 hover:bg-red-50'
+                              }`}
+                              onClick={() => setTogglingDegree(cert)}
+                              disabled={busyToggleActive}
+                              title={isDegreeInactive ? 'Kích hoạt lại bằng cấp' : 'Ngừng hoạt động bằng cấp'}
+                            >
+                              <Icon name="power" size={13} />
+                            </button>
+                          )}
                           {(cert.verificationStatus === 'unverified' || cert.status === 'pending' || cert.status === 'unverified' || cert.status === 'rejected') && (
                             <button
                               type="button"
@@ -957,7 +1164,79 @@ export default function MyCertificateListPage() {
         <CertificateDetailModal
           certificate={selectedCert}
           onClose={() => setSelectedCert(null)}
+          onToggleDegreePrimary={canManageOwnDegrees ? (c) => void handleToggleDegreePrimary(c) : undefined}
+          onToggleDegreeActive={canManageOwnDegrees ? (c) => setTogglingDegree(c) : undefined}
+          hasOtherActivePrimary={
+            Boolean(activePrimaryDegree) && activePrimaryDegree?.certificateId !== selectedCert.certificateId
+          }
+          busyReview={busyDegreeId === selectedCert.certificateId || busyToggleActive}
         />
+      )}
+
+      {/* Toggle Degree Active Confirmation Modal */}
+      {togglingDegree && (
+        <Modal
+          title={togglingDegree.isActive === false ? 'Kích hoạt lại bằng cấp' : 'Ngừng hoạt động bằng cấp'}
+          onClose={() => {
+            if (!busyToggleActive) setTogglingDegree(null);
+          }}
+          busy={busyToggleActive}
+        >
+          <div className="p-5 space-y-4 text-xs text-slate-600">
+            <p className="leading-relaxed">
+              Xác nhận{' '}
+              <strong className="text-slate-800">
+                {togglingDegree.isActive === false ? 'kích hoạt lại' : 'ngừng hoạt động'}
+              </strong>{' '}
+              bằng cấp <strong className="text-slate-900">{togglingDegree.certificateType}</strong>?
+            </p>
+            {togglingDegree.isActive !== false ? (
+              <div className="space-y-2 bg-slate-50 border border-slate-200 rounded-lg p-3 text-slate-700">
+                <p>
+                  Sau khi ngừng hoạt động, các vai trò khác (HR Manager, quản lý...) sẽ không thể nhìn thấy bằng cấp này.
+                </p>
+                {togglingDegree.isPrimary && (
+                  <p className="text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
+                    Bằng cấp này đang được gắn dấu <strong>Bằng chính</strong>. Khi ngừng hoạt động, dấu bằng chính sẽ chỉ hiển thị tượng trưng và bạn có thể gắn bằng cấp đang hoạt động khác làm bằng chính. Khi kích hoạt lại bằng này sau đó, dấu bằng chính cũ sẽ tự động biến mất.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2 bg-teal-50 border border-teal-200 rounded-lg p-3 text-teal-900">
+                <p>
+                  Bằng cấp sẽ hoạt động trở lại và hiển thị với các vai trò quản lý liên quan.
+                </p>
+                {togglingDegree.isPrimary && (
+                  <p className="text-amber-900 bg-amber-50 border border-amber-200 rounded p-2">
+                    Lưu ý: Dấu <strong>Bằng chính (tượng trưng)</strong> trên bằng cấp này sẽ tự động biến mất khi kích hoạt lại.
+                  </p>
+                )}
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                className="button secondary text-xs"
+                onClick={() => setTogglingDegree(null)}
+                disabled={busyToggleActive}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                className={`button text-xs ${togglingDegree.isActive === false ? 'primary' : 'danger'}`}
+                onClick={() => void handleConfirmToggleDegreeActive()}
+                disabled={busyToggleActive}
+              >
+                {busyToggleActive
+                  ? 'Đang xử lý...'
+                  : togglingDegree.isActive === false
+                  ? 'Kích hoạt lại'
+                  : 'Ngừng hoạt động'}
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* Create Modal */}

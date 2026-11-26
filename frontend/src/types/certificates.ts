@@ -71,6 +71,8 @@ export interface Certificate {
   professionalDegree?: string | null; // Văn bằng chuyên môn
   issuanceMethod?: string | null; // Hình thức cấp (nếu có)
   rejectionReason?: string | null; // Lý do từ chối nếu có
+  isPrimary?: boolean; // Đánh dấu bằng cấp chính (duy nhất trong các bằng đang hoạt động)
+  isActive?: boolean; // Bằng cấp đang hoạt động hay ngừng hoạt động
 }
 
 export interface ReviewCertificateInput {

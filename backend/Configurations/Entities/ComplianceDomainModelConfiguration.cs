@@ -20,11 +20,17 @@ public static class ComplianceDomainModelConfiguration
             entity.Property(x => x.CmeCycleMonths).HasColumnName("cme_cycle_months").HasColumnType("int");
             entity.Property(x => x.CmeRequiredCredits).HasColumnName("cme_required_credits").HasColumnType("decimal(6,2)");
             entity.Property(x => x.Status).HasColumnName("status").HasColumnType("nvarchar(20)").HasDefaultValueSql("'active'");
+            entity.Property(x => x.IsPrimary).HasColumnName("is_primary").HasColumnType("bit").HasDefaultValue(false);
+            entity.Property(x => x.IsActive).HasColumnName("is_active").HasColumnType("bit").HasDefaultValue(true);
             entity.Property(x => x.FileUrl).HasColumnName("file_url").HasColumnType("nvarchar(500)");
             entity.Property(x => x.UploadedBy).HasColumnName("uploaded_by").HasColumnType("uniqueidentifier");
             entity.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
             entity.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnType("datetime2(0)").HasDefaultValueSql("SYSUTCDATETIME()");
             entity.HasKey(x => x.CertificateId);
+            entity.HasIndex(x => x.StaffId)
+                .IsUnique()
+                .HasDatabaseName("UX_certificates_staff_primary_active")
+                .HasFilter("[is_primary] = 1 AND [is_active] = 1");
         }
         {
             var entity = modelBuilder.Entity<CmeCycle>(); entity.ToTable("cme_cycles", "dbo", table => { table.HasCheckConstraint("CK_cme_cycles_1", "[cycle_end] >= [cycle_start]"); table.HasCheckConstraint("CK_cme_cycles_2", "[cycle_number] > 0 AND [required_credits] >= 0 AND [earned_credits] >= 0"); });

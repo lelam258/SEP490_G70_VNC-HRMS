@@ -13,6 +13,8 @@ public sealed class Certificate
     public int? CmeCycleMonths { get; set; }
     public decimal? CmeRequiredCredits { get; set; }
     public string? Status { get; set; }
+    public bool IsPrimary { get; set; }
+    public bool IsActive { get; set; } = true;
     public string? FileUrl { get; set; }
     public Guid? UploadedBy { get; set; }
     public DateTime? CreatedAt { get; set; }

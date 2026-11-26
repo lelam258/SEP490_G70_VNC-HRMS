@@ -86,6 +86,8 @@ try
         await db.SaveChangesAsync();
     }
 
+    if (!args.Contains("--certificates-only"))
+    {
     await Reject(db => Departments(db).CreateAsync(new(" br ", "Khoa khác"), ct), 409, "Department creation rejects normalized duplicate code");
     await Reject(db => Departments(db).CreateAsync(new("NEW", " Khoa kiểm thử "), ct), 409, "Department creation rejects duplicate name");
     await Reject(db => Departments(db).UpdateAsync(department, new("OFF", "Khoa kiểm thử", "active"), ct), 409, "Department edit rejects another department's code");
@@ -146,6 +148,7 @@ try
     await Reject(db => Schedules(db).Publish(monday, ct), 400, "Publishing rechecks department status changed after assignment");
     await Execute(async db => { var dept = await db.Departments.FindAsync(department); dept!.Status = "active"; await db.SaveChangesAsync(); });
     await Run(db => Schedules(db).Publish(monday, ct));
+    }
 
     var degree = await Run(db => Certificates(db).CreateAsync(NewCert("Chuyên ngành", "degree", null, "unverified"), actor, ct));
     Check(degree.Category == "degree" && degree.Status == "unverified" && degree.CmeCycleMonths == null, "Explicit degree category wins over name heuristics");
@@ -158,6 +161,33 @@ try
     await Reject(db => Certificates(db).CreateAsync(NewCert("Invalid") with { Notes = new string('a', 250), Category = "degree", Status = "unverified" }, actor, ct), 400, "Oversized certificate metadata is rejected without truncating JSON");
     await Run(db => Certificates(db).ReviewAsync(degree.CertificateId, new("approve", null), actor, ct));
     await Reject(db => Certificates(db).ReviewAsync(degree.CertificateId, new("reject", "Changed decision"), actor, ct), 409, "Review cannot overwrite an already reviewed certificate");
+
+    // Degree primary mark & deactivation business rules
+    var degree2 = await Run(db => Certificates(db).CreateAsync(NewCert("Thạc sĩ Y khoa", "degree", null, "verified"), actor, ct));
+    var markedPrimary = await Run(db => Certificates(db).SetDegreePrimaryAsync(degree.CertificateId, staff1, true, ct));
+    Check(markedPrimary.IsPrimary && markedPrimary.IsActive, "Staff can mark an active degree as primary");
+    await Reject(db => Certificates(db).SetDegreePrimaryAsync(degree2.CertificateId, staff1, true, ct), 409, "Cannot mark second active degree without unmarking existing primary");
+    await Reject(db => Certificates(db).SetDegreePrimaryAsync(cert.CertificateId, staff1, true, ct), 400, "Cannot mark non-degree certificate as primary");
+    var unmarkedPrimary = await Run(db => Certificates(db).SetDegreePrimaryAsync(degree.CertificateId, staff1, false, ct));
+    Check(!unmarkedPrimary.IsPrimary, "Staff can unmark primary degree");
+    var marked2 = await Run(db => Certificates(db).SetDegreePrimaryAsync(degree2.CertificateId, staff1, true, ct));
+    Check(marked2.IsPrimary, "Staff can mark another degree after unmarking previous primary");
+    var deactivatedPrimary = await Run(db => Certificates(db).SetDegreeActiveAsync(degree2.CertificateId, staff1, false, ct));
+    Check(!deactivatedPrimary.IsActive && deactivatedPrimary.IsPrimary, "Deactivating primary degree keeps symbolic IsPrimary flag");
+    await Reject(db => Certificates(db).SetDegreePrimaryAsync(degree2.CertificateId, staff1, false, ct), 409, "Cannot change primary mark on inactive degree");
+    var managerList = await Run(db => Certificates(db).ListByStaffIdAsync(staff1, includeInactiveDegrees: false, ct));
+    Check(!managerList.Any(c => c.CertificateId == degree2.CertificateId), "Other roles cannot see deactivated degree in staff list");
+    await Reject(db => Certificates(db).GetAsync(degree2.CertificateId, includeInactiveDegrees: false, ct), 404, "Other roles cannot view deactivated degree by id");
+    var ownerList = await Run(db => Certificates(db).ListByStaffIdAsync(staff1, includeInactiveDegrees: true, ct));
+    Check(ownerList.Any(c => c.CertificateId == degree2.CertificateId && !c.IsActive && c.IsPrimary), "Owner still sees deactivated degree with symbolic primary mark");
+    var markedAfterDeactivate = await Run(db => Certificates(db).SetDegreePrimaryAsync(degree.CertificateId, staff1, true, ct));
+    Check(markedAfterDeactivate.IsPrimary && markedAfterDeactivate.IsActive, "Staff can mark another active degree as primary once previous primary is deactivated");
+    var reactivated = await Run(db => Certificates(db).SetDegreeActiveAsync(degree2.CertificateId, staff1, true, ct));
+    Check(reactivated.IsActive && !reactivated.IsPrimary, "Reactivating deactivated degree clears its symbolic primary mark");
+    var managerListAfterReactivate = await Run(db => Certificates(db).ListByStaffIdAsync(staff1, includeInactiveDegrees: false, ct));
+    Check(managerListAfterReactivate.Any(c => c.CertificateId == degree2.CertificateId), "Other roles can see degree again once reactivated");
+    var stillPrimary = await Run(db => Certificates(db).GetAsync(degree.CertificateId, includeInactiveDegrees: true, ct));
+    Check(stillPrimary.IsPrimary && stillPrimary.IsActive, "Reactivating old degree does not affect current active primary degree");
 
     var cycle = await Run(db => Cme(db).CreateNewCycleAsync(cert.CertificateId, new(today.AddMonths(-1), today.AddMonths(1)), ct));
     var otherCert = await Run(db => Certificates(db).CreateAsync(NewCert("Chứng chỉ thứ hai"), actor, ct));

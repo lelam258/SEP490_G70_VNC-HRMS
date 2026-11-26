@@ -81,6 +81,8 @@ function normalizeCertificate(raw: Partial<Certificate>): Certificate {
     professionalDegree: raw.professionalDegree || null,
     issuanceMethod: raw.issuanceMethod || null,
     rejectionReason: raw.rejectionReason || null,
+    isPrimary: Boolean(raw.isPrimary),
+    isActive: raw.isActive ?? true,
   };
 }
 
@@ -929,6 +931,12 @@ export default function CertificateListPage() {
                             <div>
                               <div className="mb-1 flex items-center gap-1.5 flex-wrap">
                                 {categoryBadge}
+                                {isDegree && cert.isPrimary && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-300">
+                                    <Icon name="star" size={10} />
+                                    Bằng chính
+                                  </span>
+                                )}
                                 {isPending && (
                                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
                                     ● Chờ duyệt

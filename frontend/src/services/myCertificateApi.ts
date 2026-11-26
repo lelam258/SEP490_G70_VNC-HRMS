@@ -17,4 +17,12 @@ export const myCertificateApi = {
   async revoke(id: string): Promise<void> {
     await axiosClient.delete(`/me/certificates/${id}`);
   },
+
+  async setPrimary(id: string, isPrimary: boolean): Promise<Certificate> {
+    return (await axiosClient.patch<Certificate>(`/me/certificates/${id}/primary`, { isPrimary })).data;
+  },
+
+  async setActive(id: string, isActive: boolean): Promise<Certificate> {
+    return (await axiosClient.patch<Certificate>(`/me/certificates/${id}/active`, { isActive })).data;
+  },
 };

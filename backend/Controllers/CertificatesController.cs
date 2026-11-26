@@ -20,11 +20,11 @@ public sealed class CertificatesController(ICertificateService certificates) : C
 
     [HttpGet("employee/{staffId:guid}")]
     public Task<CertificateDto[]> ListByStaff(Guid staffId, CancellationToken ct) =>
-        certificates.ListByStaffIdAsync(staffId, ct);
+        certificates.ListByStaffIdAsync(staffId, includeInactiveDegrees: false, ct);
 
     [HttpGet("{id:guid}")]
     public Task<CertificateDto> Get(Guid id, CancellationToken ct) =>
-        certificates.GetAsync(id, ct);
+        certificates.GetAsync(id, includeInactiveDegrees: false, ct);
 
     [HttpPost]
     public async Task<ActionResult<CertificateDto>> Create([FromBody] SaveCertificateRequest request, CancellationToken ct)

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Vnc.HRMS.Common.Exceptions;
 using Vnc.HRMS.DTOs.Certificates;
 using Vnc.HRMS.Repositories.Interfaces;
+using Vnc.HRMS.Security;
 using Vnc.HRMS.Services.Interfaces;
 
 namespace Vnc.HRMS.Controllers;
@@ -36,7 +37,7 @@ public sealed class MyCertificatesController(
             return Ok(Array.Empty<CertificateDto>());
         }
 
-        var list = await certificateService.ListByStaffIdAsync(staff.StaffId, ct);
+        var list = await certificateService.ListByStaffIdAsync(staff.StaffId, includeInactiveDegrees: true, ct);
         return Ok(list);
     }
 
@@ -50,7 +51,7 @@ public sealed class MyCertificatesController(
             throw new AppException(400, "Tài khoản hiện tại chưa được liên kết với hồ sơ nhân viên.");
         }
 
-        var cert = await certificateService.GetAsync(id, ct);
+        var cert = await certificateService.GetAsync(id, includeInactiveDegrees: true, ct);
         if (cert.StaffId != staff.StaffId)
         {
             throw new AppException(403, "Bạn không có quyền truy cập chứng chỉ này.");
@@ -93,7 +94,7 @@ public sealed class MyCertificatesController(
             throw new AppException(400, "Tài khoản hiện tại chưa được liên kết với hồ sơ nhân viên.");
         }
 
-        var cert = await certificateService.GetAsync(id, ct);
+        var cert = await certificateService.GetAsync(id, includeInactiveDegrees: true, ct);
         if (cert.StaffId != staff.StaffId)
         {
             throw new AppException(403, "Bạn không có quyền thu hồi chứng chỉ này.");
@@ -112,5 +113,41 @@ public sealed class MyCertificatesController(
 
         await certificateService.DeleteAsync(id, ct);
         return NoContent();
+    }
+
+    [HttpPatch("{id:guid}/primary")]
+    [Authorize(Roles = AccountRoles.MedicalStaff + "," + AccountRoles.DepartmentManager)]
+    public async Task<ActionResult<CertificateDto>> SetMyDegreePrimary(
+        Guid id,
+        [FromBody] UpdateDegreePrimaryRequest request,
+        CancellationToken ct)
+    {
+        var userId = GetCurrentUserId();
+        var staff = await selfServiceRepository.FindStaffByUserIdAsync(userId, ct);
+        if (staff is null)
+        {
+            throw new AppException(400, "Tài khoản hiện tại chưa được liên kết với hồ sơ nhân viên.");
+        }
+
+        var updated = await certificateService.SetDegreePrimaryAsync(id, staff.StaffId, request.IsPrimary, ct);
+        return Ok(updated);
+    }
+
+    [HttpPatch("{id:guid}/active")]
+    [Authorize(Roles = AccountRoles.MedicalStaff + "," + AccountRoles.DepartmentManager)]
+    public async Task<ActionResult<CertificateDto>> SetMyDegreeActive(
+        Guid id,
+        [FromBody] UpdateDegreeActiveRequest request,
+        CancellationToken ct)
+    {
+        var userId = GetCurrentUserId();
+        var staff = await selfServiceRepository.FindStaffByUserIdAsync(userId, ct);
+        if (staff is null)
+        {
+            throw new AppException(400, "Tài khoản hiện tại chưa được liên kết với hồ sơ nhân viên.");
+        }
+
+        var updated = await certificateService.SetDegreeActiveAsync(id, staff.StaffId, request.IsActive, ct);
+        return Ok(updated);
     }
 }
