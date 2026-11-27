@@ -264,25 +264,27 @@ export default function EmployeeDependentsPage() {
     <section
       className="account-form-page workspace-content-page"
       style={{
-        paddingTop: 12,
-        paddingBottom: 16,
-        minHeight: 'calc(100vh - 72px)',
+        paddingTop: 8,
+        paddingBottom: 10,
+        height: 'calc(100vh - 64px)',
+        minHeight: 580,
         display: 'flex',
         flexDirection: 'column',
+        boxSizing: 'border-box',
       }}
     >
       {/* Compact Top Bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 8, flexShrink: 0 }}>
         <div>
           <button
             className="text-button back-button"
             type="button"
-            style={{ marginBottom: 4 }}
+            style={{ marginBottom: 2, fontSize: 12.5 }}
             onClick={() => navigate(`/employees/${id}`)}
           >
-            <Icon name="arrow" size={16} /> Quay lại hồ sơ nhân viên
+            <Icon name="arrow" size={15} /> Quay lại hồ sơ nhân viên
           </button>
-          <h1 style={{ margin: 0, fontSize: 22, lineHeight: 1.25 }}>Quản lý người phụ thuộc</h1>
+          <h1 style={{ margin: 0, fontSize: 20, lineHeight: 1.2 }}>Quản lý người phụ thuộc</h1>
         </div>
         <button
           className="button primary"
@@ -294,7 +296,7 @@ export default function EmployeeDependentsPage() {
       </div>
 
       {pageError && (
-        <div style={{ marginBottom: 10 }}>
+        <div style={{ marginBottom: 8, flexShrink: 0 }}>
           <Alert variant="error">{pageError}</Alert>
         </div>
       )}
@@ -304,27 +306,28 @@ export default function EmployeeDependentsPage() {
         <div
           className="panel"
           style={{
-            padding: '10px 16px',
-            marginBottom: 12,
+            padding: '8px 14px',
+            marginBottom: 8,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 14,
+            flexShrink: 0,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-            <span className="avatar" style={{ width: 38, height: 38, fontSize: 14, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <span className="avatar" style={{ width: 34, height: 34, fontSize: 13, flexShrink: 0 }}>
               {initials(employee.name)}
             </span>
             <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <strong style={{ fontSize: 15 }}>{employee.name}</strong>
+                <strong style={{ fontSize: 14.5 }}>{employee.name}</strong>
                 <span className={`status-badge ${employee.status}`}>
                   <i />
                   {employee.status === 'active' ? 'Đang hoạt động' : 'Ngừng hoạt động'}
                 </span>
               </div>
-              <div style={{ fontSize: 12.5, color: '#475569', marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: '#475569', marginTop: 1 }}>
                 Mã NV: <strong>{employee.code}</strong> · Khoa/phòng: <strong>{employee.department || 'Chưa phân khoa'}</strong>
               </div>
             </div>
@@ -332,8 +335,8 @@ export default function EmployeeDependentsPage() {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexShrink: 0 }}>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 11.5, color: '#64748b' }}>Đang quản lý (tính thuế TNCN)</div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: '#0f766e', lineHeight: 1.2 }}>{activeCount} người</div>
+              <div style={{ fontSize: 11, color: '#64748b' }}>Đang quản lý (tính thuế TNCN)</div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: '#0f766e', lineHeight: 1.2 }}>{activeCount} người</div>
             </div>
           </div>
         </div>
@@ -343,14 +346,15 @@ export default function EmployeeDependentsPage() {
       <div
         className="panel"
         style={{
-          padding: '16px 18px',
+          padding: '12px 14px',
           flex: 1,
+          minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
         }}
       >
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           <div
             style={{
               display: 'flex',
@@ -358,7 +362,8 @@ export default function EmployeeDependentsPage() {
               alignItems: 'center',
               gap: 12,
               flexWrap: 'wrap',
-              marginBottom: 14,
+              marginBottom: 8,
+              flexShrink: 0,
             }}
           >
             <h2 style={{ margin: 0, fontSize: 15 }}>
@@ -413,9 +418,10 @@ export default function EmployeeDependentsPage() {
             <div
               style={{
                 display: 'grid',
-                gridTemplateRows: 'repeat(3, minmax(176px, 1fr))',
-                gap: 14,
+                gridTemplateRows: 'repeat(3, minmax(0, 1fr))',
+                gap: 10,
                 flex: 1,
+                minHeight: 0,
               }}
             >
               {pageItems.map(item => {
@@ -433,34 +439,36 @@ export default function EmployeeDependentsPage() {
                       overflow: 'hidden',
                       background: item.isActive ? '#ffffff' : '#f8fafc',
                       height: '100%',
+                      minHeight: 0,
                     }}
                   >
                   {/* Phần 2 (20%): Tên người phụ thuộc, ngày sinh, giới tính */}
                   <div
                     style={{
-                      padding: '12px 14px',
+                      padding: '10px 12px',
                       background: item.isActive ? '#f4faf8' : '#f1f5f9',
                       borderRight: '1px solid #dce8e5',
                       display: 'flex',
                       flexDirection: 'column',
                       justifyContent: 'space-between',
-                      gap: 8,
+                      gap: 6,
+                      minHeight: 0,
                     }}
                   >
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a', lineHeight: 1.3 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14.5, color: '#0f172a', lineHeight: 1.25 }}>
                         {item.fullName}
                       </div>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 4 }}>
                         <span
                           className="status-badge active"
-                          style={{ background: '#e0f2fe', color: '#0369a1', fontSize: 11.5, padding: '2px 8px' }}
+                          style={{ background: '#e0f2fe', color: '#0369a1', fontSize: 11, padding: '1px 7px' }}
                         >
                           {getRelationshipLabel(item.relationship)}
                         </span>
                         <span
                           className={`status-badge ${item.isActive ? 'active' : 'inactive'}`}
-                          style={{ fontSize: 11.5, padding: '2px 8px' }}
+                          style={{ fontSize: 11, padding: '1px 7px' }}
                         >
                           <i />
                           {item.isActive ? 'Đang quản lý' : 'Ngừng quản lý'}
@@ -468,7 +476,7 @@ export default function EmployeeDependentsPage() {
                       </div>
                     </div>
 
-                    <div style={{ fontSize: 12.5, color: '#334155', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <div style={{ fontSize: 12, color: '#334155', display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <div>
                         <span style={{ color: '#64748b' }}>Ngày sinh:</span>{' '}
                         <strong>{formatDate(item.dateOfBirth)}</strong>
@@ -480,8 +488,8 @@ export default function EmployeeDependentsPage() {
                     </div>
                   </div>
 
-                  {/* Phần 8 (80%): 2 Tabs (Thông tin | Hồ sơ) + Actions */}
-                  <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                  {/* Phần 8 (80%): 3 Tabs (Thông tin | Hồ sơ | Ngừng hoạt động) + Actions */}
+                  <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
                     {/* Tab bar + Action buttons */}
                     <div
                       style={{
@@ -490,9 +498,10 @@ export default function EmployeeDependentsPage() {
                         alignItems: 'center',
                         gap: 8,
                         borderBottom: '1px solid #e2e8f0',
-                        paddingBottom: 8,
-                        marginBottom: 10,
+                        paddingBottom: 6,
+                        marginBottom: 6,
                         flexWrap: 'wrap',
+                        flexShrink: 0,
                       }}
                     >
                       <div style={{ display: 'flex', gap: 6 }}>
@@ -581,30 +590,31 @@ export default function EmployeeDependentsPage() {
                         style={{
                           display: 'grid',
                           gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-                          gap: 12,
+                          gap: 10,
                           alignItems: 'center',
                           flex: 1,
+                          minHeight: 0,
                         }}
                       >
-                        <div style={{ padding: '14px 12px', background: '#f8fafc', borderRadius: 8, border: '1px solid #eef2f6' }}>
-                          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Ngày tạo</div>
-                          <div style={{ fontSize: 13.5, fontWeight: 600, color: '#0f172a' }}>{formatDate(item.createdAt)}</div>
+                        <div style={{ padding: '8px 10px', background: '#f8fafc', borderRadius: 8, border: '1px solid #eef2f6' }}>
+                          <div style={{ fontSize: 11.5, color: '#64748b', marginBottom: 2 }}>Ngày tạo</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{formatDate(item.createdAt)}</div>
                         </div>
-                        <div style={{ padding: '14px 12px', background: '#f8fafc', borderRadius: 8, border: '1px solid #eef2f6' }}>
-                          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Số CCCD</div>
-                          <div style={{ fontSize: 13.5, fontWeight: 600, color: '#0f172a' }}>
+                        <div style={{ padding: '8px 10px', background: '#f8fafc', borderRadius: 8, border: '1px solid #eef2f6' }}>
+                          <div style={{ fontSize: 11.5, color: '#64748b', marginBottom: 2 }}>Số CCCD</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>
                             {item.idCardNumber || 'Chưa cập nhật'}
                           </div>
                         </div>
-                        <div style={{ padding: '14px 12px', background: '#f8fafc', borderRadius: 8, border: '1px solid #eef2f6' }}>
-                          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Mã số thuế</div>
-                          <div style={{ fontSize: 13.5, fontWeight: 600, color: '#0f172a' }}>
+                        <div style={{ padding: '8px 10px', background: '#f8fafc', borderRadius: 8, border: '1px solid #eef2f6' }}>
+                          <div style={{ fontSize: 11.5, color: '#64748b', marginBottom: 2 }}>Mã số thuế</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>
                             {item.taxCode || 'Chưa cập nhật'}
                           </div>
                         </div>
-                        <div style={{ padding: '14px 12px', background: '#f8fafc', borderRadius: 8, border: '1px solid #eef2f6' }}>
-                          <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Người đăng ký</div>
-                          <div style={{ fontSize: 13.5, fontWeight: 600, color: '#0f172a' }}>
+                        <div style={{ padding: '8px 10px', background: '#f8fafc', borderRadius: 8, border: '1px solid #eef2f6' }}>
+                          <div style={{ fontSize: 11.5, color: '#64748b', marginBottom: 2 }}>Người đăng ký</div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a' }}>
                             {item.registeredByName || '—'}
                           </div>
                         </div>
@@ -614,7 +624,6 @@ export default function EmployeeDependentsPage() {
                         style={{
                           flex: 1,
                           minHeight: 0,
-                          maxHeight: 160,
                           overflowY: 'auto',
                           paddingRight: 4,
                         }}
@@ -737,7 +746,6 @@ export default function EmployeeDependentsPage() {
                         style={{
                           flex: 1,
                           minHeight: 0,
-                          maxHeight: 160,
                           overflowY: 'auto',
                           paddingRight: 4,
                         }}
@@ -845,10 +853,11 @@ export default function EmployeeDependentsPage() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginTop: 16,
-              paddingTop: 12,
+              marginTop: 8,
+              paddingTop: 8,
               borderTop: '1px solid #e2e8f0',
               fontSize: 13,
+              flexShrink: 0,
             }}
           >
             <span style={{ color: '#64748b' }}>
