@@ -158,6 +158,9 @@ try
     await Reject(db => Certificates(db).CreateAsync(NewCert("Invalid") with { Status = "unknown" }, actor, ct), 400, "Certificate rejects unknown status");
     await Reject(db => Certificates(db).CreateAsync(NewCert("Invalid") with { CmeCycleMonths = -1 }, actor, ct), 400, "Certificate rejects negative cycle duration");
     await Reject(db => Certificates(db).CreateAsync(NewCert("Invalid") with { CmeRequiredCredits = -1 }, actor, ct), 400, "Certificate rejects negative required credits");
+    await Reject(db => Certificates(db).CreateAsync(NewCert("Invalid") with { IssueDate = today.AddDays(-5), ExpiryDate = today.AddDays(-5) }, actor, ct), 400, "Certificate rejects expiry date equal to issue date (GB21)");
+    await Reject(db => Certificates(db).CreateAsync(NewCert("Invalid") with { IssueDate = today.AddDays(-5), ExpiryDate = today.AddDays(-6) }, actor, ct), 400, "Certificate rejects expiry date before issue date (GB21)");
+    await Reject(db => Certificates(db).UpdateAsync(cert.CertificateId, new UpdateCertificateRequest(null, "certificate", "Chứng chỉ bác sĩ", null, today.AddDays(-5), today.AddDays(-5), null, 24, 1m, "active", null, department), ct), 400, "Certificate update rejects expiry date equal to issue date (GB21)");
     await Reject(db => Certificates(db).CreateAsync(NewCert("Invalid") with { Notes = new string('a', 250), Category = "degree", Status = "unverified" }, actor, ct), 400, "Oversized certificate metadata is rejected without truncating JSON");
     await Run(db => Certificates(db).ReviewAsync(degree.CertificateId, new("approve", null), actor, ct));
     await Reject(db => Certificates(db).ReviewAsync(degree.CertificateId, new("reject", "Changed decision"), actor, ct), 409, "Review cannot overwrite an already reviewed certificate");

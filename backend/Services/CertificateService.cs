@@ -412,8 +412,8 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
 
         var isDegree = cat == "degree";
 
-        if (!isDegree && request.IssueDate.HasValue && request.ExpiryDate.HasValue && request.ExpiryDate < request.IssueDate)
-            throw new AppException(400, "Ngày hết hạn phải lớn hơn hoặc bằng ngày cấp.");
+        if (!isDegree && request.IssueDate.HasValue && request.ExpiryDate.HasValue && request.ExpiryDate <= request.IssueDate)
+            throw new AppException(400, "Ngày hết hạn phải lớn hơn ngày cấp.", "expiryDate");
 
         // Bỏ số hiệu chứng chỉ theo yêu cầu
         string? certNumber = null;
@@ -513,8 +513,8 @@ public sealed class CertificateService(AppDbContext db, IUnitOfWork unitOfWork) 
 
         var isDegree = cat == "degree";
 
-        if (!isDegree && request.IssueDate.HasValue && request.ExpiryDate.HasValue && request.ExpiryDate < request.IssueDate)
-            throw new AppException(400, "Ngày hết hạn phải lớn hơn hoặc bằng ngày cấp.");
+        if (!isDegree && request.IssueDate.HasValue && request.ExpiryDate.HasValue && request.ExpiryDate <= request.IssueDate)
+            throw new AppException(400, "Ngày hết hạn phải lớn hơn ngày cấp.", "expiryDate");
 
         // Bỏ số hiệu chứng chỉ theo yêu cầu
         string? certNumber = null;

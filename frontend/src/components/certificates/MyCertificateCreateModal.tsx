@@ -41,6 +41,14 @@ export default function MyCertificateCreateModal({ onClose, onSave, busy = false
   const [expiryDate, setExpiryDate] = useState('');
   const [cmeCycleMonths, setCmeCycleMonths] = useState('60');
   const [cmeRequiredCredits, setCmeRequiredCredits] = useState('120');
+  const todayStr = todayVn();
+
+  const issueDateError =
+    issueDate && issueDate > todayStr ? 'Ngày cấp không được lớn hơn ngày hiện tại.' : '';
+  const expiryDateError =
+    category === 'certificate' && hasExpiry && issueDate && expiryDate && expiryDate <= issueDate
+      ? 'Ngày hết hạn phải lớn hơn ngày cấp.'
+      : '';
 
   const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -74,17 +82,14 @@ export default function MyCertificateCreateModal({ onClose, onSave, busy = false
       return;
     }
 
-    const todayStr = todayVn();
-    if (issueDate && issueDate > todayStr) {
-      setError('Ngày cấp không được lớn hơn ngày hiện tại.');
+    if (issueDateError) {
+      document.getElementById('my-cert-issue-date')?.focus();
       return;
     }
 
-    if (category === 'certificate' && hasExpiry && expiryDate) {
-      if (issueDate && expiryDate < issueDate) {
-        setError('Ngày hết hạn phải lớn hơn hoặc bằng ngày cấp.');
-        return;
-      }
+    if (expiryDateError) {
+      document.getElementById('my-cert-expiry-date')?.focus();
+      return;
     }
 
     try {
@@ -385,22 +390,34 @@ export default function MyCertificateCreateModal({ onClose, onSave, busy = false
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
+            <label htmlFor="my-cert-issue-date" className="block text-xs font-semibold text-slate-700 mb-1">
               Ngày cấp
             </label>
             <input
+              id="my-cert-issue-date"
               type="date"
-              max={todayVn()}
-              className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+              max={todayStr}
+              className={`w-full text-xs px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                issueDateError
+                  ? 'border-red-500 focus:ring-red-500/20'
+                  : 'border-slate-200 focus:ring-teal-500/20'
+              }`}
               value={issueDate}
               onChange={(e) => setIssueDate(e.target.value)}
             />
+            {issueDateError && (
+              <p className="text-xs text-red-600 mt-1" role="alert">
+                {issueDateError}
+              </p>
+            )}
           </div>
 
           {category === 'certificate' && (
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-semibold text-slate-700">Ngày hết hạn</label>
+                <label htmlFor="my-cert-expiry-date" className="text-xs font-semibold text-slate-700">
+                  Ngày hết hạn
+                </label>
                 <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-500">
                   <input
                     type="checkbox"
@@ -412,12 +429,22 @@ export default function MyCertificateCreateModal({ onClose, onSave, busy = false
                 </label>
               </div>
               <input
+                id="my-cert-expiry-date"
                 type="date"
                 disabled={!hasExpiry}
-                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/20 disabled:bg-slate-100 disabled:text-slate-400"
+                className={`w-full text-xs px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-400 ${
+                  expiryDateError
+                    ? 'border-red-500 focus:ring-red-500/20'
+                    : 'border-slate-200 focus:ring-teal-500/20'
+                }`}
                 value={hasExpiry ? expiryDate : ''}
                 onChange={(e) => setExpiryDate(e.target.value)}
               />
+              {expiryDateError && (
+                <p className="text-xs text-red-600 mt-1" role="alert">
+                  {expiryDateError}
+                </p>
+              )}
             </div>
           )}
         </div>

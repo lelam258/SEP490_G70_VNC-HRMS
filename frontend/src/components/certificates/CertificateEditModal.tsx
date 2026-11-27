@@ -70,6 +70,13 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
     return rawStatus && allowed.includes(rawStatus) ? rawStatus : 'active';
   });
 
+  const issueDateError =
+    issueDate && issueDate > todayStr ? 'Ngày cấp không được vượt quá ngày hiện tại.' : '';
+  const expiryDateError =
+    category === 'certificate' && issueDate && expiryDate && expiryDate <= issueDate
+      ? 'Ngày hết hạn phải lớn hơn ngày cấp.'
+      : '';
+
   async function handleFileUpload(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -99,13 +106,13 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
       return;
     }
 
-    if (issueDate && issueDate > todayStr) {
-      setError('Ngày cấp không được vượt quá ngày hiện tại.');
+    if (issueDateError) {
+      document.getElementById(category === 'degree' ? 'edit-degree-issue-date' : 'edit-cert-issue-date')?.focus();
       return;
     }
 
-    if (category === 'certificate' && issueDate && expiryDate && expiryDate < issueDate) {
-      setError('Ngày hết hạn phải lớn hơn hoặc bằng ngày cấp.');
+    if (expiryDateError) {
+      document.getElementById('edit-cert-expiry-date')?.focus();
       return;
     }
 
@@ -275,7 +282,13 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
                 value={issueDate}
                 onChange={e => setIssueDate(e.target.value)}
                 disabled={busy || uploading}
+                className={issueDateError ? '!border-red-500 focus:!ring-red-500/20' : undefined}
               />
+              {issueDateError && (
+                <p className="text-xs text-red-600 mt-1" role="alert">
+                  {issueDateError}
+                </p>
+              )}
             </div>
 
             <div>
@@ -405,7 +418,13 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
                 value={issueDate}
                 onChange={e => setIssueDate(e.target.value)}
                 disabled={busy || uploading}
+                className={issueDateError ? '!border-red-500 focus:!ring-red-500/20' : undefined}
               />
+              {issueDateError && (
+                <p className="text-xs text-red-600 mt-1" role="alert">
+                  {issueDateError}
+                </p>
+              )}
             </div>
 
             <div>
@@ -416,7 +435,13 @@ export default function CertificateEditModal({ certificate, onClose, onSave, bus
                 value={expiryDate}
                 onChange={e => setExpiryDate(e.target.value)}
                 disabled={busy || uploading}
+                className={expiryDateError ? '!border-red-500 focus:!ring-red-500/20' : undefined}
               />
+              {expiryDateError && (
+                <p className="text-xs text-red-600 mt-1" role="alert">
+                  {expiryDateError}
+                </p>
+              )}
             </div>
 
             <div>
