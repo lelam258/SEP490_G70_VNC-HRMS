@@ -17,7 +17,7 @@ export default function OnCallListPage() {
   const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(20);
   const options = useApiResource<AttendanceOptions>('/attendance/options');
   const resource = useApiResource<PageResult<OnCallItem>>('/attendance/on-call-shifts', { ...filter, page, pageSize });
-  return <AttendanceShell layout="list" title="Hồ sơ ca trực" description="Ghi nhận trực trưa và trực tối thực tế, liên kết bằng chứng trước khi xác nhận."
+  return <AttendanceShell layout="list" title="Hồ sơ ca trực"
     actions={manager && <Link className="button primary" to="/attendance/on-call/new">Ghi nhận ca trực</Link>}>
     <section className="operations-panel workspace-list-panel"><AttendanceFilters value={filter} options={options.data} onCall change={value => { setFilter(value); setPage(1); }} />
       <ResourceState loading={resource.loading || options.loading} error={resource.error || options.error} reload={() => { resource.reload(); options.reload(); }} />

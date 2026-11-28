@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 
-export default function AttendanceShell({ title, description, actions, children, layout = 'content' }: { title: string; description: string; actions?: ReactNode; children: ReactNode; layout?: 'list' | 'content' }) {
+export default function AttendanceShell({ title, description, actions, children, layout = 'content' }: { title: string; description?: string; actions?: ReactNode; children: ReactNode; layout?: 'list' | 'content' }) {
   const role = useAuthStore(state => state.session?.user.role || '');
   return <section className={`directory-page operations-page workspace-attendance-page ${layout === 'list' ? 'workspace-list-page' : ''}`}>
     <header className="directory-heading"><div><h1>{title}</h1>{description && <p>{description}</p>}</div>{actions && <div className="operations-actions">{actions}</div>}</header>

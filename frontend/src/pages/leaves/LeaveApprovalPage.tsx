@@ -383,11 +383,6 @@ export default function LeaveApprovalPage() {
                     {/* Leave Type */}
                     <td className="py-3 px-4">
                       {getLeaveTypeBadge(item.leaveType, item.leaveTypeName)}
-                      {item.annualLeaveBalance !== null && (
-                        <div className="mt-1 text-[11px] text-slate-400">
-                          Dư: {item.annualLeaveBalance} ngày
-                        </div>
-                      )}
                     </td>
 
                     {/* Dates */}

@@ -173,7 +173,9 @@ public static class PayrollPeriodRules
         foreach (var lv in approvedLeaves)
         {
             var isMaternity = string.Equals(lv.LeaveType, "maternity", StringComparison.OrdinalIgnoreCase);
-            var isPaid = !leaveTypesIsPaid.TryGetValue(lv.LeaveType, out var paidFlag) || paidFlag;
+            // Phòng khám không trả lương ngày nghỉ: chỉ loại nghỉ được cấu hình is_paid = 1 mới tính công.
+            // Mã loại nghỉ không có trong danh mục cũng coi là không lương.
+            var isPaid = leaveTypesIsPaid.TryGetValue(lv.LeaveType, out var paidFlag) && paidFlag;
             var from = lv.StartDate < monthStart ? monthStart : lv.StartDate;
             var to = lv.EndDate > monthEnd ? monthEnd : lv.EndDate;
             var singleHalfDay = lv.StartDate == lv.EndDate

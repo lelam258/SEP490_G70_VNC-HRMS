@@ -176,8 +176,8 @@ export default function PayrollRateConfigForm({
       }
     } else if (unit === 'percent') {
       finalVal = Number(percentVal);
-      if (isNaN(finalVal) || finalVal < 0) {
-        errors.value = 'Tỷ lệ phải từ 0% trở lên.';
+      if (isNaN(finalVal) || finalVal < 0 || finalVal > 500) {
+        errors.value = 'Tỷ lệ phải từ 0% đến 500%.';
       }
     } else {
       finalVal = Number(daysVal);
@@ -387,6 +387,7 @@ export default function PayrollRateConfigForm({
                     id="rate-value"
                     type="number"
                     min="0"
+                    max="500"
                     step="0.1"
                     value={percentVal}
                     onChange={e => {

@@ -106,8 +106,8 @@ public sealed class EmployeeService(IEmployeeRepository employees, IDepartmentRe
         var fullName = ProfileRules.ValidateAndNormalizeFullName(request.Name);
         var email = EmployeeRules.NormalizeEmail(request.Email);
         var phone = string.IsNullOrWhiteSpace(request.Phone) ? null : ProfileRules.NormalizePhone(request.Phone);
-        var birth = ProfileRules.ValidateDateOfBirth(request.DateOfBirth);
         var gender = ProfileRules.ValidateAndNormalizeGender(request.Gender);
+        var birth = ProfileRules.ValidateDateOfBirth(request.DateOfBirth, gender);
         var idCard = ProfileRules.ValidateAndNormalizeIdCardNumber(request.IdCardNumber);
         if (idCard == "CLEAR") idCard = null;
         if (request.DependentCount is < 0)

@@ -114,6 +114,23 @@ public static class PayrollParameterRules
         else EnsurePercent(value, field);
     }
 
+    public const decimal MaxRateConfigPercent = 500m;
+
+    /// <summary>
+    /// Đơn giá/tham số khác dạng % là hệ số nhân (VD trực ngoài giờ 150% lương giờ) nên được vượt 100%, tối đa 500%.
+    /// Đơn vị tiền và ngày công dùng giới hạn tiền như trước.
+    /// </summary>
+    public static void EnsureRateConfigValue(string unit, decimal value, string field)
+    {
+        if (unit != "percent")
+        {
+            EnsureMoney(value, field);
+            return;
+        }
+        if (value is < 0 or > MaxRateConfigPercent)
+            throw new AppException(400, $"{field} phải nằm trong khoảng 0–{MaxRateConfigPercent:0}%.");
+    }
+
     public static void EnsureEffectiveRange(DateOnly from, DateOnly? to)
     {
         if (from < MinEffectiveDate) throw new AppException(400, "Ngày bắt đầu hiệu lực là bắt buộc và phải từ năm 2000 trở đi.");

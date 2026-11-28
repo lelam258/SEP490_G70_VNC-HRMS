@@ -36,8 +36,8 @@ public sealed class SelfServiceProfileService(
         var user = await repository.FindUserByIdAsync(userId, ct);
 
         var fullName = ProfileRules.ValidateAndNormalizeFullName(request.FullName);
-        var dateOfBirth = ProfileRules.ValidateDateOfBirth(request.DateOfBirth);
         var gender = ProfileRules.ValidateAndNormalizeGender(request.Gender);
+        var dateOfBirth = ProfileRules.ValidateDateOfBirth(request.DateOfBirth, gender);
         var idCardNumberToken = ProfileRules.ValidateAndNormalizeIdCardNumber(request.IdCardNumber);
         var phone = ProfileRules.NormalizePhone(request.Phone);
 

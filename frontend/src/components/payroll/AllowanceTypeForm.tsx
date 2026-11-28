@@ -15,6 +15,22 @@ interface AllowanceTypeFormProps {
   onDirtyChange?: (dirty: boolean) => void;
 }
 
+function generateAllowanceCode(rawName: string): string {
+  const slug = rawName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  if (!slug) {
+    return `ALLOW_${Date.now().toString().slice(-6)}`;
+  }
+  const prefixed = slug.startsWith('ALLOW_') ? slug : `ALLOW_${slug}`;
+  return prefixed.slice(0, 30).replace(/_+$/g, '');
+}
+
 export default function AllowanceTypeForm({
   initial,
   onSave,
@@ -26,7 +42,6 @@ export default function AllowanceTypeForm({
   const isEdit = Boolean(initial);
 
   // Group 1: General Info
-  const [code, setCode] = useState(initial?.code || '');
   const [name, setName] = useState(initial?.name || '');
 
   // Group 2: Calculation Method & Values
@@ -53,13 +68,11 @@ export default function AllowanceTypeForm({
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  // Focus ref for Name in edit mode
+  // Focus ref for Name
   const nameInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    if (isEdit) {
-      nameInputRef.current?.focus();
-    }
-  }, [isEdit]);
+    nameInputRef.current?.focus();
+  }, []);
 
   // Derived valueType based on method
   const valueType = defaultCalcMethod === 'percentage' ? 'percentage' : 'fixed';
@@ -67,9 +80,8 @@ export default function AllowanceTypeForm({
   // Dirty check
   const isDirty = useMemo(() => {
     if (!initial) {
-      return Boolean(code.trim() || name.trim() || (isPercentage ? percentValue : moneyValue !== null));
+      return Boolean(name.trim() || (isPercentage ? percentValue : moneyValue !== null));
     }
-    if (code !== initial.code) return true;
     if (name !== initial.name) return true;
     if (defaultCalcMethod !== initial.defaultCalcMethod) return true;
 
@@ -83,18 +95,11 @@ export default function AllowanceTypeForm({
     if (isInsuranceBasis !== initial.isInsuranceBasis) return true;
 
     return false;
-  }, [initial, code, name, defaultCalcMethod, minServiceYears, isPercentage, percentValue, moneyValue, isTaxable, isInsuranceBasis]);
+  }, [initial, name, defaultCalcMethod, minServiceYears, isPercentage, percentValue, moneyValue, isTaxable, isInsuranceBasis]);
 
   useEffect(() => {
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
-
-  function handleCodeInput(val: string) {
-    // Only uppercase A-Z, 0-9, and underscore; max 30 chars
-    const cleaned = val.toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, 30);
-    setCode(cleaned);
-    if (fieldErrors.code) setFieldErrors(prev => ({ ...prev, code: '' }));
-  }
 
   function handleMethodChange(newMethod: 'fixed' | 'prorate_by_workdays' | 'per_service_year' | 'percentage') {
     setDefaultCalcMethod(newMethod);
@@ -121,7 +126,6 @@ export default function AllowanceTypeForm({
     if (busy || !isDirty) return;
 
     const errors: Record<string, string> = {};
-    if (!code.trim()) errors.code = 'Mã phụ cấp không được để trống.';
     if (!name.trim()) errors.name = 'Tên phụ cấp không được để trống.';
 
     let parsedDefault: number | null = null;
@@ -156,7 +160,7 @@ export default function AllowanceTypeForm({
     setFieldErrors({});
 
     void onSave({
-      code: code.trim(),
+      code: initial?.code || generateAllowanceCode(name.trim()),
       name: name.trim(),
       valueType,
       defaultValue: parsedDefault,
@@ -205,7 +209,7 @@ export default function AllowanceTypeForm({
   return (
     <form onSubmit={submit} className="flex flex-col">
       {/* Body */}
-      <div className="px-6 py-5 space-y-6">
+      <div className="px-6 py-4 space-y-5">
         {/* Inactive Banner */}
         {initial?.status === 'inactive' && (
           <div className="rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
@@ -218,81 +222,39 @@ export default function AllowanceTypeForm({
 
         {/* GROUP 1: THÔNG TIN CHUNG */}
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 pb-1.5 border-b border-slate-200 dark:border-slate-800 mb-3.5">
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 pb-1.5 border-b border-slate-200 dark:border-slate-800 mb-3">
             Thông tin chung
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
-            {/* Mã phụ cấp */}
-            <div>
-              <label htmlFor="allowance-code" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Mã phụ cấp {!isEdit && <span className="text-rose-500">*</span>}
-              </label>
-              {isEdit ? (
-                <div>
-                  <input
-                    id="allowance-code"
-                    type="text"
-                    readOnly
-                    value={code}
-                    className="w-full h-10 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/80 px-3 text-sm font-mono text-slate-600 dark:text-slate-400 cursor-not-allowed select-none box-border"
-                  />
-                  <p className="text-[11px] text-slate-400 mt-1">Mã hệ thống không thể thay đổi.</p>
-                </div>
-              ) : (
-                <div>
-                  <input
-                    id="allowance-code"
-                    type="text"
-                    required
-                    maxLength={30}
-                    value={code}
-                    onChange={e => handleCodeInput(e.target.value)}
-                    placeholder="VD: ALLOW_MEAL"
-                    className={`w-full h-10 rounded-lg border ${
-                      fieldErrors.code ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-300 dark:border-slate-700 focus:ring-sky-500'
-                    } bg-white dark:bg-slate-800 px-3 text-sm font-mono uppercase text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 box-border`}
-                  />
-                  {fieldErrors.code ? (
-                    <p className="text-xs text-rose-500 mt-1">{fieldErrors.code}</p>
-                  ) : (
-                    <p className="text-[11px] text-slate-400 mt-1">In hoa, chữ cái A-Z, số 0-9, gạch dưới.</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Tên loại phụ cấp */}
-            <div>
-              <label htmlFor="allowance-name" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Tên loại phụ cấp <span className="text-rose-500">*</span>
-              </label>
-              <input
-                ref={nameInputRef}
-                id="allowance-name"
-                type="text"
-                required
-                maxLength={100}
-                value={name}
-                onChange={e => {
-                  setName(e.target.value);
-                  if (fieldErrors.name) setFieldErrors(prev => ({ ...prev, name: '' }));
-                }}
-                placeholder="VD: Phụ cấp ăn trưa"
-                className={`w-full h-10 rounded-lg border ${
-                  fieldErrors.name ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-300 dark:border-slate-700 focus:ring-sky-500'
-                } bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 box-border`}
-              />
-              {fieldErrors.name && <p className="text-xs text-rose-500 mt-1">{fieldErrors.name}</p>}
-            </div>
+          <div>
+            <label htmlFor="allowance-name" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+              Tên loại phụ cấp <span className="text-rose-500">*</span>
+            </label>
+            <input
+              ref={nameInputRef}
+              id="allowance-name"
+              type="text"
+              required
+              maxLength={100}
+              value={name}
+              onChange={e => {
+                setName(e.target.value);
+                if (fieldErrors.name) setFieldErrors(prev => ({ ...prev, name: '' }));
+              }}
+              placeholder="VD: Phụ cấp ăn trưa"
+              className={`w-full h-10 rounded-lg border ${
+                fieldErrors.name ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-300 dark:border-slate-700 focus:ring-sky-500'
+              } bg-white dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 box-border`}
+            />
+            {fieldErrors.name && <p className="text-xs text-rose-500 mt-1">{fieldErrors.name}</p>}
           </div>
         </div>
 
         {/* GROUP 2: CÁCH TÍNH */}
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 pb-1.5 border-b border-slate-200 dark:border-slate-800 mb-3.5">
+          <div className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 pb-1.5 border-b border-slate-200 dark:border-slate-800 mb-3">
             Cách tính & Mức hưởng
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3.5">
             {/* Phương thức tính */}
             <div>
               <label htmlFor="allowance-method" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
@@ -312,7 +274,7 @@ export default function AllowanceTypeForm({
             </div>
 
             {/* Số năm tối thiểu: ONLY IF per_service_year */}
-            {defaultCalcMethod === 'per_service_year' ? (
+            {defaultCalcMethod === 'per_service_year' && (
               <div>
                 <label htmlFor="allowance-minyears" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Số năm tối thiểu bắt đầu tính <span className="text-rose-500">*</span>
@@ -346,12 +308,10 @@ export default function AllowanceTypeForm({
                   <p className="text-[11px] text-slate-400 mt-1">Bắt đầu tính khi đủ số năm này (mặc định 3).</p>
                 )}
               </div>
-            ) : (
-              <div className="hidden sm:block" />
             )}
 
             {/* Mức phụ cấp / Tỷ lệ */}
-            <div className="col-span-1 sm:col-span-2">
+            <div className={defaultCalcMethod === 'per_service_year' ? 'col-span-1 sm:col-span-2' : ''}>
               <label htmlFor="allowance-value" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                 {defaultCalcMethod === 'per_service_year'
                   ? 'Mức phụ cấp mỗi năm thâm niên'
@@ -399,15 +359,15 @@ export default function AllowanceTypeForm({
               {fieldErrors.defaultValue && (
                 <p className="text-xs text-rose-500 mt-1">{fieldErrors.defaultValue}</p>
               )}
-
-              {/* Dynamic Example Callout */}
-              {dynamicExampleText && (
-                <div className="mt-2.5 rounded-lg bg-sky-50 dark:bg-sky-950/40 border border-sky-200/80 dark:border-sky-800/80 p-3 text-xs text-sky-900 dark:text-sky-200 flex items-start gap-2.5 shadow-sm">
-                  <span className="text-sky-600 dark:text-sky-400 font-bold text-sm leading-none mt-0.5">ℹ</span>
-                  <div className="leading-relaxed">{dynamicExampleText}</div>
-                </div>
-              )}
             </div>
+
+            {/* Dynamic Example Callout */}
+            {dynamicExampleText && (
+              <div className="col-span-1 sm:col-span-2 rounded-lg bg-sky-50 dark:bg-sky-950/40 border border-sky-200/80 dark:border-sky-800/80 p-3 text-xs text-sky-900 dark:text-sky-200 flex items-start gap-2.5 shadow-sm">
+                <span className="text-sky-600 dark:text-sky-400 font-bold text-sm leading-none mt-0.5">ℹ</span>
+                <div className="leading-relaxed">{dynamicExampleText}</div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -483,19 +443,19 @@ export default function AllowanceTypeForm({
       </div>
 
       {/* Modal Footer */}
-      <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex items-center justify-end gap-3 sticky bottom-0 z-10">
+      <div className="px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex items-center justify-end gap-3 sticky bottom-0 z-10">
         <button
           type="button"
           disabled={busy}
           onClick={handleCancel}
-          className="h-10 px-4 rounded-lg border border-sky-600 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950 font-medium text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1"
+          className="h-10 min-w-[120px] px-5 rounded-lg border border-sky-600 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950 font-medium text-sm whitespace-nowrap inline-flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1"
         >
           Hủy
         </button>
         <button
           type="submit"
           disabled={busy || !isDirty}
-          className="h-10 px-5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-medium text-sm shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1"
+          className="h-10 min-w-[152px] px-5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-medium text-sm whitespace-nowrap shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1"
         >
           {busy && (
             <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin flex-shrink-0" />

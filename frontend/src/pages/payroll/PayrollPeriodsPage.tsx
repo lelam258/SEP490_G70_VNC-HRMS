@@ -276,6 +276,8 @@ export default function PayrollPeriodsPage() {
       label: 'Tổng Gross',
       sortable: true,
       sortValue: (r) => r.totalGrossPay,
+      className: 'text-right tabular-nums',
+      headerClassName: 'text-right',
       render: (r: PayrollPeriod) => (
         <span className="font-medium text-slate-800 text-sm">{formatVnd(r.totalGrossPay)}</span>
       ),
@@ -285,6 +287,8 @@ export default function PayrollPeriodsPage() {
       label: 'Tổng thực lĩnh',
       sortable: true,
       sortValue: (r) => r.totalNetPay,
+      className: 'text-right tabular-nums',
+      headerClassName: 'text-right',
       render: (r: PayrollPeriod) => (
         <span className="font-semibold text-emerald-700 text-sm">{formatVnd(r.totalNetPay)}</span>
       ),
@@ -378,48 +382,48 @@ export default function PayrollPeriodsPage() {
       {error && <Alert variant="error">{error}</Alert>}
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-        <div className="rounded-lg border border-slate-200/80 bg-white px-3 py-2 shadow-xs">
+      <div className="rounded-xl border border-slate-200/80 bg-white shadow-xs grid grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-200/70">
+        <div className="px-4 py-3">
           <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wide leading-tight block">
             Tổng số kỳ lương
           </span>
-          <div className="mt-0.5 flex items-baseline gap-1.5">
-            <span className="text-lg font-bold leading-tight text-slate-900">{counts.all}</span>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="text-lg font-bold leading-tight text-slate-900 tabular-nums">{counts.all}</span>
             <span className="text-[11px] text-slate-400">kỳ</span>
           </div>
         </div>
 
-        <div className="rounded-lg border border-amber-200/80 bg-amber-50/40 px-3 py-2 shadow-xs">
-          <span className="text-[11px] font-medium text-amber-700 uppercase tracking-wide leading-tight block">
+        <div className="px-4 py-3">
+          <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wide leading-tight block">
             Bản nháp / Đang xử lý
           </span>
-          <div className="mt-0.5 flex items-baseline gap-1.5">
-            <span className="text-lg font-bold leading-tight text-amber-800">
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="text-lg font-bold leading-tight text-amber-600 tabular-nums">
               {counts.draft + counts.pending_approval}
             </span>
-            <span className="text-[11px] text-amber-600">kỳ đang mở</span>
+            <span className="text-[11px] text-slate-400">kỳ đang mở</span>
           </div>
         </div>
 
-        <div className="rounded-lg border border-emerald-200/80 bg-emerald-50/40 px-3 py-2 shadow-xs">
-          <span className="text-[11px] font-medium text-emerald-700 uppercase tracking-wide leading-tight block">
+        <div className="px-4 py-3">
+          <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wide leading-tight block">
             Đã khóa / Đã chốt
           </span>
-          <div className="mt-0.5 flex items-baseline gap-1.5">
-            <span className="text-lg font-bold leading-tight text-emerald-800">
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="text-lg font-bold leading-tight text-emerald-700 tabular-nums">
               {counts.locked + counts.approved}
             </span>
-            <span className="text-[11px] text-emerald-600">kỳ hoàn tất</span>
+            <span className="text-[11px] text-slate-400">kỳ hoàn tất</span>
           </div>
         </div>
 
-        <div className="rounded-lg border border-rose-200/80 bg-rose-50/40 px-3 py-2 shadow-xs">
-          <span className="text-[11px] font-medium text-rose-700 uppercase tracking-wide leading-tight block">
-            Kỳ có cờ trễ hạn (Late)
+        <div className="px-4 py-3">
+          <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wide leading-tight block">
+            Kỳ mở lại / Trễ hạn
           </span>
-          <div className="mt-0.5 flex items-baseline gap-1.5">
-            <span className="text-lg font-bold leading-tight text-rose-800">{counts.late}</span>
-            <span className="text-[11px] text-rose-600">kỳ mở lại</span>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="text-lg font-bold leading-tight text-rose-600 tabular-nums">{counts.late}</span>
+            <span className="text-[11px] text-slate-400">kỳ mở lại</span>
           </div>
         </div>
       </div>
@@ -427,13 +431,12 @@ export default function PayrollPeriodsPage() {
       {/* Main Section */}
       <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden workspace-list-panel">
         {/* Filter and Action Header */}
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="px-3.5 py-2.5 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
           {/* Tabs Trạng thái */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0">
+          <div className="flex items-center gap-0.5 overflow-x-auto pb-1 md:pb-0">
             {[
               { id: 'all', label: 'Tất cả', count: counts.all },
               { id: 'draft', label: 'Bản nháp', count: counts.draft },
-              { id: 'pending_approval', label: 'Chờ duyệt', count: counts.pending_approval },
               { id: 'approved', label: 'Đã duyệt', count: counts.approved },
               { id: 'locked', label: 'Đã khóa / Chốt', count: counts.locked },
               { id: 'late', label: 'Trễ hạn', count: counts.late },
@@ -441,10 +444,10 @@ export default function PayrollPeriodsPage() {
               <button
                 key={tab.id}
                 type="button"
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap cursor-pointer flex items-center gap-1 border ${
                   statusFilter === tab.id
-                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    ? 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800'
+                    : 'border-transparent text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
                 onClick={() => setStatusFilter(tab.id)}
               >
@@ -452,7 +455,7 @@ export default function PayrollPeriodsPage() {
                 <span
                   className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                     statusFilter === tab.id
-                      ? 'bg-white/20 text-white dark:bg-slate-900/20 dark:text-slate-900'
+                      ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-200'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
                   }`}
                 >
@@ -464,13 +467,13 @@ export default function PayrollPeriodsPage() {
 
           {/* Search + Action Buttons */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 pl-3 pr-2 h-9 w-52 sm:w-60 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus-within:border-slate-400 dark:focus-within:border-slate-500 shadow-xs transition-all">
+            <div className="flex items-center gap-2 pl-3 pr-2 h-9 w-56 sm:w-64 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus-within:border-slate-400 dark:focus-within:border-slate-500 shadow-xs transition-all">
               <span className="shrink-0 text-slate-400 flex items-center pointer-events-none">
                 <Icon name="search" size={14} />
               </span>
               <input
                 type="text"
-                placeholder="Tìm theo tháng (YYYY-MM)..."
+                placeholder="Tìm theo tháng (VD: 11/2026)..."
                 className="w-full bg-transparent text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none"
                 style={{ padding: 0, minHeight: 'unset', border: 'none', background: 'transparent', outline: 'none' }}
                 value={searchTerm}

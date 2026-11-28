@@ -64,7 +64,7 @@ export default function AttendanceDeviceMappingsPage() {
     } finally { setBusy(false); }
   }
 
-  return <AttendanceShell layout="list" title="Liên kết mã máy chấm công" description="Chọn đúng nhân viên và xác nhận mã đăng ký trên máy từ hồ sơ gốc trước khi nhập chấm công."
+  return <AttendanceShell layout="list" title="Liên kết mã máy chấm công"
     actions={<>{manager && <button type="button" className="button primary" onClick={() => setEditing(true)}>Cập nhật liên kết</button>}<Link className="button" to="/attendance/imports">Lịch sử nhập</Link></>}>
     {notice && <p className="alert success" role="status">{notice}</p>}
     {error && !review && <p className="alert error" role="alert">{error}</p>}

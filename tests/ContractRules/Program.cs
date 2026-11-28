@@ -41,6 +41,34 @@ Reject(() => ContractRules.SalaryFromBase("monthly", 0m, 26m), 400, "Zero base s
 Reject(() => ContractRules.SalaryFromBase("monthly", 5_000_000m, 0m), 400, "Zero standard working days rejected");
 Reject(() => ContractRules.SalaryFromBase("monthly", 5_000_000m, 32m), 400, "More than 31 standard working days rejected");
 
+// ---- Payroll rate parameter values (duty multiplier may exceed 100%) ----
+PayrollParameterRules.EnsureRateConfigValue("percent", 150m, "Giá trị tham số");
+Check(true, "After-hours duty multiplier 150% accepted");
+PayrollParameterRules.EnsureRateConfigValue("percent", 500m, "Giá trị tham số");
+Check(true, "Rate percent at 500% cap accepted");
+Reject(() => PayrollParameterRules.EnsureRateConfigValue("percent", 500.1m, "Giá trị tham số"), 400, "Rate percent above 500% rejected");
+Reject(() => PayrollParameterRules.EnsureRateConfigValue("percent", -1m, "Giá trị tham số"), 400, "Negative rate percent rejected");
+PayrollParameterRules.EnsureRateConfigValue("vnd", 200_000m, "Giá trị tham số");
+Check(true, "VND duty rate accepted");
+Reject(() => PayrollParameterRules.EnsureTypedValue("percent", 150m, "Tỷ lệ"), 400, "Insurance/tax/allowance percent still capped at 100%");
+
+// ---- Approved leave is unpaid unless its leave type is configured as paid ----
+var octStart = new DateOnly(2026, 10, 1); var octEnd = new DateOnly(2026, 10, 31);
+Vnc.HRMS.Models.LeaveRequest Leave(string type) => new()
+{
+    RequestId = Guid.NewGuid(), StaffId = Guid.NewGuid(), LeaveType = type,
+    StartDate = new(2026, 10, 5), EndDate = new(2026, 10, 5), TotalDays = 1m, Status = "approved"
+};
+PayrollPeriodRules.StaffAttendanceCalculationMetrics LeaveMetrics(string type, Dictionary<string, bool> isPaid)
+    => PayrollPeriodRules.ComputeStaffAttendanceMetrics(octStart, octEnd, [], [], [Leave(type)], isPaid);
+var unknownType = LeaveMetrics("legacy_type", new() { ["unpaid"] = false });
+Check(unknownType.PaidLeaveDays == 0m && unknownType.UnpaidLeaveDays == 1m && unknownType.TotalWorkDays == 0m,
+    "Leave type missing from the catalogue is unpaid");
+var unpaidType = LeaveMetrics("unpaid", new() { ["unpaid"] = false });
+Check(unpaidType.PaidLeaveDays == 0m && unpaidType.TotalWorkDays == 0m, "Leave type configured as unpaid earns no workday");
+var paidType = LeaveMetrics("personal_paid", new() { ["personal_paid"] = true });
+Check(paidType.PaidLeaveDays == 1m && paidType.TotalWorkDays == 1m, "Leave type configured as paid still counts as a workday");
+
 // ---- Access and data exposure ----
 var authorize = typeof(ContractsController).GetCustomAttribute<AuthorizeAttribute>();
 Check(authorize?.Policy == "HRManager", "Contract API restricted to HR Manager");
