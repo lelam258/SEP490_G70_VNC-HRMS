@@ -53,10 +53,21 @@ public static partial class ProfileRules
         return normalized;
     }
 
+    public const int MinWorkingAge = 18;
+    public const int MaxWorkingAgeMale = 62;
+    public const int MaxWorkingAgeFemale = 60;
+
     /// <summary>
-    /// Validates date of birth: optional, year >= 1940, at least 18 years old as of today in Vietnam.
+    /// Tuổi tối đa theo GB-05: nam 62, nữ 60; giới tính khác/chưa cập nhật dùng mức 62.
     /// </summary>
-    public static DateOnly? ValidateDateOfBirth(DateOnly? dateOfBirth)
+    public static int GetMaxWorkingAge(string? normalizedGender) =>
+        normalizedGender == "female" ? MaxWorkingAgeFemale : MaxWorkingAgeMale;
+
+    /// <summary>
+    /// Validates date of birth: optional, year >= 1940, aged 18 to the GB-05 maximum (male 62, female 60) as of today in Vietnam.
+    /// Pass the already-normalized gender of the saved profile.
+    /// </summary>
+    public static DateOnly? ValidateDateOfBirth(DateOnly? dateOfBirth, string? normalizedGender)
     {
         if (!dateOfBirth.HasValue) return null;
 
@@ -67,10 +78,18 @@ public static partial class ProfileRules
         }
 
         var today = TimeHelper.TodayInVietnam();
-        var maxAllowedDob = today.AddYears(-18);
+        var maxAllowedDob = today.AddYears(-MinWorkingAge);
         if (dob > maxAllowedDob)
         {
             throw new AppException(400, "Nhân viên phải từ đủ 18 tuổi trở lên.", "dateOfBirth");
+        }
+
+        // Đủ (max + 1) tuổi tức là đã quá tuổi tối đa; đúng max tuổi vẫn hợp lệ.
+        var maxAge = GetMaxWorkingAge(normalizedGender);
+        if (dob <= today.AddYears(-(maxAge + 1)))
+        {
+            var subject = normalizedGender switch { "male" => "Nhân viên nam", "female" => "Nhân viên nữ", _ => "Nhân viên" };
+            throw new AppException(400, $"{subject} không được quá {maxAge} tuổi theo quy định độ tuổi lao động.", "dateOfBirth");
         }
 
         return dob;

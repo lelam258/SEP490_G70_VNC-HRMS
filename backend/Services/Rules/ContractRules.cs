@@ -25,6 +25,19 @@ public static class ContractRules
         return "active";
     }
 
+    /// <summary>
+    /// Hợp đồng đã hết hạn hoặc ngừng hiệu lực thì không được sửa lương hay gán/sửa phụ cấp.
+    /// Hợp đồng sắp bắt đầu hoặc đang hiệu lực vẫn được thiết lập đãi ngộ.
+    /// </summary>
+    public static void EnsureCompensationEditable(string status, DateOnly from, DateOnly? to, DateOnly today)
+    {
+        var display = DisplayStatus(status, from, to, today);
+        if (display == "expired")
+            throw new AppException(400, $"Hợp đồng đã hết hạn từ {to:dd/MM/yyyy}, không thể thay đổi lương hoặc phụ cấp.");
+        if (display == "inactive")
+            throw new AppException(400, "Hợp đồng đã ngừng hiệu lực, không thể thay đổi lương hoặc phụ cấp.");
+    }
+
     /// <summary>A contract without a fixed term ("không xác định thời hạn") never has an end date.</summary>
     public static bool IsIndefinite(string contractType)
         => contractType.Contains("không xác định", StringComparison.OrdinalIgnoreCase);

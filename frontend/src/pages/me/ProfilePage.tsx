@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import type { UserProfile } from '../../types/profile';
 import { formatDateOnly, initials } from '../../utils/format';
 import { getMaxAdultDateOfBirth } from '../../utils/leaveRules';
+import { getMaxWorkingAge, getMinWorkingDateOfBirth, validateWorkingAge } from '../../utils/employeeRules';
 
 const PHONE_REGEX = /^0\d{9}$/;
 const FULL_NAME_REGEX = /^[\p{L}\s'-]+$/u;
@@ -107,13 +108,9 @@ export default function ProfilePage() {
     }
 
     // 2. DateOfBirth validation
-    if (dateOfBirthInput) {
-      const year = Number(dateOfBirthInput.split('-')[0]);
-      if (year < 1940) {
-        errors.dateOfBirth = 'Năm sinh phải từ năm 1940 trở lại đây.';
-      } else if (dateOfBirthInput > maxAdultDob) {
-        errors.dateOfBirth = 'Nhân viên phải từ đủ 18 tuổi trở lên.';
-      }
+    const dobError = validateWorkingAge(dateOfBirthInput, genderInput || null);
+    if (dobError) {
+      errors.dateOfBirth = dobError;
     }
 
     // 3. Gender validation
@@ -449,13 +446,13 @@ export default function ProfilePage() {
                 {/* DateOfBirth */}
                 <div className="profile-field-item">
                   <label htmlFor="input-dob" className="profile-field-label">
-                    Ngày sinh (tối thiểu đủ 18 tuổi)
+                    Ngày sinh (từ 18 đến {getMaxWorkingAge(genderInput || null)} tuổi)
                   </label>
                   <input
                     id="input-dob"
                     type="date"
                     className="input"
-                    min="1940-01-01"
+                    min={getMinWorkingDateOfBirth(genderInput || null)}
                     max={maxAdultDob}
                     value={dateOfBirthInput}
                     onChange={(e) => setDateOfBirthInput(e.target.value)}

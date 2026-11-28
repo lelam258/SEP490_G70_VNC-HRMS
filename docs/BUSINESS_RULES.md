@@ -44,7 +44,7 @@ Nguồn route: [AppRoutes.tsx](../frontend/src/routes/AppRoutes.tsx). Quyền AP
 | BR-EMP-05 | Ngày vào làm mặc định lấy theo ngày Việt Nam | Không lệch ngày ở ranh giới UTC |
 | BR-PROFILE-01 | Avatar chỉ JPG/JPEG với MIME `image/jpeg` hoặc PNG với MIME `image/png`, tối đa 2 MB; chữ ký tệp do `FileService` kiểm tra | 400 trước upload nếu sai loại/giới hạn |
 
-Quy tắc tuổi tối thiểu 18 và năm sinh từ 1940 là quy tắc **đã có trong dự án**, được tái sử dụng để hai màn sửa cùng một hồ sơ thống nhất; tài liệu này không đưa ra kết luận pháp lý.
+Độ tuổi lao động theo GB-05 (SRS Report 3): từ đủ 18 tuổi, nam tối đa 62 tuổi, nữ tối đa 60 tuổi (đúng tuổi tối đa vẫn hợp lệ, đủ thêm 1 tuổi bị từ chối 400); giới tính Khác/chưa cập nhật dùng mức 62. Năm sinh từ 1940 vẫn giữ. `ProfileRules.ValidateDateOfBirth` và `validateWorkingAge` (frontend) dùng chung cho hồ sơ cá nhân và màn HR để hai màn sửa cùng một hồ sơ thống nhất; tài liệu này không đưa ra kết luận pháp lý.
 
 ### Lịch và nghỉ phép
 
@@ -94,6 +94,9 @@ Database local `VNC_HRMS_Iteration1` có sẵn cột bảo hiểm nhưng thiếu
 | BR-PROC-04 | Lookup trả danh mục active hiện có. Mở form không tạo tỷ lệ hoa hồng mẫu hay kích hoạt lại dịch vụ đã tắt | Đọc dữ liệu không làm đổi cấu hình |
 | BR-PROC-05 | Kiểm tra kỳ khóa/trạng thái và lưu trong cùng transaction; tháng tính hoa hồng phải là tháng lịch hợp lệ, kể cả biên `9999-12` không gây tràn ngày | 400/409 khi sai |
 | BR-PAY-01 | Tháng kỳ lương phải đúng `YYYY-MM` và chuyển thành ngày đầu tháng hợp lệ; trim trước xử lý; tháng không được trùng | 400 nếu sai; 409 nếu trùng |
+| BR-PAY-02 | Phòng khám không quy định số ngày phép năm và không trả lương ngày nghỉ: ngày nghỉ đã duyệt chỉ được tính công khi loại nghỉ có `leave_types.is_paid = 1`. Mã loại nghỉ không có trong danh mục cũng coi là không lương. Nghỉ thai sản hưởng trợ cấp BHXH riêng, không tính công | Ngày nghỉ không cộng vào ngày công tính lương |
+| BR-PAY-03 | Kỳ lương `finalized`/`locked`/`exported` là đã khóa: không tính lại, không sửa dòng lương, không sửa lương/phụ cấp/tham số có hiệu lực phủ tháng đó; phản hồi thắc mắc lương chỉ trả lời, không sửa phiếu. Kỳ `approved` (đã xác nhận, chưa chốt) vẫn được sửa | 400/409 |
+| BR-PAY-04 | Chỉ hợp đồng có hiệu lực trong tháng mới được dùng tính lương; lương cơ bản lấy theo lịch sử lương có hiệu lực từng ngày công (đổi lương giữa tháng thì chia theo ngày công), không theo mức lương hiện tại. Hợp đồng đã hết hạn hoặc ngừng hiệu lực không được sửa lương hay gán/sửa phụ cấp | Không có hợp đồng hiệu lực thì lương cơ bản = 0; sửa HĐ hết hạn trả 400 |
 
 ## 3. Những nghiệp vụ cần yêu cầu chi tiết trước khi triển khai
 

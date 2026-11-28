@@ -4,7 +4,7 @@ import Alert from '../ui/Alert';
 import type { Department } from '../../services/departmentApi';
 import type { EmployeeDetail, UpdateEmployeeInput } from '../../types/accounts';
 import { formatDate, initials } from '../../utils/format';
-import { validateEmployeeProfile } from '../../utils/employeeRules';
+import { getMinWorkingDateOfBirth, validateDependentCount, validateEmployeeProfile } from '../../utils/employeeRules';
 import { getMaxAdultDateOfBirth } from '../../utils/leaveRules';
 
 interface EmployeeProfileFormProps {
@@ -84,7 +84,7 @@ export default function EmployeeProfileForm({
     const trimmedCode = code.trim();
     const trimmedName = name.trim();
 
-    const invalid = validateEmployeeProfile({ code, name, email, phone, dateOfBirth, idCardNumber, dateJoined, dateLeft, dependentCount });
+    const invalid = validateEmployeeProfile({ code, name, email, phone, dateOfBirth, gender, idCardNumber, dateJoined, dateLeft, dependentCount: Number(dependentCount) });
     if (invalid) {
       setError(invalid);
       return;
@@ -128,11 +128,7 @@ export default function EmployeeProfileForm({
         <div>
           <span className="eyebrow">HỒ SƠ NHÂN VIÊN VNC CLINIC</span>
           <h1>{readonly ? 'Chi tiết hồ sơ nhân viên' : 'Chỉnh sửa hồ sơ nhân viên'}</h1>
-          <p className="muted">
-            {readonly
-              ? 'Xem thông tin định danh, chuyên môn y tế và hợp đồng công tác.'
-              : 'Cập nhật thông tin lý lịch cá nhân và phân khoa/phòng ban.'}
-          </p>
+          {!readonly && <p className="muted">Cập nhật thông tin lý lịch cá nhân và phân khoa/phòng ban.</p>}
         </div>
         {readonly && onEdit && (
           <button className="button primary" type="button" onClick={onEdit}>
@@ -146,25 +142,34 @@ export default function EmployeeProfileForm({
         <form onSubmit={handleSubmit} className="panel account-form workspace-form-panel" aria-label="Hồ sơ nhân viên">
           <div className="workspace-form-fields">
           {/* Header Preview Banner */}
-          <div className="employee-preview" style={{ margin: '20px 27px 0', border: '1px solid #dce8e5' }}>
-            <span className="avatar" style={{ width: 50, height: 50, fontSize: 16 }}>
+          <div className="employee-preview" style={{ margin: '20px 27px', padding: '12px 16px', border: '1px solid #dce8e5' }}>
+            <span className="avatar" style={{ width: 42, height: 42, fontSize: 14, flexShrink: 0 }}>
               {initials(name || employee.name)}
             </span>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <strong style={{ fontSize: 16 }}>{name || employee.name}</strong>
-                <span className={`status-badge ${status}`}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <strong style={{ display: 'inline', fontSize: 16 }}>{name || employee.name}</strong>
+                <span className={`status-badge ${status}`} style={{ display: 'inline-flex', marginTop: 0 }}>
                   <i />
                   {status === 'active' ? 'Đang hoạt động' : 'Ngừng hoạt động'}
                 </span>
               </div>
-              <span>
-                Mã: <strong>{code || employee.code}</strong> · Khoa/phòng: <strong>{departmentDisplay}</strong>
-              </span>
-              <small>
-                {scopeOfPractice ? `Chuyên môn: ${scopeOfPractice} · ` : ''}
-                {email || 'Chưa có email'}
-              </small>
+              <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 16, rowGap: 2, marginTop: 4 }}>
+                <span style={{ display: 'inline', marginTop: 0, fontSize: 12 }}>
+                  Mã: <b style={{ color: '#34484f' }}>{code || employee.code}</b>
+                </span>
+                <span style={{ display: 'inline', marginTop: 0, fontSize: 12 }}>
+                  Khoa/phòng: <b style={{ color: '#34484f' }}>{departmentDisplay}</b>
+                </span>
+                {scopeOfPractice && (
+                  <span style={{ display: 'inline', marginTop: 0, fontSize: 12 }}>
+                    Chuyên môn: <b style={{ color: '#34484f' }}>{scopeOfPractice}</b>
+                  </span>
+                )}
+                <span style={{ display: 'inline', marginTop: 0, fontSize: 12 }}>
+                  {email ? <>Email: <b style={{ color: '#34484f' }}>{email}</b></> : 'Chưa có email'}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -233,7 +238,7 @@ export default function EmployeeProfileForm({
                 <label htmlFor="staff-dob">Ngày sinh</label>
                 <input
                   id="staff-dob"
-                  min="1940-01-01"
+                  min={getMinWorkingDateOfBirth(gender || null)}
                   max={getMaxAdultDateOfBirth()}
                   type={readonly ? 'text' : 'date'}
                   value={readonly ? (dateOfBirth ? formatDate(dateOfBirth) : 'Chưa cập nhật') : dateOfBirth}

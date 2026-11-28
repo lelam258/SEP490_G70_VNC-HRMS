@@ -736,7 +736,7 @@ public sealed class PayrollParameterService(
     {
         var code = PayrollParameterRules.NormalizeRateConfigCode(request.Code);
         var unit = PayrollParameterRules.NormalizeRateConfigUnit(request.Unit);
-        PayrollParameterRules.EnsureTypedValue(unit == "percent" ? "percent" : "fixed", request.Value, "Giá trị tham số");
+        PayrollParameterRules.EnsureRateConfigValue(unit, request.Value, "Giá trị tham số");
         PayrollParameterRules.EnsureEffectiveRange(request.EffectiveFrom, request.EffectiveTo);
         var status = PayrollParameterRules.NormalizeStatus(request.Status);
 
@@ -819,7 +819,7 @@ public sealed class PayrollParameterService(
 
         var code = PayrollParameterRules.NormalizeRateConfigCode(request.Code);
         var unit = PayrollParameterRules.NormalizeRateConfigUnit(request.Unit);
-        PayrollParameterRules.EnsureTypedValue(unit == "percent" ? "percent" : "fixed", request.Value, "Giá trị tham số");
+        PayrollParameterRules.EnsureRateConfigValue(unit, request.Value, "Giá trị tham số");
         PayrollParameterRules.EnsureEffectiveRange(request.EffectiveFrom, request.EffectiveTo);
         var status = PayrollParameterRules.NormalizeStatus(request.Status);
 

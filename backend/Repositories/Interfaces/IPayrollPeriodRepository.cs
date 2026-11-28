@@ -33,7 +33,8 @@ public sealed record PayrollCalculationContext(
     bool DeductOtherBeforeTax,
     string FlatTaxBase,
     Dictionary<Guid, Payslip> ExistingPayslipsByStaff,
-    ILookup<Guid, DateOnly>? ScheduledNightDatesByStaff = null
+    ILookup<Guid, DateOnly>? ScheduledNightDatesByStaff = null,
+    ILookup<Guid, ContractSalaryHistory>? SalaryHistoriesByContract = null
 );
 
 public interface IPayrollPeriodRepository

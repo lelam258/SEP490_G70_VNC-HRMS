@@ -122,7 +122,6 @@ export default function MonthlyAttendancePage() {
   return (
     <AttendanceShell
       title="Chốt bảng chấm công tháng"
-      description="Tổng hợp ngày công chính, ca trực trưa/tối, giờ tăng ca và nghỉ phép toàn phòng khám trước khi khóa sổ tính lương."
       actions={
         <>
           {summary && (

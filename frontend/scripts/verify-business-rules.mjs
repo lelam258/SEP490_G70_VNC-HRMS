@@ -25,7 +25,13 @@ try {
   assert.ok(validateEmployeeProfile({ ...profile, idCardNumber: '123' }, today));
   assert.ok(validateEmployeeProfile({ ...profile, dependentCount: -1 }, today));
   assert.ok(validateEmployeeProfile({ ...profile, dependentCount: 0.5 }, today));
-  console.log('PASS 16 employee business rule cases: optional fields, names, age boundary, employment dates, phone, CCCD and dependents.');
+  // GB-05: nam tối đa 62 tuổi, nữ tối đa 60 tuổi; đúng tuổi tối đa vẫn hợp lệ.
+  assert.equal(validateEmployeeProfile({ ...profile, gender: 'male', dateOfBirth: '1963-11-07' }, today), '');
+  assert.match(validateEmployeeProfile({ ...profile, gender: 'male', dateOfBirth: '1963-11-06' }, today), /62/);
+  assert.equal(validateEmployeeProfile({ ...profile, gender: 'female', dateOfBirth: '1965-11-07' }, today), '');
+  assert.match(validateEmployeeProfile({ ...profile, gender: 'female', dateOfBirth: '1965-11-06' }, today), /60/);
+  assert.equal(validateEmployeeProfile({ ...profile, gender: null, dateOfBirth: '1963-11-07' }, today), '');
+  console.log('PASS 21 employee business rule cases: optional fields, names, age boundary (18, nam 62, nữ 60), employment dates, phone, CCCD and dependents.');
   const { schedulePermissions, canChangeShift } = await server.ssrLoadModule('/src/utils/schedule.ts');
   const week = { monday: '2026-11-09', closed: false, assignmentCount: 1, isCorrection: false,
     serverNow: '2026-11-06T10:00:00+07:00', planningStartsAt: '2026-11-02T00:00:00+07:00',

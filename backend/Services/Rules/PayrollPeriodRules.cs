@@ -19,6 +19,15 @@ public static class PayrollPeriodRules
         "needs_procedure"
     ];
 
+    /// <summary>
+    /// Kỳ lương đã khóa sổ (finalized/locked/exported) thì mọi dữ liệu tác động tới kỳ đều chỉ đọc.
+    /// Kỳ "approved" (đã xác nhận, chưa chốt) vẫn được chỉnh sửa.
+    /// </summary>
+    public static readonly string[] LockedStatuses = ["locked", "finalized", "exported"];
+
+    public static bool IsLockedStatus(string? status)
+        => status is not null && LockedStatuses.Contains(status.Trim().ToLowerInvariant());
+
     public static (int Year, int Month) ParsePayMonth(string payMonth)
     {
         var parts = payMonth.Trim().Split('-');
@@ -173,7 +182,9 @@ public static class PayrollPeriodRules
         foreach (var lv in approvedLeaves)
         {
             var isMaternity = string.Equals(lv.LeaveType, "maternity", StringComparison.OrdinalIgnoreCase);
-            var isPaid = !leaveTypesIsPaid.TryGetValue(lv.LeaveType, out var paidFlag) || paidFlag;
+            // Phòng khám không trả lương ngày nghỉ: chỉ loại nghỉ được cấu hình is_paid = 1 mới tính công.
+            // Mã loại nghỉ không có trong danh mục cũng coi là không lương.
+            var isPaid = leaveTypesIsPaid.TryGetValue(lv.LeaveType, out var paidFlag) && paidFlag;
             var from = lv.StartDate < monthStart ? monthStart : lv.StartDate;
             var to = lv.EndDate > monthEnd ? monthEnd : lv.EndDate;
             var singleHalfDay = lv.StartDate == lv.EndDate
@@ -325,6 +336,39 @@ public static class PayrollPeriodRules
 
         return new AllowanceSplitResult(
             noonPay, eveningPay, overtimePay, onCallPay, pureTotal, pureItems, noonCount, eveningCount, maternityPay);
+    }
+
+    /// <summary>Đơn giá một ngày công của một đoạn lương (lương ngày, hoặc lương tháng chia ngày công chuẩn).</summary>
+    public static decimal DailyRateOf(ContractSalarySegmentDto segment, decimal clinicStandardDays)
+    {
+        if (string.Equals(segment.SalaryType, "daily", StringComparison.OrdinalIgnoreCase)) return segment.DailyRate;
+        var stdDays = segment.StandardWorkingDays is > 0m ? segment.StandardWorkingDays.Value : clinicStandardDays;
+        return stdDays > 0m ? (segment.MonthlySalary ?? segment.DailyRate * stdDays) / stdDays : 0m;
+    }
+
+    /// <summary>
+    /// Lương cơ bản theo lịch sử lương: mỗi đoạn lương trong tháng nhân với ngày công rơi vào đoạn đó.
+    /// Ngày công ngoài thời hạn hợp đồng (không thuộc đoạn nào) không được trả lương.
+    /// </summary>
+    public static decimal BasePayBySegments(
+        IReadOnlyList<ContractSalarySegmentDto> segments,
+        decimal clinicStandardDays,
+        IEnumerable<AttendanceRecord> records,
+        IEnumerable<LeaveRequest> approvedLeaves,
+        IReadOnlyDictionary<string, bool> leaveTypesIsPaid)
+    {
+        var recordList = records as IReadOnlyList<AttendanceRecord> ?? records.ToArray();
+        var leaveList = approvedLeaves as IReadOnlyList<LeaveRequest> ?? approvedLeaves.ToArray();
+        decimal total = 0m;
+        foreach (var segment in segments)
+        {
+            var workDays = ComputeStaffAttendanceMetrics(
+                segment.From, segment.To,
+                recordList.Where(r => r.WorkDate >= segment.From && r.WorkDate <= segment.To),
+                [], leaveList, leaveTypesIsPaid).TotalWorkDays;
+            total += DailyRateOf(segment, clinicStandardDays) * workDays;
+        }
+        return Math.Round(total, 2, MidpointRounding.AwayFromZero);
     }
 
     public static bool IsDoctorPosition(Position? position)

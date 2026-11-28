@@ -211,11 +211,6 @@ export default function ReviewLeaveModal({ requestId, onClose, onSuccess }: Revi
                 <div className="rounded-xl border border-slate-200 p-3.5 bg-white">
                   <div className="text-xs text-slate-400">Loại nghỉ phép</div>
                   <div className="mt-1 font-semibold text-slate-800 text-sm">{detail.leaveTypeName}</div>
-                  {detail.leaveType === 'annual' && (
-                    <div className="mt-2 text-xs text-teal-700 bg-teal-50/70 rounded px-2 py-1 inline-block">
-                      Số dư phép năm: <strong>{detail.annualLeaveRemaining}</strong> / {detail.annualLeaveEntitlement} ngày
-                    </div>
-                  )}
                 </div>
 
                 <div className="rounded-xl border border-slate-200 p-3.5 bg-white">

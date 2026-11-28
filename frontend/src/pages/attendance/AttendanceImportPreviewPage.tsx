@@ -54,7 +54,7 @@ export default function AttendanceImportPreviewPage({ errors = false }: { errors
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Không loại được dòng nhập.'); }
     finally { setBusy(false); }
   }
-  return <AttendanceShell layout="list" title={errors ? 'Kết quả lỗi nhập chấm công' : 'Xem trước nhập chấm công'} description={errors ? 'Kiểm tra từng lỗi, xác nhận nhân viên và bổ sung căn cứ điều chỉnh.' : 'Kiểm tra nguồn, ánh xạ nhân viên và các cặp vào/ra trước khi lưu dữ liệu.'}
+  return <AttendanceShell layout="list" title={errors ? 'Kết quả lỗi nhập chấm công' : 'Xem trước nhập chấm công'} description={errors ? 'Kiểm tra từng lỗi, xác nhận nhân viên và bổ sung căn cứ điều chỉnh.' : undefined}
     actions={<>{data && data.counts.committed > 0 && <Link className="button primary" to={`/attendance/records?month=${data.batch.payMonth}`}>Xem bản ghi đã lưu</Link>}<Link className="button" to={data ? `/attendance/imports?month=${data.batch.payMonth}` : '/attendance/imports'}>Lịch sử nhập</Link><Link className="button" to={`/attendance/imports/${id}/${errors ? 'preview' : 'errors'}`}>{errors ? 'Xem trước tất cả' : 'Xem kết quả lỗi'}</Link></>}>
     {notice && <p className="alert success" role="status">{formatAttendanceNote(notice)}</p>}{error && <p className="alert error" role="alert">{formatAttendanceNote(error)}</p>}
     <ResourceState loading={resource.loading} error={resource.error} reload={resource.reload} />

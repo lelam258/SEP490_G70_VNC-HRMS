@@ -394,77 +394,6 @@ export default function PayrollParameterPage() {
     }
   }
 
-  // Export CSV for current active tab (Iteration 1 lightweight export)
-  function handleExportCsv() {
-    let filename = `tham-so-${activeTab}.csv`;
-    let headers: string[] = [];
-    let rows: string[][] = [];
-
-    if (activeTab === 'allowances') {
-      filename = 'danh-muc-phu-cap.csv';
-      headers = ['Mã', 'Tên phụ cấp', 'Cách tính', 'Mức phụ cấp', 'Chịu thuế TNCN', 'Trạng thái'];
-      rows = allowances.map(a => [
-        a.code,
-        `"${(a.name || '').replace(/"/g, '""')}"`,
-        a.defaultCalcMethod,
-        String(a.defaultValue ?? 0),
-        a.isTaxable ? 'Có' : 'Không',
-        a.status === 'active' ? 'Đang áp dụng' : 'Đã ngừng',
-      ]);
-    } else if (activeTab === 'insurance') {
-      filename = 'ty-le-dong-bao-hiem.csv';
-      headers = ['Loại bảo hiểm', 'Đối tượng nộp', 'Tỷ lệ (%)', 'Trạng thái'];
-      rows = insurances.map(i => [
-        i.insuranceType,
-        i.payer === 'employee' ? 'Người lao động' : 'Người sử dụng lao động',
-        String(i.ratePercent),
-        i.status === 'active' ? 'Đang áp dụng' : 'Đã ngừng',
-      ]);
-    } else if (activeTab === 'tax') {
-      filename = 'bieu-thue-tncn.csv';
-      headers = ['Bậc thuế', 'Thu nhập từ (VNĐ)', 'Thu nhập đến (VNĐ)', 'Thuế suất (%)', 'Trạng thái'];
-      rows = taxBrackets.map((t, idx) => [
-        `Bậc ${idx + 1}`,
-        String(t.incomeFrom),
-        t.incomeTo ? String(t.incomeTo) : 'Không giới hạn',
-        String(t.taxRatePercent),
-        t.status === 'active' ? 'Đang áp dụng' : 'Đã ngừng',
-      ]);
-    } else if (activeTab === 'commission') {
-      filename = 'hoa-hong-thu-thuat.csv';
-      headers = ['Dịch vụ', 'Vai trò', 'Loại hoa hồng', 'Giá trị', 'Trạng thái'];
-      rows = commissionRules.map(r => [
-        `"${(r.serviceName || r.serviceCode || '').replace(/"/g, '""')}"`,
-        `"${(r.positionName || r.role || 'Chung').replace(/"/g, '""')}"`,
-        r.valueType === 'fixed' ? 'Cố định' : 'Tỷ lệ %',
-        String(r.commissionValue),
-        r.status === 'active' ? 'Đang áp dụng' : 'Đã ngừng',
-      ]);
-    } else {
-      filename = 'don-gia-truc-tham-so.csv';
-      headers = ['Tham số lương', 'Phân loại', 'Áp dụng cho', 'Đơn vị', 'Giá trị', 'Trạng thái'];
-      rows = rateConfigs.map(r => [
-        `"${renderRateParamName(r).replace(/"/g, '""')}"`,
-        renderRateCategory(r).label,
-        r.staffName ? `${r.staffName} (${r.staffCode})` : r.positionName || 'Toàn phòng khám',
-        r.unit,
-        String(r.value),
-        r.status === 'active' ? 'Đang áp dụng' : 'Đã ngừng',
-      ]);
-    }
-
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', filename);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }
-
   async function handleSaveTaxBracket(input: any) {
     setSaving(true);
     setSaveError('');
@@ -911,10 +840,10 @@ export default function PayrollParameterPage() {
             </div>
           )}
 
-          {/* Phải: Nhóm lọc (Tìm kiếm + Trạng thái) | Nhóm thao tác (Xuất CSV + Làm mới + "+ Thêm") */}
+          {/* Phải: Nhóm lọc (Tìm kiếm + Trạng thái) & Thao tác (Làm mới + "+ Thêm") */}
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
             {/* Ô input tìm kiếm độc lập */}
-            <div className="flex items-center gap-1.5 pl-3 pr-2 h-9 w-48 sm:w-60 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 focus-within:bg-white dark:focus-within:bg-slate-800 focus-within:border-slate-400 dark:focus-within:border-slate-500 transition-all">
+            <div className="flex items-center gap-1.5 pl-3 pr-2 h-9 w-56 sm:w-72 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 focus-within:bg-white dark:focus-within:bg-slate-800 focus-within:border-slate-400 dark:focus-within:border-slate-500 transition-all">
               <span className="shrink-0 text-slate-400 flex items-center pointer-events-none">
                 <Icon name="search" size={14} />
               </span>
@@ -966,22 +895,8 @@ export default function PayrollParameterPage() {
               </svg>
             </div>
 
-            <span className="hidden sm:block h-5 w-px bg-slate-200 dark:bg-slate-700 mx-0.5" aria-hidden="true" />
-
-            {/* Cụm thao tác phụ: Xuất CSV & Làm mới */}
+            {/* Cụm thao tác phụ: Làm mới */}
             <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                type="button"
-                className="h-9 px-3 shrink-0 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200 transition-colors text-xs font-medium whitespace-nowrap flex items-center gap-1.5 cursor-pointer"
-                title="Xuất bảng tham số hiện tại ra tệp CSV (Excel)"
-                onClick={handleExportCsv}
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="text-slate-500 dark:text-slate-400">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                <span>Xuất CSV</span>
-              </button>
-
               <button
                 type="button"
                 className="h-9 w-9 shrink-0 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-colors cursor-pointer"
