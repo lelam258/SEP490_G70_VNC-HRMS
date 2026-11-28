@@ -74,6 +74,7 @@ public sealed class CompensationService(
 
         var contract = await repository.FindContractAsync(contractId, ct)
             ?? throw new AppException(404, "Không tìm thấy hợp đồng lao động.");
+        ContractRules.EnsureCompensationEditable(contract.Status, contract.EffectiveFrom, contract.EffectiveTo, PayrollParameterRules.TodayVn());
 
         if (!PayrollParameterRules.PeriodWithin(effectiveChangeDate, effectiveChangeDate, contract.EffectiveFrom, contract.EffectiveTo))
         {
@@ -241,6 +242,7 @@ public sealed class CompensationService(
     {
         var contract = await repository.FindContractAsync(contractId, ct)
             ?? throw new AppException(404, "Không tìm thấy hợp đồng lao động.");
+        ContractRules.EnsureCompensationEditable(contract.Status, contract.EffectiveFrom, contract.EffectiveTo, PayrollParameterRules.TodayVn());
 
         await EnsureEligibleForAllowanceChangeAsync(contract, ct);
 
@@ -325,6 +327,7 @@ public sealed class CompensationService(
     {
         var contract = await repository.FindContractAsync(contractId, ct)
             ?? throw new AppException(404, "Không tìm thấy hợp đồng lao động.");
+        ContractRules.EnsureCompensationEditable(contract.Status, contract.EffectiveFrom, contract.EffectiveTo, PayrollParameterRules.TodayVn());
 
         var entity = await repository.FindStaffAllowanceAsync(staffAllowanceId, ct)
             ?? throw new AppException(404, "Không tìm thấy phụ cấp nhân viên.");

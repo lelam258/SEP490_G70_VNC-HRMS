@@ -33,8 +33,7 @@ public sealed partial class PayrollPeriodService(
 
     private static bool IsLockedOrFinalizedStatus(string? status)
     {
-        var norm = status?.Trim().ToLowerInvariant();
-        return norm is "locked" or "finalized";
+        return PayrollPeriodRules.IsLockedStatus(status);
     }
 
     private static int ComputeServiceYears(DateOnly dateJoined, DateOnly asOfDate)
@@ -501,16 +500,26 @@ public sealed partial class PayrollPeriodService(
                 ctx.ActiveRateConfigs, "union_fee", staff.StaffId, staff.PositionId,
                 ctx.PositionsById, isDoctorPos, PayrollDefaults.UnionFee);
 
-            decimal stdDays = (contract?.StandardWorkingDays is > 0m) ? contract.StandardWorkingDays.Value : clinicStdDays;
-            decimal dailyRate = 0m;
-            decimal basePay = 0m;
-            if (contract is not null)
-            {
-                dailyRate = string.Equals(contract.SalaryType, "daily", StringComparison.OrdinalIgnoreCase)
-                    ? contract.DailyRate
-                    : (stdDays > 0m ? (contract.MonthlySalary ?? (contract.DailyRate * stdDays)) / stdDays : 0m);
-                basePay = Math.Round(dailyRate * att.TotalWorkDays, 2, MidpointRounding.AwayFromZero);
-            }
+            // Lương lấy theo lịch sử lương của chính tháng này, không lấy mức lương đang áp dụng hôm nay.
+            var salaryHistories = contract is null
+                ? []
+                : (ctx.SalaryHistoriesByContract?[contract.ContractId] ?? []).ToArray();
+            var salarySegments = contract is null
+                ? []
+                : ContractSalaryRules.SegmentsFor(contract, salaryHistories, monthStart, monthEnd);
+            // Các điều khoản tính theo tháng (bảo hiểm, thuế, lương làm cơ sở phụ cấp %) lấy tại ngày cuối hợp đồng trong tháng.
+            var termsDate = contract?.EffectiveTo is { } contractEnd && contractEnd < monthEnd ? contractEnd : monthEnd;
+            var termsEntry = contract is null ? null : ContractSalaryRules.EntryOn(salaryHistories, termsDate);
+            bool insuranceEligible = termsEntry?.IsInsuranceEligible ?? contract?.IsInsuranceEligible ?? false;
+            decimal? insuranceBasis = termsEntry is not null ? termsEntry.InsuranceSalaryBasis : contract?.InsuranceSalaryBasis;
+            decimal? monthlySalaryTerms = termsEntry is not null ? termsEntry.MonthlySalary : contract?.MonthlySalary;
+            string taxMethod = termsEntry?.TaxMethod ?? contract?.TaxMethod ?? "progressive";
+
+            decimal dailyRate = salarySegments.Length > 0
+                ? PayrollPeriodRules.DailyRateOf(salarySegments[^1], clinicStdDays)
+                : 0m;
+            decimal basePay = PayrollPeriodRules.BasePayBySegments(
+                salarySegments, clinicStdDays, attendanceByStaff[staff.StaffId], leavesByStaff[staff.StaffId], ctx.LeaveTypesIsPaid);
 
             decimal noonPay = Math.Round(att.NoonDutyCount * dutyNoonRate, 2, MidpointRounding.AwayFromZero);
             decimal eveningPay = Math.Round(att.EveningDutyCount * dutyNightRate, 2, MidpointRounding.AwayFromZero);
@@ -543,7 +552,7 @@ public sealed partial class PayrollPeriodService(
                 if (string.Equals(sa.ValueType, "percentage", StringComparison.OrdinalIgnoreCase)
                     || calcMethod == "percentage")
                 {
-                    decimal salaryBasis = contract?.MonthlySalary ?? (dailyRate * prorateDenom);
+                    decimal salaryBasis = monthlySalaryTerms ?? (dailyRate * prorateDenom);
                     amount = Math.Round(salaryBasis * (sa.AmountValue / 100m), 2, MidpointRounding.AwayFromZero);
                 }
                 else if (calcMethod is "prorate_by_workdays" or "prorate_by_workday")
@@ -609,10 +618,10 @@ public sealed partial class PayrollPeriodService(
             }
 
             decimal maternityPay = 0m;
-            if (att.MaternityMonthRatio > 0m && contract is not null && contract.IsInsuranceEligible)
+            if (att.MaternityMonthRatio > 0m && contract is not null && insuranceEligible)
             {
                 int daysInMonth = DateTime.DaysInMonth(y, m);
-                decimal maternityInsBase = contract.InsuranceSalaryBasis ?? 5_061_100m;
+                decimal maternityInsBase = insuranceBasis ?? 5_061_100m;
                 maternityPay = Math.Round(maternityInsBase * att.MaternityMonthRatio, 0, MidpointRounding.AwayFromZero);
                 if (maternityPay > 0m)
                 {
@@ -634,8 +643,8 @@ public sealed partial class PayrollPeriodService(
             decimal grossPay = basePay + allowanceTotal + commissionTotal;
             decimal taxableGrossPay = Math.Max(0m, basePay + (allowanceTotal - maternityPay) + commissionTotal);
 
-            decimal insSalary = (taxableGrossPay > 0m && att.MaternityCalendarDays < 14m && contract is not null && contract.IsInsuranceEligible)
-                ? (contract.InsuranceSalaryBasis ?? 5_061_100m)
+            decimal insSalary = (taxableGrossPay > 0m && att.MaternityCalendarDays < 14m && contract is not null && insuranceEligible)
+                ? (insuranceBasis ?? 5_061_100m)
                 : 0m;
             bool isUnion = taxableGrossPay > unionFeeFixed && staff.IsUnionMember;
 
@@ -644,7 +653,7 @@ public sealed partial class PayrollPeriodService(
                 InsuranceSalary: insSalary,
                 IsUnionMember: isUnion,
                 DependentCount: staff.DependentCount,
-                TaxMethod: contract?.TaxMethod ?? "progressive",
+                TaxMethod: taxMethod,
                 OtherDeductions: 0m,
                 InsuranceEmployeeRatePercent: ctx.EmployeeInsuranceRatePercent,
                 UnionFeeFixed: unionFeeFixed,
@@ -1055,6 +1064,17 @@ public sealed partial class PayrollPeriodService(
         var staff = ctx.ActiveCs1Staff.FirstOrDefault(s => s.StaffId == payslip.StaffId);
         ctx.ActiveContractsByStaff.TryGetValue(payslip.StaffId, out var contract);
 
+        // Bảo hiểm và phương pháp thuế lấy theo lịch sử lương của tháng này, không theo mức lương hiện tại.
+        var (inlineYear, inlineMonth) = PayrollPeriodRules.ParsePayMonth(normalizedMonth);
+        var inlineMonthEnd = new DateOnly(inlineYear, inlineMonth, 1).AddMonths(1).AddDays(-1);
+        var termsDate = contract?.EffectiveTo is { } contractEnd && contractEnd < inlineMonthEnd ? contractEnd : inlineMonthEnd;
+        var termsEntry = contract is null
+            ? null
+            : ContractSalaryRules.EntryOn(ctx.SalaryHistoriesByContract?[contract.ContractId] ?? [], termsDate);
+        bool insuranceEligible = termsEntry?.IsInsuranceEligible ?? contract?.IsInsuranceEligible ?? false;
+        decimal? insuranceBasis = termsEntry is not null ? termsEntry.InsuranceSalaryBasis : contract?.InsuranceSalaryBasis;
+        string taxMethod = termsEntry?.TaxMethod ?? contract?.TaxMethod ?? "progressive";
+
         Position? position = null;
         if (staff?.PositionId.HasValue == true)
         {
@@ -1091,7 +1111,7 @@ public sealed partial class PayrollPeriodService(
 
         decimal insSalary = grossPay > 0m
             ? (contract is not null
-                ? (contract.IsInsuranceEligible ? (contract.InsuranceSalaryBasis ?? 5_061_100m) : 0m)
+                ? (insuranceEligible ? (insuranceBasis ?? 5_061_100m) : 0m)
                 : (payslip.InsuranceSalaryBase ?? 0m))
             : 0m;
 
@@ -1104,7 +1124,7 @@ public sealed partial class PayrollPeriodService(
             InsuranceSalary: insSalary,
             IsUnionMember: isUnion,
             DependentCount: dependentCount,
-            TaxMethod: contract?.TaxMethod ?? "progressive",
+            TaxMethod: taxMethod,
             OtherDeductions: 0m,
             InsuranceEmployeeRatePercent: ctx.EmployeeInsuranceRatePercent,
             UnionFeeFixed: unionFeeFixed,

@@ -433,12 +433,18 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
             .ThenByDescending(c => c.CreatedAt)
             .ToListAsync(ct);
 
+        // Chỉ dùng hợp đồng có hiệu lực trong tháng lương; hợp đồng đã hết hạn hoặc chưa bắt đầu không được tính lương.
         var contractsByStaff = activeContracts
+            .Where(c => c.EffectiveFrom <= monthEnd && (c.EffectiveTo == null || c.EffectiveTo >= monthStart))
             .GroupBy(c => c.StaffId)
-            .ToDictionary(
-                g => g.Key,
-                g => g.FirstOrDefault(c => c.EffectiveFrom <= monthEnd && (c.EffectiveTo == null || c.EffectiveTo >= monthStart))
-                    ?? g.First());
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var contractIds = contractsByStaff.Values.Select(c => c.ContractId).ToArray();
+        var salaryHistories = (await db.ContractSalaryHistories.AsNoTracking()
+                .Where(h => contractIds.Contains(h.ContractId)
+                    && h.EffectiveFrom <= monthEnd && (h.EffectiveTo == null || h.EffectiveTo >= monthStart))
+                .ToListAsync(ct))
+            .ToLookup(h => h.ContractId);
 
         var positionsById = await db.Positions.AsNoTracking()
             .ToDictionaryAsync(p => p.PositionId, ct);
@@ -535,7 +541,8 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
             DeductOtherBeforeTax: taxPolicy.DeductOtherBeforeTax,
             FlatTaxBase: taxPolicy.FlatTaxBase,
             ExistingPayslipsByStaff: existingPayslips,
-            ScheduledNightDatesByStaff: scheduledNightDatesByStaff
+            ScheduledNightDatesByStaff: scheduledNightDatesByStaff,
+            SalaryHistoriesByContract: salaryHistories
         );
     }
 
@@ -588,6 +595,15 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
                 .Where(c => c.StaffId == ps.StaffId && c.Status == "active")
                 .OrderByDescending(c => c.EffectiveFrom)
                 .FirstOrDefaultAsync(ct);
+
+        // Đơn giá trên phiếu lương lấy theo lịch sử lương của tháng này, không theo mức lương hiện tại của hợp đồng.
+        var salaryTermsDate = contract?.EffectiveTo is { } contractEnd && contractEnd < monthEnd ? contractEnd : monthEnd;
+        var salaryTerms = contract is null
+            ? null
+            : ContractSalaryRules.EntryOn(
+                await db.ContractSalaryHistories.AsNoTracking().Where(h => h.ContractId == contract.ContractId).ToListAsync(ct),
+                salaryTermsDate);
+        string termsTaxMethod = salaryTerms?.TaxMethod ?? contract?.TaxMethod ?? "progressive";
 
         var periodLock = await db.PayrollLocks.AsNoTracking().SingleOrDefaultAsync(x => x.PayMonth == payMonth, ct);
         var attendanceLocked = await db.MonthlyTimesheets.AsNoTracking()
@@ -682,7 +698,7 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
             InsuranceSalary: hasInsurance ? insBase : 0m,
             IsUnionMember: unionFeeDeduction > 0m,
             DependentCount: ps.DependentCount ?? staff?.DependentCount ?? 0,
-            TaxMethod: contract?.TaxMethod ?? "progressive",
+            TaxMethod: termsTaxMethod,
             OtherDeductions: 0m,
             InsuranceEmployeeRatePercent: taxPolicy.EmployeeInsuranceRatePercent,
             UnionFeeFixed: unionFeeDeduction > 0m ? unionFeeDeduction : 0m,
@@ -698,17 +714,21 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
             Brackets: taxPolicy.Brackets
         ));
 
-        decimal stdDays = contract?.StandardWorkingDays is > 0m ? contract.StandardWorkingDays.Value : PayrollDefaults.StandardWorkingDays;
-        string salaryType = contract?.SalaryType ?? "monthly";
+        decimal? termsStdDays = salaryTerms is not null ? salaryTerms.StandardWorkingDays : contract?.StandardWorkingDays;
+        decimal stdDays = termsStdDays is > 0m ? termsStdDays.Value : PayrollDefaults.StandardWorkingDays;
+        string salaryType = salaryTerms?.SalaryType ?? contract?.SalaryType ?? "monthly";
+        decimal? termsMonthlySalary = salaryTerms is not null ? salaryTerms.MonthlySalary : contract?.MonthlySalary;
+        decimal termsDailyRate = salaryTerms?.DailyRate ?? contract?.DailyRate ?? 0m;
+        bool termsInsuranceEligible = salaryTerms?.IsInsuranceEligible ?? contract?.IsInsuranceEligible ?? false;
         decimal dailyRate = contract is null
             ? 0m
             : (string.Equals(salaryType, "daily", StringComparison.OrdinalIgnoreCase)
-                ? contract.DailyRate
-                : (stdDays > 0m ? (contract.MonthlySalary ?? (contract.DailyRate * stdDays)) / stdDays : 0m));
+                ? termsDailyRate
+                : (stdDays > 0m ? (termsMonthlySalary ?? (termsDailyRate * stdDays)) / stdDays : 0m));
 
         var (reviewStatus, reviewNote) = PayrollPeriodRules.ParseReviewState(ps.Status, ps.DeptApprovedAt, ps.DeptRejectedReason);
         bool isLocked = (ps.IsLocked ?? false)
-            || (periodLock?.Status is "locked" or "finalized");
+            || PayrollPeriodRules.IsLockedStatus(periodLock?.Status);
 
         return new PayslipDetailDto(
             PayslipId: ps.PayslipId,
@@ -724,10 +744,10 @@ public sealed class PayrollPeriodRepository(AppDbContext db) : IPayrollPeriodRep
             ContractType: ps.ContractType ?? contract?.ContractType,
             SalaryType: salaryType,
             DailyRate: Math.Round(dailyRate, 2, MidpointRounding.AwayFromZero),
-            MonthlySalary: contract?.MonthlySalary,
+            MonthlySalary: termsMonthlySalary,
             StandardWorkingDays: stdDays,
-            TaxMethod: contract?.TaxMethod ?? "progressive",
-            IsInsuranceEligible: contract?.IsInsuranceEligible ?? false,
+            TaxMethod: termsTaxMethod,
+            IsInsuranceEligible: termsInsuranceEligible,
             InsuranceSalaryBase: insBase,
             IsUnionMember: staff?.IsUnionMember ?? (unionFeeDeduction > 0m),
             DependentCount: ps.DependentCount ?? staff?.DependentCount ?? 0,

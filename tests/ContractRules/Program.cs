@@ -69,6 +69,35 @@ Check(unpaidType.PaidLeaveDays == 0m && unpaidType.TotalWorkDays == 0m, "Leave t
 var paidType = LeaveMetrics("personal_paid", new() { ["personal_paid"] = true });
 Check(paidType.PaidLeaveDays == 1m && paidType.TotalWorkDays == 1m, "Leave type configured as paid still counts as a workday");
 
+// ---- Expired / inactive contracts cannot receive salary or allowance changes ----
+var nov = new DateOnly(2026, 11, 28);
+Reject(() => ContractRules.EnsureCompensationEditable("active", new(2025, 7, 1), new(2026, 6, 30), nov), 400, "Expired contract blocks salary/allowance changes");
+Reject(() => ContractRules.EnsureCompensationEditable("inactive", new(2026, 1, 1), null, nov), 400, "Inactive contract blocks salary/allowance changes");
+ContractRules.EnsureCompensationEditable("active", new(2026, 1, 1), new(2026, 11, 28), nov);
+Check(true, "Contract ending today can still be edited");
+ContractRules.EnsureCompensationEditable("active", new(2026, 12, 1), null, nov);
+Check(true, "Upcoming contract can be set up before it starts");
+
+// ---- Only finalized/locked/exported periods are locked; approved stays editable ----
+Check(PayrollPeriodRules.IsLockedStatus("finalized") && PayrollPeriodRules.IsLockedStatus(" Locked ") && PayrollPeriodRules.IsLockedStatus("exported"),
+    "Finalized, locked and exported periods are locked");
+Check(!PayrollPeriodRules.IsLockedStatus("approved") && !PayrollPeriodRules.IsLockedStatus("draft") && !PayrollPeriodRules.IsLockedStatus(null),
+    "Approved and draft periods stay editable");
+
+// ---- Base pay follows the salary history in force on each worked day ----
+var octDays = Enumerable.Range(1, 31).Select(d => new DateOnly(2026, 10, d)).Where(d => d.DayOfWeek != DayOfWeek.Sunday).ToList();
+Vnc.HRMS.Models.AttendanceRecord Worked(DateOnly d) => new() { AttendanceId = Guid.NewGuid(), WorkDate = d, ShiftType = "main", ActualHours = 8m, ValidationStatus = "confirmed" };
+var worked = octDays.Where(d => d.Day <= 12).Take(10).Concat(octDays.Where(d => d.Day >= 16).Take(10)).Select(Worked).ToList();
+Vnc.HRMS.DTOs.Payroll.ContractSalarySegmentDto Seg(int from, int to, decimal monthly)
+    => new(new(2026, 10, from), new(2026, 10, to), "monthly", 0m, monthly, 26m, null, "progressive", null);
+var raised = PayrollPeriodRules.BasePayBySegments([Seg(1, 15, 13_000_000m), Seg(16, 31, 15_600_000m)], 26m, worked, [], new Dictionary<string, bool>());
+Check(raised == 11_000_000m, $"Mid-month raise pays 10 days x 500,000 + 10 days x 600,000 (got {raised:N0})");
+var unchanged = PayrollPeriodRules.BasePayBySegments([Seg(1, 31, 13_000_000m)], 26m, worked, [], new Dictionary<string, bool>());
+Check(unchanged == 10_000_000m, "Without a raise all 20 days use the same rate");
+var lateStart = PayrollPeriodRules.BasePayBySegments([Seg(16, 31, 13_000_000m)], 26m, worked, [], new Dictionary<string, bool>());
+Check(lateStart == 5_000_000m, "Days worked before the contract starts are not paid");
+Check(PayrollPeriodRules.BasePayBySegments([], 26m, worked, [], new Dictionary<string, bool>()) == 0m, "No contract in force means no base pay");
+
 // ---- Access and data exposure ----
 var authorize = typeof(ContractsController).GetCustomAttribute<AuthorizeAttribute>();
 Check(authorize?.Policy == "HRManager", "Contract API restricted to HR Manager");

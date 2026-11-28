@@ -841,7 +841,7 @@ public sealed class PayrollParameterRepository(AppDbContext db) : IPayrollParame
     public Task<string[]> GetLockedMonthsAsync(CancellationToken ct)
     {
         return db.PayrollLocks.AsNoTracking()
-            .Where(x => x.Status == "finalized" || x.Status == "exported")
+            .Where(x => x.Status == "finalized" || x.Status == "exported" || x.Status == "locked")
             .Select(x => x.PayMonth)
             .Distinct()
             .OrderBy(x => x)
@@ -851,7 +851,7 @@ public sealed class PayrollParameterRepository(AppDbContext db) : IPayrollParame
     public Task<string[]> GetOpenMonthsAsync(CancellationToken ct)
     {
         return db.PayrollLocks.AsNoTracking()
-            .Where(x => x.Status == "open" || x.Status == "reviewing")
+            .Where(x => x.Status == "open" || x.Status == "draft" || x.Status == "approved" || x.Status == "reviewing")
             .Select(x => x.PayMonth)
             .Distinct()
             .OrderBy(x => x)

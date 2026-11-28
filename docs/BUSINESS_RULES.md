@@ -95,6 +95,8 @@ Database local `VNC_HRMS_Iteration1` có sẵn cột bảo hiểm nhưng thiếu
 | BR-PROC-05 | Kiểm tra kỳ khóa/trạng thái và lưu trong cùng transaction; tháng tính hoa hồng phải là tháng lịch hợp lệ, kể cả biên `9999-12` không gây tràn ngày | 400/409 khi sai |
 | BR-PAY-01 | Tháng kỳ lương phải đúng `YYYY-MM` và chuyển thành ngày đầu tháng hợp lệ; trim trước xử lý; tháng không được trùng | 400 nếu sai; 409 nếu trùng |
 | BR-PAY-02 | Phòng khám không quy định số ngày phép năm và không trả lương ngày nghỉ: ngày nghỉ đã duyệt chỉ được tính công khi loại nghỉ có `leave_types.is_paid = 1`. Mã loại nghỉ không có trong danh mục cũng coi là không lương. Nghỉ thai sản hưởng trợ cấp BHXH riêng, không tính công | Ngày nghỉ không cộng vào ngày công tính lương |
+| BR-PAY-03 | Kỳ lương `finalized`/`locked`/`exported` là đã khóa: không tính lại, không sửa dòng lương, không sửa lương/phụ cấp/tham số có hiệu lực phủ tháng đó; phản hồi thắc mắc lương chỉ trả lời, không sửa phiếu. Kỳ `approved` (đã xác nhận, chưa chốt) vẫn được sửa | 400/409 |
+| BR-PAY-04 | Chỉ hợp đồng có hiệu lực trong tháng mới được dùng tính lương; lương cơ bản lấy theo lịch sử lương có hiệu lực từng ngày công (đổi lương giữa tháng thì chia theo ngày công), không theo mức lương hiện tại. Hợp đồng đã hết hạn hoặc ngừng hiệu lực không được sửa lương hay gán/sửa phụ cấp | Không có hợp đồng hiệu lực thì lương cơ bản = 0; sửa HĐ hết hạn trả 400 |
 
 ## 3. Những nghiệp vụ cần yêu cầu chi tiết trước khi triển khai
 
