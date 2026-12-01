@@ -68,7 +68,7 @@ export default function AttendanceImportPreviewPage({ errors = false }: { errors
         { key: 'staff', label: 'Nhân viên', render: item => item.staffName || 'Chưa xác định' },
         { key: 'date', label: 'Ngày / ca', render: item => <>{item.workDate ? shortDate(item.workDate, true) : item.rawDate || 'Ngày thiếu'}<small className="table-secondary">{attendanceLabel(item.shiftType)}</small></> },
         { key: 'times', label: 'Vào / ra', render: item => item.pairs.length ? item.pairs.map((pair, index) => <div key={index}>{clockTime(pair.in)} – {clockTime(pair.out)}</div>) : 'Thiếu giờ' },
-        { key: 'hours', label: 'Giờ tính / giờ máy', render: item => `${item.actualHours ?? '—'} / ${item.reportedHours ?? '—'}` },
+        { key: 'hours', label: 'Giờ công / giờ máy', render: item => <>{item.actualHours ?? '—'} / {item.reportedHours ?? '—'}<small className="table-secondary">Giờ máy đã tính theo cấu hình ca; không trừ nghỉ trưa lần nữa. OT tách riêng.</small></> },
         { key: 'ot', label: 'OT dự kiến', render: item => <>{item.staffId && !['error', 'duplicate'].includes(item.validationStatus) ? `${item.potentialOvertimeHours ?? 0} giờ` : '—'}<small className="table-secondary">{item.hasNightOnCall ? 'Có ca trực tối: không tính OT' : '17:00–19:00, đủ mỗi 30 phút; chờ HR xác nhận'}</small></> },
         { key: 'minutes', label: 'Muộn / sớm (phút)', render: item => <>{item.lateMinutes ?? '—'} / {item.earlyMinutes ?? '—'}<small className="table-secondary">Ký hiệu: {item.attendanceSymbol || '—'}</small></> },
         { key: 'status', label: 'Kiểm tra', render: item => <>{attendanceLabel(item.validationStatus)}<small className="table-secondary">{attendanceText(item.validationNote)}</small></> },

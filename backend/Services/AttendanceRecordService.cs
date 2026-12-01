@@ -245,7 +245,7 @@ public sealed class AttendanceRecordService(
         decimal actualHours;
         try {
             pairs = AttendanceRules.Pairs(request.WorkDate, request.Pairs);
-            actualHours = AttendanceRules.Hours(pairs, request.WorkDate);
+            actualHours = AttendanceRules.WorkHours(pairs, request.WorkDate, request.ShiftType);
         } catch (AppException ex) {
             throw new AppException(400, $"Dữ liệu giờ vào/ra không hợp lệ — {ex.Message}");
         }
@@ -456,7 +456,9 @@ public sealed class AttendanceRecordService(
             }
         }
 
-        var actualHours = AttendanceRules.Hours(resolvedPairs, record.WorkDate);
+        var actualHours = action == "accept_machine"
+            ? AttendanceRules.ImportWorkHours(resolvedPairs, record.WorkDate, record.ShiftType, importRowEntity?.ReportedHours).Hours
+            : AttendanceRules.WorkHours(resolvedPairs, record.WorkDate, record.ShiftType);
         var checkIn = resolvedPairs.Min(x => x.In)!.Value;
         var checkOut = resolvedPairs.Max(x => x.Out)!.Value;
         if (checkOut > access.Now.ToOffset(TimeSpan.FromHours(7)).DateTime)
@@ -495,6 +497,8 @@ public sealed class AttendanceRecordService(
         record.ActualHours = actualHours;
         if (action is "accept_manual" or "correct_time")
             record.Source = "manual";
+        else if (action == "accept_machine")
+            record.Source = "machine";
 
         var formattedNote = $"[{action}] {reason}";
         if (!string.IsNullOrWhiteSpace(supervisorText))
@@ -593,7 +597,13 @@ public sealed class AttendanceRecordService(
         if (pairs.Length == 0 || pairs.Any(x => x.In is null || x.Out is null))
             throw new AppException(400, "Bản ghi thiếu giờ Vào/Ra đầy đủ. Vui lòng đối chiếu trước khi xác nhận.");
 
-        try { record.ActualHours = AttendanceRules.Hours(pairs, record.WorkDate); }
+        try {
+            var sourceRow = record.Source is "machine" or "fingerprint"
+                ? await db.AttendanceImportRows.AsNoTracking().FirstOrDefaultAsync(x => x.AttendanceId == record.AttendanceId, ct) : null;
+            record.ActualHours = sourceRow is not null
+                ? AttendanceRules.ImportWorkHours(pairs, record.WorkDate, record.ShiftType, sourceRow.ReportedHours).Hours
+                : AttendanceRules.WorkHours(pairs, record.WorkDate, record.ShiftType);
+        }
         catch (AppException ex) { throw new AppException(400, $"Cặp giờ Vào/Ra không hợp lệ — {ex.Message}"); }
 
         if (leaves.Length > 0 && record.ReconciledAt is null)

@@ -76,6 +76,35 @@ public static class AttendanceRules
         return (Hours(unique, date), unique.Length != pairs.Count);
     }
 
+    public static decimal WorkHours(IReadOnlyList<AttendanceTimePair> pairs, DateOnly date, string? shift)
+    {
+        var elapsed = Hours(pairs, date);
+        if (shift is not (null or "" or "main")) return elapsed;
+        // Main work excludes lunch, early arrival and evening duty/OT. Source punches stay intact.
+        decimal minutes = 0;
+        foreach (var session in new[] { "morning", "afternoon" }) {
+            var (from, to) = ScheduleRules.Hours(date, session);
+            var start = date.ToDateTime(from); var end = date.ToDateTime(to);
+            foreach (var pair in pairs) {
+                var actualStart = pair.In!.Value > start ? pair.In.Value : start;
+                var actualEnd = pair.Out!.Value < end ? pair.Out.Value : end;
+                if (actualEnd > actualStart) minutes += (decimal)(actualEnd - actualStart).TotalMinutes;
+            }
+        }
+        return Math.Round(minutes / 60m, 2, MidpointRounding.AwayFromZero);
+    }
+
+    public static (decimal Hours, decimal CalculatedHours, bool RepeatedPairs) ImportWorkHours(
+        IReadOnlyList<AttendanceTimePair> pairs, DateOnly date, string? shift, decimal? reportedHours)
+    {
+        var source = ImportHours(pairs, date); // Validate full source, allowing only exact repeated pairs.
+        var calculated = WorkHours(pairs.Distinct().ToArray(), date, shift);
+        // The machine's Giờ column already applies its configured breaks. Never subtract lunch twice.
+        // Implausible reported totals remain a discrepancy, not an automatically payable value.
+        var actual = reportedHours is >= 0 && reportedHours <= source.Hours + .05m ? reportedHours.Value : calculated;
+        return (actual, calculated, source.RepeatedPairs);
+    }
+
     public static string Version(object value) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(value)));
     public static void RequireVersion(byte[] actual, string? expected)
     {

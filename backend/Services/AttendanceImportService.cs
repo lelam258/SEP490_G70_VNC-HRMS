@@ -289,7 +289,11 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
             if (row.ShiftType is not ("main" or "noon" or "evening")) { Error("invalid_shift", "Loại ca không hợp lệ. Cần chọn ca chính, trực trưa hoặc trực tối."); continue; }
             var pairs = JsonSerializer.Deserialize<AttendanceTimePair[]>(row.TimePairsJson) ?? [];
             bool repeatedPairs;
-            try { (row.ActualHours, repeatedPairs) = AttendanceRules.ImportHours(pairs, date); }
+            decimal calculatedHours;
+            try {
+                var calculation = AttendanceRules.ImportWorkHours(pairs, date, row.ShiftType, row.CorrectedBy is null ? row.ReportedHours : null);
+                row.ActualHours = calculation.Hours; calculatedHours = calculation.CalculatedHours; repeatedPairs = calculation.RepeatedPairs;
+            }
             catch (AppException error) { Error("invalid_time", error.Message); continue; }
             if (pairs.Max(x => x.Out) > access.Now.ToOffset(TimeSpan.FromHours(7)).DateTime) { Error("future_time", "Giờ chấm công thực tế chưa diễn ra."); continue; }
             if (existing.Contains((person.StaffId, date, row.ShiftType))) { Error("existing_record", "Ngày và ca đã có bản ghi. Dùng luồng đối chiếu; không ghi đè dữ liệu hiện có.", "duplicate"); continue; }
@@ -311,7 +315,7 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
             if (dayPlans.Length == 0) warnings.Add("Chưa có lịch đã công bố để đối chiếu");
             var shiftConflict = workedShifts.Length == 0 || (dayPlans.Length > 0 && workedShifts.Any(shift => !relevantPlans.Any(x => x.Shift == shift)));
             if (shiftConflict) warnings.Add("Ca và giờ trong tệp chưa khớp ca làm việc đã công bố");
-            if (row.ReportedHours.HasValue && Math.Abs(row.ReportedHours.Value - row.ActualHours!.Value) > 0.05m) warnings.Add("Tổng giờ máy báo khác tổng các cặp Vào/Ra");
+            if (row.ReportedHours.HasValue && Math.Abs(row.ReportedHours.Value - calculatedHours) > 0.05m) warnings.Add("Giờ máy báo khác giờ đối chiếu theo ca làm việc (đã loại giờ nghỉ trưa và tách OT)");
             if (warnings.Count > 0) { row.ValidationStatus = "warning"; row.ErrorCode = repeatedPairs ? "repeated_time_pairs" : shiftConflict ? "shift_conflict" : "needs_reconciliation"; row.ValidationNote = string.Join(". ", warnings) + ". Chỉ được lưu vào hàng chờ đối chiếu, chưa được tính lương."; }
 
             void Error(string code, string message, string status = "error") { row.ErrorCode = code; row.ValidationNote = message; row.ValidationStatus = status; }
@@ -348,10 +352,10 @@ public sealed class AttendanceImportService(AppDbContext db, AttendanceAccess ac
             if (pairs.Length == 0) { empty++; continue; }
             if (pairs.Any(x => x.In is null || x.Out is null)) { missing++; continue; }
             try {
-                var result = AttendanceRules.ImportHours(pairs, date);
+                var result = AttendanceRules.ImportWorkHours(pairs, date, row.ShiftType, row.ReportedHours);
                 hours[row.Id] = result.Hours; complete++;
                 if (result.RepeatedPairs) repeated++;
-                if (row.ReportedHours.HasValue && Math.Abs(row.ReportedHours.Value - result.Hours) > .05m) discrepancy++;
+                if (row.ReportedHours.HasValue && Math.Abs(row.ReportedHours.Value - result.CalculatedHours) > .05m) discrepancy++;
             }
             catch (AppException) { invalid++; }
         }
