@@ -1,4 +1,5 @@
 import { axiosClient } from './axiosClient';
+import type { BulkAttendanceSelection, BulkAttendanceReview, BulkAttendanceResult } from '../types/attendance';
 import type {
   ImportAnalysis, ImportAnalysisQuery, ImportRowInput, ManualAttendanceInput,
   OnCallInput, ReconcileAttendanceInput, VerifyAttendanceInput, VerifyOnCallInput
@@ -13,6 +14,12 @@ function importBody(file: File, facilityId: string, month: string, deviceSource:
 }
 
 export const attendanceApi = {
+  async previewBulkVerify(selection: BulkAttendanceSelection) {
+    return (await axiosClient.post<BulkAttendanceReview>('/attendance/records/bulk-verify/preview', selection, { timeout: 120_000 })).data;
+  },
+  async bulkVerify(month: string, items: { id: string; version: string }[], reason: string) {
+    return (await axiosClient.post<BulkAttendanceResult>('/attendance/records/bulk-verify', { month, items, reason }, { timeout: 300_000 })).data;
+  },
   async upload(file: File, facilityId: string, month: string, deviceSource: string, mapping: Record<string, number>, dateOrder = 'auto') {
     return (await axiosClient.post<{ id: string; reused: boolean; message: string }>('/attendance/imports', importBody(file, facilityId, month, deviceSource, mapping, dateOrder),
       { headers: { 'Content-Type': undefined }, timeout: 120_000 })).data;

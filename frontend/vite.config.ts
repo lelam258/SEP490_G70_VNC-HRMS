@@ -148,8 +148,9 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       proxy: {
         '/api': {
-          target: env.API_PROXY_TARGET || 'http://localhost:5100',
+          target: env.API_PROXY_TARGET || 'http://127.0.0.1:5100',
           changeOrigin: true,
+          proxyTimeout: 120_000,
         },
       },
     },

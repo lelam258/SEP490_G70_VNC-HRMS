@@ -4,7 +4,7 @@ type EmployeeBasics = { code: string; name: string; email?: string | null };
 
 export function validateDependentCount(value: string): string {
   return /^\d+$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) <= 2147483647
-    ? '' : 'Số người phụ thuộc phải là số nguyên từ 0 đến 2147483647.';
+    ? '' : 'Xin hãy nhập số người hợp lệ !';
 }
 
 export function validateEmployeeBasics(input: EmployeeBasics): string {
@@ -27,6 +27,6 @@ export function validateEmployeeProfile(input: EmployeeBasics & {
     return 'Năm sinh phải từ 1940 và nhân viên phải đủ 18 tuổi.';
   if (input.dateOfBirth && input.dateJoined && input.dateJoined <= input.dateOfBirth) return 'Ngày vào làm phải sau ngày sinh.';
   if (input.dateJoined && input.dateLeft && input.dateLeft < input.dateJoined) return 'Ngày nghỉ việc phải sau hoặc bằng ngày vào làm.';
-  if (!Number.isInteger(input.dependentCount) || input.dependentCount < 0) return 'Số người phụ thuộc phải là số nguyên không âm.';
+  if (!Number.isInteger(input.dependentCount) || input.dependentCount < 0) return 'Xin hãy nhập số người hợp lệ !';
   return '';
 }

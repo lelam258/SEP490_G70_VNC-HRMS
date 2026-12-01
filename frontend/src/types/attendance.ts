@@ -12,6 +12,14 @@ export type AttendanceList = PageResult<AttendanceItem> & {
   month: string;
   counts: { confirmed: number; unconfirmed: number; flagged: number; reconciled?: number; pending?: number };
 };
+export type BulkAttendanceSelection = { month: string; ids?: string[]; filter?: {
+  month: string; facilityId?: string | null; departmentId?: string | null; staffId?: string | null;
+  search?: string; status?: string; source?: string;
+} };
+export type BulkAttendanceFailure = { id: string; staffCode: string | null; workDate: string | null; message: string };
+export type BulkAttendanceReview = { items: { id: string; version: string; staffCode: string; staffName: string;
+  workDate: string; shiftType: string; actualHours: number | null }[]; skipped: BulkAttendanceFailure[] };
+export type BulkAttendanceResult = { confirmed: number; failed: BulkAttendanceFailure[] };
 export type AttendanceDiscrepancy = { code: string; label: string; severity: 'error' | 'warning' | 'info' };
 export type AttendanceDetail = {
   item: AttendanceItem; pairs: TimePair[]; machinePairs?: TimePair[]; deviceEnrollId: string | null;

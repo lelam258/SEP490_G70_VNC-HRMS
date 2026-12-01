@@ -45,12 +45,13 @@ internal static class AttendanceWorkbookReview
                 if (raw.Length > 1 && weekdays.TryGetValue(AttendanceRules.Fold(raw[1]), out var weekday)) {
                     weekdayChecks++; if (row.WorkDate.Value.DayOfWeek != weekday) weekdayMismatches++;
                 }
-                try { var calculation = AttendanceRules.ImportHours(pairs, row.WorkDate.Value); if (calculation.RepeatedPairs) repeatedPairWarnings++;
-                    if (row.ReportedHours.HasValue && Math.Abs(calculation.Hours - row.ReportedHours.Value) > .05m) {
+                try { var calculation = AttendanceRules.ImportWorkHours(pairs, row.WorkDate.Value, row.ShiftType, row.ReportedHours); if (calculation.RepeatedPairs) repeatedPairWarnings++;
+                    if (row.ReportedHours.HasValue && Math.Abs(calculation.CalculatedHours - row.ReportedHours.Value) > .05m) {
                         hoursMismatch++;
                         if (examples.Count < 4) examples.Add(new { row.RowNumber, row.WorkDate,
                             punches = pairs.Select(p => new { @in = p.In?.ToString("HH:mm"), @out = p.Out?.ToString("HH:mm") }),
-                            elapsedHours = calculation.Hours, machineHours = row.ReportedHours });
+                            elapsedHours = AttendanceRules.ImportHours(pairs, row.WorkDate.Value).Hours,
+                            scheduledWorkHours = calculation.CalculatedHours, displayedWorkHours = calculation.Hours, machineHours = row.ReportedHours });
                     }
                     if (pairs.Any(p => p.In < row.WorkDate.Value.ToDateTime(new(12, 0)) && p.Out > row.WorkDate.Value.ToDateTime(new(13, 30)))) spansLunchRows++;
                     var ot = OvertimeRules.Hours(row.WorkDate.Value, pairs, false);

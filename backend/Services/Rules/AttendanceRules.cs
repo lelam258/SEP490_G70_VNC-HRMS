@@ -102,7 +102,8 @@ public static class AttendanceRules
         // The machine's Giờ column already applies its configured breaks. Never subtract lunch twice.
         // Implausible reported totals remain a discrepancy, not an automatically payable value.
         var actual = reportedHours is >= 0 && reportedHours <= source.Hours + .05m ? reportedHours.Value : calculated;
-        return (actual, calculated, source.RepeatedPairs);
+        // Match SQL decimal(10,2) so review versions do not change solely due to decimal scale.
+        return (Math.Round(actual + 0.00m, 2, MidpointRounding.AwayFromZero), calculated, source.RepeatedPairs);
     }
 
     public static string Version(object value) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(value)));
